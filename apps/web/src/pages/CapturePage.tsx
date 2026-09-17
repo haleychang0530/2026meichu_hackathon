@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { FrontendAdapter } from '../adapters/adapter';
 import { AppShell } from '../components/AppShell';
 import { StatusBanner } from '../components/StatusBanner';
-import { ErrorState, LoadingState } from '../components/States';
+import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import type { CaptureViewModel } from '../types/viewModels';
 import { navigateTo } from '../app/routing';
 
@@ -47,14 +47,18 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
               <p className="eyebrow">{view.reviewStatus === 'pending' ? '待確認' : view.reviewStatus}</p>
               <h2 id="lesson-heading">{view.title}</h2>
               <p>{view.description}</p>
-              <div className="image-grid">
-                {view.images.map((image) => (
-                  <figure className="lesson-card" key={image.src}>
-                    <img src={image.src} alt={image.alt} />
-                    <figcaption>{image.label}</figcaption>
-                  </figure>
-                ))}
-              </div>
+              {view.images.length ? (
+                <div className="image-grid">
+                  {view.images.map((image) => (
+                    <figure className="lesson-card" key={image.src}>
+                      <img src={image.src} alt={image.alt} />
+                      <figcaption>{image.label}</figcaption>
+                    </figure>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState message="目前沒有可預覽的圖片，仍可使用這份教材建立 session。" />
+              )}
               <div className="button-row">
                 <button className="button" type="button" disabled={busy} onClick={confirmLesson}>
                   {busy ? '建立 session……' : '確認教材並開始'}

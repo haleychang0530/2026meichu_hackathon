@@ -1,8 +1,9 @@
 # Agent A / Agent B v0.1 integration format
 
-Status: `conditional walkthrough` — the v0.1 contract tests pass, but the
-observer and student-action surfaces below still need an Agent A contract
-decision before v0.1 can be frozen.
+Status: `walkthrough accepted on integration branch` — the v0.1 contract,
+generated types, frontend mappings, and boundary tests pass on
+`codex/agentB_stage2`. Formal freeze remains pending user review and merge to
+`main`; runtime API handlers are a later-stage dependency.
 
 This document is the shared format handoff for both agents. Agent A remains the
 owner of canonical schemas and OpenAPI. Agent B consumes generated types and
@@ -91,12 +92,12 @@ frontend must use different response selectors and cache keys for student and
 observer data. Mock fixtures must follow the same visibility boundary as real
 responses.
 
-## 4. Observer summary — required change before freeze
+## 4. Observer summary — accepted v0.1 shape
 
-The current `GET /api/sessions/{session_id}/summary` response only contains
-`session_id`, `completed_turns`, and `concepts_to_review`. That is not enough for
-the required observer experience or for the current `ObserverPage`, which needs
-the latest transcript, evaluation, feedback, progress, latency, and fallbacks.
+The v0.1 update to `GET /api/sessions/{session_id}/summary` now provides the
+observer fields required by `ObserverPage`: latest turn transcript/result,
+feedback, progress, latency, fallbacks, hint history, review concepts, and
+familiarity. The endpoint remains teacher/parent-only.
 
 Recommended additive v0.1 shape for the existing teacher/parent-only summary
 endpoint:
@@ -136,9 +137,8 @@ endpoint:
 }
 ```
 
-Agent A may choose different names, but the accepted contract must provide the
-same information or explicitly revise the Stage2 UI requirement. The change
-must be made in one synchronized update to:
+The accepted Agent A contract uses this information set in one synchronized
+update to:
 
 1. a versioned JSON Schema (prefer a reusable `observer-session-summary` schema);
 2. `core-api.openapi.json` response `200` for `/summary`;
@@ -149,12 +149,12 @@ The existing `Lesson` endpoint can remain the source for teacher-only lesson
 details. The summary need only carry `lesson_id`; the observer maps the lesson
 topic/title separately and must never use the full Lesson in student mode.
 
-## 5. Student action format — required change before freeze
+## 5. Student action format — accepted v0.1 shape
 
-`POST /api/sessions/{session_id}/turns` currently requires a JSON body with
-`schema_version` and `transcript`, while the Stage2 adapter uses UI actions
-(`listen`, `answer`, `hint`, `pause`) and currently sends a query parameter.
-Query-string action dispatch is not part of the canonical contract.
+`POST /api/sessions/{session_id}/turns` remains the transcript-bearing answer
+route. Control intents are sent to the JSON `POST
+/api/sessions/{session_id}/actions` route; query-string action dispatch is not
+part of the canonical contract.
 
 Recommended normalization:
 
@@ -197,21 +197,29 @@ answer submission from a control action and must include fixtures for both.
 ## 6. Walkthrough and sign-off record
 
 Review performed against Agent A branch
-`codex/agentA-stage01-contract-baseline`:
+`codex/agentA-stage01-contract-baseline`, then integrated into Agent B branch
+`codex/agentB_stage2` with merge commit `27f20f1`:
 
-- Python contract tests: pass — 5 schemas, 3 OpenAPI documents, 10 schema
-  fixtures, 6 student-safe fixtures.
+- Python contract tests: pass with the pinned `jsonschema 4.17.3` — 7
+  schemas, 3 OpenAPI documents/45 responses, 18 schema fixtures, 10
+  student-safe fixtures.
 - JSON/OpenAPI parsing: pass.
-- Explicit `openapi-typescript` generation from the v0.1 Core API: pass.
+- Explicit `openapi-typescript` generation from the v0.1 Core API: pass; output
+  is `apps/web/src/generated/api.ts`.
 - Canonical source path: accepted after Agent B generator fix in this branch.
-- Observer summary: not accepted; required fields are missing.
-- Student action format: not accepted; `/turns` and UI actions disagree.
-- Contract status: `conditional`, not frozen.
+- Observer summary: accepted; Agent B observer mapping and teacher-only
+  projection test pass.
+- Student action format: accepted; `/actions` is used for controls and
+  `/turns` is used for transcript submissions, with no query-string action.
+- Frontend verification: `npm run test` 4 files/8 tests, `npm run typecheck`,
+  and `npm run build` pass.
+- Contract status: `walkthrough_accepted_pending_main_merge`.
 
-Sign-off condition: Agent B can sign v0.1 after Agent A accepts Sections 4–5,
-updates the canonical contract/fixtures/tests, and both agents rerun the
-contract and frontend suites. Until then this document is a review record, not
-an approval to label v0.1 frozen.
+Sign-off: Agent B accepts Sections 4–5 for the v0.1 frontend integration on
+this branch. This is not a claim that the later Core API runtime is deployed;
+the runtime HTTP smoke remains a follow-up once handlers exist. The repository
+may label the contract walkthrough accepted, while formal main-branch freeze
+waits for user review and merge.
 
 ## 7. Ownership and change rule
 

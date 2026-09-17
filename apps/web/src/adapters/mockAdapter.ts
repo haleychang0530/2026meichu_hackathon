@@ -1,4 +1,6 @@
 import type { FrontendAdapter } from './adapter';
+import { AdapterError } from './errors';
+import type { components } from '../generated/api';
 import type {
   CaptureViewModel,
   HealthStatus,
@@ -89,6 +91,24 @@ export class MockAdapter implements FrontendAdapter {
     } else {
       this.lastFeedback = '流程已暫停，可以稍後繼續。';
     }
+    return this.getStudentSession(sessionId);
+  }
+
+  async submitStudentAnswer(
+    sessionId: string,
+    submission: components['schemas']['TurnSubmission'],
+  ): Promise<StudentSessionViewModel> {
+    if (!submission.transcript.trim()) {
+      throw new AdapterError({
+        code: 'VALIDATION_ERROR',
+        message: '回答內容不能是空白。',
+        retryable: false,
+        fallback: 'keyboard_input',
+        request_id: null,
+      });
+    }
+    this.answered = true;
+    this.lastFeedback = '已收到你的 Mock 回答，接下來可以到教師／家長模式查看過程。';
     return this.getStudentSession(sessionId);
   }
 

@@ -26,7 +26,7 @@ Student fixtures live only under `fixtures/contracts/v0.1/student`. Tests reject
 
 ## Consumer workflow
 
-Agent B may generate TypeScript types from the canonical JSON/OpenAPI documents into `apps/web/src/generated`. Generated files must include the source contract version and be regenerated whenever Agent A changes a contract file. Until the walkthrough is signed, consumers should pin to this directory but treat it as `draft_pending_agent_b_walkthrough`.
+Agent B may generate TypeScript types from the canonical JSON/OpenAPI documents into `apps/web/src/generated`. Generated files must include the source contract version and be regenerated whenever Agent A changes a contract file. The Agent B walkthrough is accepted on `codex/agentB_stage2`; until that branch is reviewed and merged, consumers should treat the current state as `walkthrough_accepted_pending_main_merge`. This status does not imply that later runtime API handlers are available.
 
 ## Change rule
 
