@@ -4,7 +4,7 @@
 
 ## 開始工作前
 
-1. 依序完整閱讀 `overview.md`、角色文件、目前 Stage、前一 Stage 交接與相關提案段落。
+1. 依序完整閱讀 `overview.md`、角色文件、目前 Stage、前一 Stage 交接與相關提案段落；若涉及契約整合，再閱讀 `docs/contracts/v0.1/agent-a-b-integration-format.md`。
 2. 先同步 `origin/main`，確認上一個 PR 已 merge，再從最新 `main` 開新分支。
 3. 檢查 `git status`；既有未追蹤的研究資料、PDF、`tmp/` 或其他使用者檔案不得擅自加入 commit。
 4. 確認 Agent A 的 canonical schema／OpenAPI 版本與檔案所有權；沒有契約時不得自行創造同名平行型別。

@@ -4,7 +4,7 @@
 
 ```text
 Stage: Agent B Stage 02
-Status: partial | blocked on Agent A Stage 01 contract
+Status: partial | conditional walkthrough; observer/action contract changes pending
 Branch: codex/agentB_stage2
 ```
 
@@ -20,12 +20,14 @@ Branch: codex/agentB_stage2
 - Student view 不含 answer、confidence、teacher 欄位；observer view 使用另一個 selector。
 - `scripts/generate_contract_types.mjs` 與 `npm run contracts:generate` 已準備好，會以 `openapi-typescript` 產生型別。
 - `agent.md` 已建立，規定 branch、PR、review／merge、契約與阻塞回報流程。
+- `docs/contracts/v0.1/agent-a-b-integration-format.md` 已建立，統一 generated types、error envelope、observer summary、student action 與 sign-off 格式。
 
 ## Changed files
 
 - `agent.md`、`.gitignore`。
 - `apps/web/`：Vite entry、React pages/components、view models、Mock／Real adapters、error envelope、routing、styles、tests 與 npm lockfile。
-- `scripts/generate_contract_types.mjs`：canonical contract 存在時的 generated-type 入口。
+- `scripts/generate_contract_types.mjs`：canonical Core API contract 存在時的 generated-type 入口。
+- `docs/contracts/v0.1/agent-a-b-integration-format.md`：Agent A／B 共享格式與 walkthrough 紀錄。
 - `docs/frontend/agent-b-stage2-report.md`：本 handoff。
 
 ## How to run
@@ -43,12 +45,12 @@ npm run dev
 
 ## Blocker
 
-`origin/main` 目前只有 Agent B Stage 01 的 merge；尚未有 Agent A Stage 01 的 `packages/contracts/openapi.yaml`／JSON Schema、generated fixtures 或 OpenAPI version。Stage 02 要求「從 Agent A contract 自動產生 types/client」，而共同規範禁止 Agent B 手寫同名平行型別。因此：
+Agent A Stage 01 contract 已在遠端分支 `codex/agentA-stage01-contract-baseline`，但尚未 merge 到 `origin/main`。其 canonical paths 是 `packages/contracts/openapi/v0.1/*.openapi.json` 與 `packages/contracts/schemas/v0.1/*.schema.json`；並非先前 generator 預期的 `packages/contracts/openapi.yaml`。Stage 02 的 generated types 路徑已在本 branch 修正，但 v0.1 walkthrough 仍發現 observer／student action contract 不足。因此：
 
 1. Mock UI、路由、狀態、無障礙與 adapter 邊界可以先驗證。
-2. `npm run contracts:generate` 目前會以 exit code 2 明確停止，避免生成假型別。
-3. Real adapter 只完成 transport／error boundary；收到成功 payload 時會拒絕未經 schema 的 cast。
-4. Agent A 需要提供 versioned OpenAPI／JSON Schema、student／observer fixtures 與錯誤 envelope 後，才能完成 generated `api.ts`、real mapping 與正式契約測試。
+2. `npm run contracts:generate` 預設使用 `packages/contracts/openapi/v0.1/core-api.openapi.json`，缺少該檔案時仍會明確停止，避免生成假型別。
+3. Agent A 的 OpenAPI／JSON Schema 與 fixtures 測試已通過；明確指定 Core API 路徑時可生成 TypeScript。
+4. Real adapter 仍需等 Agent A 接受共享格式，補上 observer summary、student action contract 後，才能完成正式 mapping 與契約測試。
 
 ## Agent A can rely on
 
@@ -63,17 +65,17 @@ npm run dev
 - `npm run typecheck`：通過。
 - `npm run build`：通過，Vite production bundle 成功產出。
 - Browser smoke：通過 `/setup` → `/capture` → `/session/demo-session/student` → `/session/demo-session/observer`；也驗證學生送出後進度更新、observer 摘要，以及 `?health=degraded` 狀態畫面。
-- `npm run contracts:generate`：預期阻塞，因 `packages/contracts/openapi.yaml` 尚不存在。
+- `npm run contracts:generate`：在 Agent A branch 的 canonical path 尚未 merge 到本 branch 前，預期阻塞；以明確 Core API 路徑測試時 generation 通過。
 
-Stage 02 完成前仍需通過生成型別的契約測試。若 contract 尚未 merge，Stage 狀態維持 `partial`，不能宣稱 `done`。
+Stage 02 完成前仍需通過生成型別的契約測試、observer summary 與 student action walkthrough。若 Agent A contract 尚未 merge 或 v0.1 尚未完成雙方 sign-off，Stage 狀態維持 `partial`，不能宣稱 `done`。
 
 ## Runtime / accessibility / measurements
 
 - Runtime：Windows PowerShell、Node.js `v24.18.0`、npm `11.16.0`；前端依賴版本鎖在 `apps/web/package-lock.json`。
 - Accessibility：瀏覽器 AX smoke 已確認主要 landmark、heading 層級、keyboard-visible buttons、`role=status`、`role=alert`、`aria-live` 與 progressbar；尚未接入 automated axe audit。
 - Latency：目前只驗證 Mock UI state transition，沒有宣稱 backend／ASR latency；observer 顯示的 latency 是合成資料。RAM：未量測，因 canonical backend／硬體尚未接入。
-- Known limits：Real adapter route 與 mapping 仍需 Agent A contract；Mock state 只存在 adapter instance 內，重新整理不保留 session；沒有真實 microphone、ASR、RAG 或 MI300 呼叫。
+- Known limits：Real adapter mapping 仍需 observer/action contract；Mock state 只存在 adapter instance 內，重新整理不保留 session；沒有真實 microphone、ASR、RAG 或 MI300 呼叫。
 
 ## Next action
 
-Agent A merge canonical contract 後，在 `apps/web` 執行 `npm run contracts:generate`，再補 real adapter mapping、OpenAPI error fixtures 與契約測試；完成後重新跑整套 build／Mock flow，再通知使用者準備 PR。
+Agent A 先依 `docs/contracts/v0.1/agent-a-b-integration-format.md` 決定並更新 observer summary、student action 的 schema／OpenAPI／fixtures／tests；merge 到 main 後，在 `apps/web` 執行 `npm run contracts:generate`，再補 real adapter mapping 與契約測試。完成後重新跑整套 build／Mock flow，再通知使用者準備 PR。

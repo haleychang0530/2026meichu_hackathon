@@ -1,11 +1,14 @@
 # Generated contract types
 
-This directory is intentionally waiting for Agent A's versioned canonical contract. Run:
+Run this from `apps/web` after Agent A's versioned canonical contract is available:
 
 ```powershell
 npm run contracts:generate
 ```
 
-from `apps/web` after `packages/contracts/openapi.yaml` (or an explicit OpenAPI/JSON Schema path) exists. The generator writes `api.ts` here using `openapi-typescript`.
+By default the command reads `packages/contracts/openapi/v0.1/core-api.openapi.json`
+and writes `api.ts` here using `openapi-typescript`. The generated file includes
+the source path and contract version header. Pass an explicit contract path and
+output path when generating another canonical service document.
 
 Do not hand-write `Lesson`, `Utterance`, `TurnResult`, `ServiceHealth`, or API response types in this directory. Until the contract lands, the Mock adapter uses presentation-only view models and the Real adapter fails with `CONTRACT_NOT_GENERATED` instead of casting unknown payloads.
