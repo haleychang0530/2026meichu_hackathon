@@ -1,0 +1,36 @@
+import { useEffect, useMemo, useState } from 'react';
+import { createAdapter } from './adapters';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { navigateTo, parseRoute, type AppRoute } from './app/routing';
+import { CapturePage } from './pages/CapturePage';
+import { NotFoundPage } from './pages/NotFoundPage';
+import { ObserverPage } from './pages/ObserverPage';
+import { SetupPage } from './pages/SetupPage';
+import { StudentPage } from './pages/StudentPage';
+
+export function App() {
+  const adapter = useMemo(createAdapter, []);
+  const [route, setRoute] = useState<AppRoute>(() => parseRoute(window.location.pathname));
+
+  useEffect(() => {
+    const onPopState = () => setRoute(parseRoute(window.location.pathname));
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
+    const main = document.querySelector<HTMLElement>('#main-content');
+    main?.focus();
+  }, [route]);
+
+  let content;
+  if (route.kind === 'setup') content = <SetupPage adapter={adapter} />;
+  else if (route.kind === 'capture') content = <CapturePage adapter={adapter} />;
+  else if (route.kind === 'student') content = <StudentPage adapter={adapter} sessionId={route.sessionId} />;
+  else if (route.kind === 'observer') content = <ObserverPage adapter={adapter} sessionId={route.sessionId} />;
+  else content = <NotFoundPage path={route.path} />;
+
+  return <ErrorBoundary>{content}</ErrorBoundary>;
+}
+
+export { navigateTo };
