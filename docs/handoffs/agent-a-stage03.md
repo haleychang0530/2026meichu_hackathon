@@ -121,6 +121,9 @@ free both before and after the 20 calls (22 samples); no sustained VRAM growth
 was observed. The MI300 runtime reported vLLM 0.18.0, ROCm 7.0.0, and
 AMD-SMI 26.0.0+37d158ab. The live gateway PID after the final restart was 141351 and
 health returned `status=ready`, `model_revision=d9748a51ae66354c4dad665aab2c71f26cf2c8cd`.
+The 20-call run used that PID; after the structured-log formatter fix the
+gateway was restarted as PID 151936, and a valid image smoke request plus
+health check returned 200 with no new formatter errors.
 
 Additional live checks:
 

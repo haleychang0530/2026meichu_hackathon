@@ -160,6 +160,10 @@ run (22 samples), so no sustained VRAM growth was observed. The run was on
 vLLM 0.18.0 / ROCm 7.0.0 (AMD-SMI 26.0.0+37d158ab), service PID 141351, revision
 `d9748a51ae66354c4dad665aab2c71f26cf2c8cd`.
 
+The 20-call run used gateway PID 141351. After the structured-log formatter
+fix, the gateway was restarted as PID 151936; health and a valid image smoke
+request returned 200, and the fresh log contained no formatter errors.
+
 The same run verified malformed base64 (HTTP 400 `VALIDATION_ERROR`), an
 isolated delayed upstream (HTTP 504 `VLM_TIMEOUT`), restart and health recovery,
 and an unavailable upstream (HTTP 503 `VLM_OFFLINE`, fallback
