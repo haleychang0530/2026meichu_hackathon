@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="960" viewBox="0 0 1280 960" role="img" aria-labelledby="title desc">
+  <title id="title">水果攤</title>
+  <desc id="desc">簡化的市場水果攤，有蘋果、香蕉與橘子，沒有人物。</desc>
+  <rect width="1280" height="960" fill="#f4fbf4"/>
+  <rect x="120" y="120" width="1040" height="110" rx="18" fill="#2d6a4f"/>
+  <text x="640" y="195" text-anchor="middle" font-size="62" font-family="sans-serif" fill="#ffffff">水果攤</text>
+  <polygon points="170,770 1110,770 1030,300 250,300" fill="#e9c46a"/>
+  <path d="M180 300 L1100 300 L1020 210 L260 210 Z" fill="#e76f51"/>
+  <path d="M380 210 L470 300 L560 210 L650 300 L740 210 L830 300 L920 210 L1010 300" fill="none" stroke="#ffffff" stroke-width="24"/>
+  <circle cx="430" cy="555" r="95" fill="#d62828"/>
+  <path d="M430 465 Q450 420 490 410" fill="none" stroke="#386641" stroke-width="20" stroke-linecap="round"/>
+  <path d="M650 470 Q760 520 650 670 Q540 520 650 470" fill="#f4a261"/>
+  <path d="M650 470 Q760 520 650 670 Q540 520 650 470" fill="none" stroke="#b5651d" stroke-width="8"/>
+  <circle cx="865" cy="570" r="100" fill="#f77f00"/>
+  <circle cx="835" cy="535" r="12" fill="#ffd166"/><circle cx="900" cy="600" r="12" fill="#ffd166"/>
+  <text x="430" y="845" text-anchor="middle" font-size="46" font-family="sans-serif" fill="#263238">蘋果</text>
+  <text x="650" y="845" text-anchor="middle" font-size="46" font-family="sans-serif" fill="#263238">香蕉</text>
+  <text x="865" y="845" text-anchor="middle" font-size="46" font-family="sans-serif" fill="#263238">橘子</text>
+</svg>

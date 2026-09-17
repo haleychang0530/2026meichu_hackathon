@@ -1,0 +1,167 @@
+{
+  "schema_version": "device-health.v1",
+  "checked_at": "2026-09-17T02:39:42.0539357Z",
+  "status": "ready",
+  "os": {
+    "caption": "Microsoft Windows 11 家用版",
+    "version": "10.0.26200",
+    "build": "26200",
+    "architecture": "64 位元",
+    "locale": "0404"
+  },
+  "firmware": {
+    "manufacturer": "American Megatrends International, LLC.",
+    "version": "M5606WA.314",
+    "release_date": "2025-04-17"
+  },
+  "platform": {
+    "manufacturer": "ASUSTeK COMPUTER INC.",
+    "model": "ASUS Vivobook S 16 M5606WA_M5606WA",
+    "family": "ASUS Vivobook S 16"
+  },
+  "cpu": {
+    "name": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M",
+    "manufacturer": "AuthenticAMD",
+    "cores": 12,
+    "logical_processors": 24,
+    "max_clock_mhz": 2000,
+    "current_clock_mhz": 2000,
+    "load_percent": 27,
+    "l3_cache_kib": 24576
+  },
+  "memory": {
+    "physical_total_gib": 31.12,
+    "currently_free_gib": 13.09,
+    "safe_reserve_gib": 7.78,
+    "runtime_capacity_after_reserve_gib": 23.34,
+    "reserve_rule": "max(physical_ram * 25%, 6 GiB)"
+  },
+  "storage": {
+    "drive": "C:",
+    "filesystem": "NTFS",
+    "total_gib": 952.16,
+    "free_gib": 582.66,
+    "operational_floor_gib": 100
+  },
+  "gpu": {
+    "name": "AMD Radeon(TM) 890M Graphics",
+    "driver_version": "32.0.21025.10016",
+    "driver_date": "2025-08-25",
+    "status": "OK",
+    "resolution": "3200x2000",
+    "refresh_hz": 60,
+    "policy": "reserve for display, browser and Camera; not required for inference"
+  },
+  "npu": {
+    "name": "NPU Compute Accelerator Device",
+    "pnp_status": "OK",
+    "driver_version": "32.0.203.297",
+    "driver_date": "2025-08-15",
+    "runtime_status": "not_benchmarked",
+    "evidence": "Windows PnP ComputeAccelerator device and signed AMD driver; Stage 06 must run an actual NPU probe."
+  },
+  "camera": [
+    {
+      "name": "USB2.0 FHD UVC WebCam",
+      "status": "OK",
+      "class": "Camera"
+    },
+    {
+      "name": "USB2.0 IR UVC WebCam",
+      "status": "OK",
+      "class": "Camera"
+    }
+  ],
+  "audio": [
+    {
+      "name": "Microsoft 串流服務 Proxy",
+      "status": "OK",
+      "class": "MEDIA"
+    },
+    {
+      "name": "Realtek(R) Audio",
+      "status": "OK",
+      "class": "MEDIA"
+    },
+    {
+      "name": "AMD High Definition Audio Device",
+      "status": "OK",
+      "class": "MEDIA"
+    }
+  ],
+  "power": {
+    "active_plan": "平衡",
+    "battery_percent": 85,
+    "battery_status": 1
+  },
+  "runtimes": {
+    "node": {
+      "found": true,
+      "version": "v24.18.0",
+      "path": "C:\\Program Files\\nodejs\\node.exe"
+    },
+    "npm": {
+      "found": true,
+      "version": "11.16.0",
+      "path": "C:\\Program Files\\nodejs\\npm.ps1"
+    },
+    "python": {
+      "found": true,
+      "version": "Python 3.12.10",
+      "path": "<user-profile>\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe"
+    },
+    "powershell": {
+      "found": true,
+      "version": "PowerShell 7.6.5",
+      "path": "<user-profile>\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.exe"
+    },
+    "edge": {
+      "found": true,
+      "name": "Microsoft Edge",
+      "version": "153.0.4234.32",
+      "path": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+    },
+    "chrome": {
+      "found": true,
+      "name": "Google Chrome",
+      "version": "152.0.7977.84",
+      "path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    }
+  },
+  "resource_budget": {
+    "system_browser_camera_reserve_gib": 7.78,
+    "core_backend_rag_planning_cap_gib": 4.0,
+    "asr_cpu_planning_cap_gib": 4.0,
+    "tts_cpu_planning_cap_gib": 2.0,
+    "frontend_speech_overhead_planning_cap_gib": 1.5,
+    "unallocated_capacity_after_reserve_gib": 11.84,
+    "cpu_policy": "single Core worker; ASR CPU and TTS serialized; keep iGPU for display/browser",
+    "storage_policy": "pause new model/RAG downloads below 100 GiB free on C:"
+  },
+  "checks": {
+    "memory_reserve": {
+      "status": "pass",
+      "detail": "free=13.09 GiB; reserve=7.78 GiB"
+    },
+    "storage_floor": {
+      "status": "pass",
+      "detail": "free=582.66 GiB; floor=100 GiB"
+    },
+    "npu_pnp": {
+      "status": "pass",
+      "detail": "NPU Compute Accelerator Device: OK"
+    },
+    "camera_pnp": {
+      "status": "pass",
+      "detail": "2 camera device(s) detected"
+    },
+    "audio_pnp": {
+      "status": "pass",
+      "detail": "3 audio device(s) detected"
+    },
+    "browser_media": {
+      "status": "pass",
+      "detail": "camera=pass; microphone=pass; playback=pass; secure_context=True"
+    }
+  }
+}

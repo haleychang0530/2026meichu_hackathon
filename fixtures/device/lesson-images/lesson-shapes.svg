@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="960" viewBox="0 0 1280 960" role="img" aria-labelledby="title desc">
+  <title id="title">形狀與顏色</title>
+  <desc id="desc">白色背景上的紅色圓形、藍色三角形與黃色方形。</desc>
+  <rect width="1280" height="960" fill="#fffdf5"/>
+  <rect x="80" y="70" width="1120" height="130" rx="28" fill="#16324f"/>
+  <text x="640" y="155" text-anchor="middle" font-size="64" font-family="sans-serif" fill="#ffffff">形狀與顏色</text>
+  <circle cx="310" cy="520" r="170" fill="#e63946"/>
+  <polygon points="640,330 480,690 800,690" fill="#2f80ed"/>
+  <rect x="890" y="350" width="300" height="300" rx="20" fill="#f2c94c"/>
+  <text x="310" y="820" text-anchor="middle" font-size="48" font-family="sans-serif" fill="#263238">圓形</text>
+  <text x="640" y="820" text-anchor="middle" font-size="48" font-family="sans-serif" fill="#263238">三角形</text>
+  <text x="1040" y="820" text-anchor="middle" font-size="48" font-family="sans-serif" fill="#263238">方形</text>
+</svg>

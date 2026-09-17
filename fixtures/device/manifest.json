@@ -1,0 +1,44 @@
+{
+  "schema_version": "device-fixtures.v1",
+  "generated_at": "2026-09-17T02:31:51.8125450Z",
+  "privacy": "Synthetic audio and geometric educational illustrations only; no names, faces or identifiable data.",
+  "audio_note": "Waveforms are transport/playback fixtures. Do not use them as ASR semantic accuracy goldens.",
+  "files": [
+    {
+      "path": "fixtures/device/audio/synthetic-fallback.wav",
+      "kind": "audio",
+      "bytes": 28844,
+      "sha256": "13361abf43556b9cf2000f5a24d227a803fd8b8ec4851326336346072c4d24e1"
+    },
+    {
+      "path": "fixtures/device/audio/synthetic-prompt.wav",
+      "kind": "audio",
+      "bytes": 38444,
+      "sha256": "18a007bd477b031d79b8e40d4580e63c8ecc117b403c3006ae5daa679fbb0710"
+    },
+    {
+      "path": "fixtures/device/audio/synthetic-response.wav",
+      "kind": "audio",
+      "bytes": 57644,
+      "sha256": "055ecb6b5ca0f4bbcf47e13d653d3953c61f1fa3ccc12d0c431db5cf0ed87741"
+    },
+    {
+      "path": "fixtures/device/lesson-images/lesson-market.svg",
+      "kind": "image",
+      "bytes": 1623,
+      "sha256": "cc84b46d4c264f35abd912a19b8ab2fc8efcad12e91c2e47ccc9708848f922ec"
+    },
+    {
+      "path": "fixtures/device/lesson-images/lesson-shapes.svg",
+      "kind": "image",
+      "bytes": 1054,
+      "sha256": "d3989111933869be1893b18d5af07fb98089a05e48b81755f4a9e31972520303"
+    },
+    {
+      "path": "fixtures/device/lesson-images/lesson-weather.svg",
+      "kind": "image",
+      "bytes": 1069,
+      "sha256": "ad3744f159bdbdac87b32e44812d311540989bcd37d1114d2bc23cc6468d5e16"
+    }
+  ]
+}
