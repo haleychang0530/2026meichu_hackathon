@@ -1,0 +1,6 @@
+{
+  "schema_version": "0.1.0",
+  "transcript": "市場",
+  "input_mode": "voice",
+  "asr_device": "cpu"
+}

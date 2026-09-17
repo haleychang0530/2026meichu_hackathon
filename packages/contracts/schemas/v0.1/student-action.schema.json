@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hear-our-language.local/contracts/v0.1/student-action.schema.json",
+  "title": "StudentActionResult",
+  "description": "Student-safe response after a session control action. Answer submission uses $defs/answer_submission and the turns endpoint.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "lesson_id",
+    "state",
+    "progress",
+    "current_prompt",
+    "action",
+    "feedback",
+    "next_prompt",
+    "can_answer"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "session_id": { "type": "string", "pattern": "^session_[A-Za-z0-9_-]+$" },
+    "lesson_id": { "type": "string", "pattern": "^lesson_[A-Za-z0-9_-]+$" },
+    "state": { "$ref": "#/$defs/session_state" },
+    "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+    "current_prompt": { "type": ["string", "null"] },
+    "action": { "$ref": "#/$defs/action" },
+    "feedback": { "type": ["string", "null"] },
+    "next_prompt": { "type": ["string", "null"] },
+    "can_answer": { "type": "boolean" }
+  },
+  "$defs": {
+    "action": {
+      "type": "string",
+      "enum": ["replay_prompt", "start_answer", "pause", "resume", "request_hint", "next"]
+    },
+    "input_mode": {
+      "type": "string",
+      "enum": ["voice", "keyboard", "pointer"]
+    },
+    "session_state": {
+      "type": "string",
+      "enum": ["IDLE", "SPEAKING", "LISTENING", "TRANSCRIBING", "EVALUATING", "RECOVERABLE_ERROR", "COMPLETE"]
+    },
+    "control_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "action"],
+      "properties": {
+        "schema_version": { "const": "0.1.0" },
+        "action": { "$ref": "#/$defs/action" },
+        "input_mode": { "$ref": "#/$defs/input_mode" }
+      }
+    },
+    "answer_submission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "transcript"],
+      "properties": {
+        "schema_version": { "const": "0.1.0" },
+        "transcript": { "type": "string", "minLength": 1 },
+        "input_mode": { "$ref": "#/$defs/input_mode" },
+        "asr_device": { "type": "string", "enum": ["npu", "cpu"] }
+      }
+    }
+  }
+}

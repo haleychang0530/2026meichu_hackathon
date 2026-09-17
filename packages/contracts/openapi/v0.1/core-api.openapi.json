@@ -189,16 +189,7 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["schema_version", "transcript"],
-                "properties": {
-                  "schema_version": { "const": "0.1.0" },
-                  "transcript": { "type": "string" },
-                  "asr_device": { "type": "string", "enum": ["npu", "cpu"] }
-                }
-              }
+              "schema": { "$ref": "#/components/schemas/TurnSubmission" }
             }
           }
         },
@@ -206,6 +197,29 @@
           "200": { "$ref": "#/components/responses/TurnResult" },
           "400": { "$ref": "#/components/responses/Error" },
           "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/actions": {
+      "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+      "post": {
+        "tags": ["sessions"],
+        "operationId": "submitStudentAction",
+        "description": "Dispatches a student-safe control action. Answer submission is intentionally excluded and must use /turns with a transcript.",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StudentActionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/StudentAction" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" }
         }
       }
     },
@@ -230,25 +244,7 @@
         "tags": ["sessions"],
         "operationId": "getSessionSummary",
         "responses": {
-          "200": {
-            "description": "Teacher/parent summary. Not a student-route response.",
-            "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["schema_version", "session_id", "completed_turns", "concepts_to_review"],
-                  "properties": {
-                    "schema_version": { "const": "0.1.0" },
-                    "session_id": { "type": "string" },
-                    "completed_turns": { "type": "integer", "minimum": 0 },
-                    "concepts_to_review": { "type": "array", "items": { "type": "string" } }
-                  }
-                }
-              }
-            }
-          },
+          "200": { "$ref": "#/components/responses/ObserverSessionSummary" },
           "404": { "$ref": "#/components/responses/Error" }
         }
       }
@@ -295,6 +291,10 @@
       "Lesson": { "$ref": "../../schemas/v0.1/lesson.schema.json" },
       "Utterance": { "$ref": "../../schemas/v0.1/utterance.schema.json" },
       "TurnResult": { "$ref": "../../schemas/v0.1/turn-result.schema.json" },
+      "ObserverSessionSummary": { "$ref": "../../schemas/v0.1/observer-session-summary.schema.json" },
+      "StudentAction": { "$ref": "../../schemas/v0.1/student-action.schema.json" },
+      "StudentActionRequest": { "$ref": "../../schemas/v0.1/student-action.schema.json#/$defs/control_request" },
+      "TurnSubmission": { "$ref": "../../schemas/v0.1/student-action.schema.json#/$defs/answer_submission" },
       "ServiceHealth": { "$ref": "../../schemas/v0.1/service-health.schema.json" },
       "Error": { "$ref": "../../schemas/v0.1/error.schema.json" },
       "Session": {
@@ -326,6 +326,16 @@
         "description": "Student-safe turn result.",
         "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TurnResult" } } }
+      },
+      "StudentAction": {
+        "description": "Student-safe session projection after a control action.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StudentAction" } } }
+      },
+      "ObserverSessionSummary": {
+        "description": "Teacher/parent-only session history and learning summary. Not a student-route response.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObserverSessionSummary" } } }
       },
       "Session": {
         "description": "Student-safe session state; no answer keys or confidence fields.",

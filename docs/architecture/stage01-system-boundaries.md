@@ -75,6 +75,14 @@ Core next prompt -> local TTS -> SPEAKING ends -> local ASR
 
 The half-duplex state machine is `IDLE -> SPEAKING -> LISTENING -> TRANSCRIBING -> EVALUATING -> SPEAKING`. Every failure returns to `IDLE` or `RECOVERABLE_ERROR`.
 
+### Student control and observer projection
+
+- Student control intents use `POST /api/sessions/{session_id}/actions`; its enum never includes answer submission.
+- A student answer uses `POST /api/sessions/{session_id}/turns` and always carries a non-empty transcript.
+- Both action results and turn results are student-safe and exclude the full Lesson, evidence, confidence, review fields, answer keys, and teacher controls.
+- Observer mode uses `GET /api/sessions/{session_id}/summary` for turn history, evaluation, feedback, progress, latency, fallbacks, hints, and familiarity. It resolves lesson title/details separately from the teacher-only Lesson endpoint.
+- Student and observer responses require separate selectors/cache keys in the frontend; UI mode switching does not change the underlying laptop-owned session.
+
 ## Request identity
 
 - Every response carries `X-Request-ID`; JSON error bodies also carry `request_id`.

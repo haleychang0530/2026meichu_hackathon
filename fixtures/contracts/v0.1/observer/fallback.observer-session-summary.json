@@ -1,0 +1,30 @@
+{
+  "schema_version": "0.1.0",
+  "session_id": "session_demo_fallback_001",
+  "lesson_id": "lesson_market_001",
+  "state": "RECOVERABLE_ERROR",
+  "progress": 0.4,
+  "completed_turns": 1,
+  "turns": [
+    {
+      "schema_version": "0.1.0",
+      "turn_id": "turn_fallback_001",
+      "session_id": "session_demo_fallback_001",
+      "transcript_raw": "",
+      "transcript_normalized": "",
+      "result": "retry",
+      "matched_concepts": [],
+      "feedback": "這次沒有聽清楚，可以再說一次或改用鍵盤。",
+      "next_prompt": "請再說一次：阿媽欲去市場。",
+      "progress": 0.4,
+      "latency_ms": { "asr": 4000, "backend": 75, "vlm": null, "tts": null, "total": 4075 },
+      "asr_device": "cpu",
+      "fallbacks": ["asr_cpu"]
+    }
+  ],
+  "concepts_to_review": ["欲去"],
+  "hint_history": [],
+  "familiarity": [
+    { "concept": "欲去", "status": "new" }
+  ]
+}

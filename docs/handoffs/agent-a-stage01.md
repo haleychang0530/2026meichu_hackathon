@@ -14,10 +14,11 @@ Previous Stage: none (Stage 01 has no dependency)
 - Declared the Ryzen AI 9 laptop as the product host for Core Backend, Local RAG, SQLite, Teaching Agent, session/SSE, Speech Gateway, web, and all product state.
 - Restricted MI300 to two stateless internal VLM endpoints with one-way laptop-originated calls and no retained request data.
 - Defined runtime, network, storage, failure, timeout, retry, circuit-breaker, request-ID, versioning, and deletion boundaries.
-- Added versioned canonical `Lesson`, `Utterance`, `TurnResult`, `ServiceHealth`, and `Error` JSON Schemas.
+- Added versioned canonical `Lesson`, `Utterance`, `TurnResult`, `ObserverSessionSummary`, `StudentActionResult`, `ServiceHealth`, and `Error` JSON Schemas.
 - Added OpenAPI v0.1 drafts for Core Backend, internal MI300 VLM, and local Speech Gateway.
 - Added observer/shared fixtures plus six student-safe scenarios: success, partial success, MI300 offline, RAG no result, ASR failure, and TTS failure.
 - Added automated contract tests that validate Draft 2020-12 schemas, every typed fixture, OpenAPI paths/refs/response request IDs, fixture manifest completeness, and forbidden student fields.
+- Applied the Agent B conditional-walkthrough feedback: observer summary now includes turn history/progress/latency/fallback/hints/familiarity, while control actions and transcript-bearing answer submissions have distinct endpoints and schemas.
 
 ## Changed files
 
@@ -59,16 +60,16 @@ python scripts/test_contracts.py
 Run on 2026-09-17:
 
 ```text
-PASS: 5 schemas; 3 OpenAPI documents/41 responses; 10 schema fixtures; 6 student-safe fixtures
+PASS: 7 schemas; 3 OpenAPI documents/45 responses; 18 schema fixtures; 10 student-safe fixtures
 ```
 
 The test suite also asserts that MI300 exposes exactly `/internal/health` and `/internal/vlm/generate`, and that every OpenAPI response declares `X-Request-ID`.
 
 ## Fixtures
 
-- Observer: canonical Lesson success/RAG-empty, Utterance success, TurnResult success/partial, and MI300-offline ServiceHealth.
+- Observer: canonical Lesson success/RAG-empty, Utterance success, TurnResult success/partial, MI300-offline ServiceHealth, and no-turn/success/partial/fallback session summaries.
 - Shared errors: MI300 offline, RAG no result, ASR failed, TTS failed.
-- Student: six view fixtures under `fixtures/contracts/v0.1/student` with a deny-list test for answer keys, `confidence`, evidence, review fields, source text, original/accessible activity, model/index revision, and teacher controls.
+- Student: six view fixtures plus control-action request/response and answer-submission request/response under `fixtures/contracts/v0.1/student`, with a deny-list test for answer keys, `confidence`, evidence, review fields, source text, original/accessible activity, model/index revision, and teacher controls.
 
 ## Resource usage
 
@@ -79,7 +80,7 @@ The test suite also asserts that MI300 exposes exactly `/internal/health` and `/
 
 ## Known limits
 
-- v0.1 is not formally frozen until Agent B completes the contract walkthrough and signs off.
+- v0.1 is not formally frozen until Agent B reruns generated-type/frontend tests against this correction and records sign-off.
 - OpenAPI files are design contracts; runtime handlers arrive in later stages.
 - Student/observer separation is a response-shaping rule for the demo, not formal authorization. The full Lesson endpoint is observer/teacher-only and must not be called from student mode.
 - Timeout and memory values are baseline budgets pending later integration measurements.
@@ -88,6 +89,8 @@ The test suite also asserts that MI300 exposes exactly `/internal/health` and `/
 ## Agent B can rely on
 
 - Canonical field names, enums, error envelope, and request-ID behavior in `packages/contracts` for mock adapters and generated TypeScript types.
+- `ObserverSessionSummary` supplies the Stage 02 observer fields without requiring the student adapter to consume a full Lesson.
+- `/actions` handles control intents; `/turns` requires a transcript and remains the only answer-submission route.
 - Six student-safe fixtures that do not require MI300, RAG, ASR, or TTS to be running.
 - MI300 remaining stateless and unreachable directly from the browser.
 - Core Backend owning all lesson/session/RAG/SQLite behavior and aggregating health/fallback states.
@@ -95,7 +98,7 @@ The test suite also asserts that MI300 exposes exactly `/internal/health` and `/
 
 ## Next action
 
-1. Agent B performs a walkthrough against the Stage 02 mock adapter and records accepted questions or requested changes.
-2. Agent B regenerates TypeScript types from the accepted canonical contracts.
-3. Agent A incorporates agreed additive corrections with synchronized schema, OpenAPI, fixtures, version notes, and tests.
+1. Agent B regenerates TypeScript types from the corrected canonical Core OpenAPI.
+2. Agent B maps observer summary and student control/answer flows in the real adapter and reruns frontend tests/build.
+3. Agent B records walkthrough acceptance or any remaining concrete contract issue.
 4. Only after both agents record acceptance may the repository label v0.1 as formally frozen.

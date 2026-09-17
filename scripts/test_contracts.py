@@ -25,6 +25,8 @@ EXPECTED_SCHEMAS = {
     "lesson.schema.json",
     "utterance.schema.json",
     "turn-result.schema.json",
+    "observer-session-summary.schema.json",
+    "student-action.schema.json",
     "service-health.schema.json",
     "error.schema.json",
 }
@@ -38,6 +40,7 @@ EXPECTED_PATHS = {
         "/api/sessions",
         "/api/sessions/{session_id}",
         "/api/sessions/{session_id}/turns",
+        "/api/sessions/{session_id}/actions",
         "/api/sessions/{session_id}/events",
         "/api/sessions/{session_id}/summary",
         "/api/admin/rag/reindex",
@@ -78,6 +81,20 @@ REQUIRED_SCENARIOS = {
     "rag_no_result",
     "asr_failure",
     "tts_failure",
+}
+
+EXPECTED_OBSERVER_SUMMARIES = {
+    "observer/no-turn.observer-session-summary.json",
+    "observer/success.observer-session-summary.json",
+    "observer/partial-success.observer-session-summary.json",
+    "observer/fallback.observer-session-summary.json",
+}
+
+EXPECTED_STUDENT_ACTION_FIXTURES = {
+    "student/action-request-hint.json",
+    "student/action-response-hint.json",
+    "student/answer-submission.request.json",
+    "student/answer-submission.response.json",
 }
 
 
@@ -127,6 +144,18 @@ def validate_schemas() -> dict[str, dict[str, Any]]:
         Draft202012Validator.check_schema(schema)
         assert schema["properties"]["schema_version"]["const"] == "0.1.0"
         schemas[name] = schema
+    action = schemas["student-action.schema.json"]
+    expected_actions = {
+        "replay_prompt",
+        "start_answer",
+        "pause",
+        "resume",
+        "request_hint",
+        "next",
+    }
+    assert set(action["$defs"]["action"]["enum"]) == expected_actions
+    assert "transcript" in action["$defs"]["answer_submission"]["required"]
+    assert "submit_answer" not in expected_actions
     return schemas
 
 
@@ -165,6 +194,31 @@ def validate_openapi() -> int:
     vlm = load_json(OPENAPI_DIR / "vlm-mi300.openapi.json")
     assert set(vlm["paths"]) == {"/internal/health", "/internal/vlm/generate"}
     assert all(path.startswith("/internal/") for path in vlm["paths"])
+
+    core = load_json(OPENAPI_DIR / "core-api.openapi.json")
+    turns_body = core["paths"]["/api/sessions/{session_id}/turns"]["post"]["requestBody"]
+    assert turns_body["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/TurnSubmission"
+    )
+    actions_body = core["paths"]["/api/sessions/{session_id}/actions"]["post"]["requestBody"]
+    assert actions_body["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/StudentActionRequest"
+    )
+    assert core["paths"]["/api/sessions/{session_id}/actions"]["post"]["responses"]["200"]["$ref"] == (
+        "#/components/responses/StudentAction"
+    )
+    summary_response = core["paths"]["/api/sessions/{session_id}/summary"]["get"]["responses"]["200"]
+    assert summary_response["$ref"] == "#/components/responses/ObserverSessionSummary"
+    component_schemas = core["components"]["schemas"]
+    assert component_schemas["StudentActionRequest"]["$ref"].endswith(
+        "student-action.schema.json#/$defs/control_request"
+    )
+    assert component_schemas["TurnSubmission"]["$ref"].endswith(
+        "student-action.schema.json#/$defs/answer_submission"
+    )
+    assert component_schemas["ObserverSessionSummary"]["$ref"].endswith(
+        "observer-session-summary.schema.json"
+    )
     return response_count
 
 
@@ -191,17 +245,24 @@ def validate_fixtures(schemas: dict[str, dict[str, Any]]) -> tuple[int, int]:
         fixture = load_json(fixture_path)
         assert fixture.get("schema_version") == "0.1.0", f"Missing version: {relative}"
 
-        schema_name = entry.get("schema")
-        if schema_name:
+        schema_reference = entry.get("schema")
+        if schema_reference:
+            schema_name, separator, fragment = schema_reference.partition("#")
             schema = schemas[schema_name]
+            validation_schema = schema
+            if separator:
+                validation_schema = {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "$ref": f"{schema['$id']}#{fragment}",
+                }
             resolver = RefResolver(
                 base_uri=(SCHEMA_DIR / schema_name).as_uri(),
-                referrer=schema,
+                referrer=validation_schema,
                 store=schema_store,
             )
             errors = sorted(
                 Draft202012Validator(
-                    schema,
+                    validation_schema,
                     resolver=resolver,
                     format_checker=FormatChecker(),
                 ).iter_errors(fixture),
@@ -224,6 +285,8 @@ def validate_fixtures(schemas: dict[str, dict[str, Any]]) -> tuple[int, int]:
         if path.name != "manifest.json"
     }
     assert actual_json == manifest_paths, "Fixture manifest and filesystem differ"
+    assert EXPECTED_OBSERVER_SUMMARIES <= manifest_paths, "Observer summary fixture set is incomplete"
+    assert EXPECTED_STUDENT_ACTION_FIXTURES <= manifest_paths, "Student action fixture set is incomplete"
     assert student_scenarios == REQUIRED_SCENARIOS, (
         f"Student scenarios differ: {student_scenarios ^ REQUIRED_SCENARIOS}"
     )
