@@ -1,0 +1,342 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hear Our Language Core Backend API",
+    "version": "0.1.0",
+    "description": "The only product API. Runs on the Ryzen AI 9 laptop and owns orchestration, RAG, SQLite, teaching state, and fallback decisions. Draft pending Agent B walkthrough."
+  },
+  "servers": [{ "url": "http://127.0.0.1:8000", "description": "Ryzen AI 9 laptop" }],
+  "tags": [
+    { "name": "health" },
+    { "name": "lessons" },
+    { "name": "utterances" },
+    { "name": "sessions" },
+    { "name": "admin" }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["health"],
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Aggregated laptop and dependency health.",
+            "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["schema_version", "request_id", "status", "services"],
+                  "properties": {
+                    "schema_version": { "const": "0.1.0" },
+                    "request_id": { "type": "string", "format": "uuid" },
+                    "status": { "type": "string", "enum": ["ready", "degraded", "offline"] },
+                    "services": { "type": "array", "items": { "$ref": "../../schemas/v0.1/service-health.schema.json" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lessons/analyze": {
+      "post": {
+        "tags": ["lessons"],
+        "operationId": "analyzeLesson",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["image", "language"],
+                "properties": {
+                  "image": { "type": "string", "contentEncoding": "binary" },
+                  "language": { "type": "string", "enum": ["nan-TW"] },
+                  "use_fixture_on_failure": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Lesson" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "503": { "$ref": "#/components/responses/Error" },
+          "504": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/lessons/{lesson_id}": {
+      "parameters": [{ "$ref": "#/components/parameters/LessonId" }],
+      "get": {
+        "tags": ["lessons"],
+        "operationId": "getLesson",
+        "description": "Teacher/parent review endpoint. Student routes must not request or store this full Lesson object.",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Lesson" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "patch": {
+        "tags": ["lessons"],
+        "operationId": "reviewLesson",
+        "description": "Teacher/parent review endpoint; not available to the student-mode adapter.",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "topic": { "type": "string" },
+                  "source_text": { "type": "string" },
+                  "accessible_activity": { "type": "string" },
+                  "review_status": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+                },
+                "minProperties": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Lesson" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/utterances/normalize": {
+      "post": {
+        "tags": ["utterances"],
+        "operationId": "normalizeUtterance",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["schema_version", "text", "lang"],
+                "properties": {
+                  "schema_version": { "const": "0.1.0" },
+                  "text": { "type": "string", "minLength": 1 },
+                  "lang": { "type": "string", "enum": ["nan-TW", "zh-TW"] },
+                  "tailo_citation": { "type": ["string", "null"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Utterance" },
+          "400": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/sessions": {
+      "post": {
+        "tags": ["sessions"],
+        "operationId": "createSession",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["schema_version", "lesson_id"],
+                "properties": {
+                  "schema_version": { "const": "0.1.0" },
+                  "lesson_id": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "$ref": "#/components/responses/Session" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/sessions/{session_id}": {
+      "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+      "get": {
+        "tags": ["sessions"],
+        "operationId": "getSession",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Session" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/turns": {
+      "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+      "post": {
+        "tags": ["sessions"],
+        "operationId": "submitTurn",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["schema_version", "transcript"],
+                "properties": {
+                  "schema_version": { "const": "0.1.0" },
+                  "transcript": { "type": "string" },
+                  "asr_device": { "type": "string", "enum": ["npu", "cpu"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/TurnResult" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/events": {
+      "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+      "get": {
+        "tags": ["sessions"],
+        "operationId": "streamSessionEvents",
+        "responses": {
+          "200": {
+            "description": "Server-sent events. Each data field is a JSON object with schema_version, event, request_id, and payload.",
+            "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+            "content": { "text/event-stream": { "schema": { "type": "string" } } }
+          },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/summary": {
+      "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+      "get": {
+        "tags": ["sessions"],
+        "operationId": "getSessionSummary",
+        "responses": {
+          "200": {
+            "description": "Teacher/parent summary. Not a student-route response.",
+            "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["schema_version", "session_id", "completed_turns", "concepts_to_review"],
+                  "properties": {
+                    "schema_version": { "const": "0.1.0" },
+                    "session_id": { "type": "string" },
+                    "completed_turns": { "type": "integer", "minimum": 0 },
+                    "concepts_to_review": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/rag/reindex": {
+      "post": {
+        "tags": ["admin"],
+        "operationId": "reindexRag",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "responses": {
+          "202": {
+            "description": "Local reindex job accepted.",
+            "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["schema_version", "job_id", "status"],
+                  "properties": {
+                    "schema_version": { "const": "0.1.0" },
+                    "job_id": { "type": "string" },
+                    "status": { "const": "accepted" }
+                  }
+                }
+              }
+            }
+          },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "headers": {
+      "RequestId": { "description": "Correlation UUID echoed or generated by the receiving service.", "schema": { "type": "string", "format": "uuid" } }
+    },
+    "parameters": {
+      "RequestId": { "name": "X-Request-ID", "in": "header", "required": false, "schema": { "type": "string", "format": "uuid" } },
+      "LessonId": { "name": "lesson_id", "in": "path", "required": true, "schema": { "type": "string" } },
+      "SessionId": { "name": "session_id", "in": "path", "required": true, "schema": { "type": "string" } }
+    },
+    "schemas": {
+      "Lesson": { "$ref": "../../schemas/v0.1/lesson.schema.json" },
+      "Utterance": { "$ref": "../../schemas/v0.1/utterance.schema.json" },
+      "TurnResult": { "$ref": "../../schemas/v0.1/turn-result.schema.json" },
+      "ServiceHealth": { "$ref": "../../schemas/v0.1/service-health.schema.json" },
+      "Error": { "$ref": "../../schemas/v0.1/error.schema.json" },
+      "Session": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema_version", "session_id", "lesson_id", "state", "progress", "current_prompt"],
+        "properties": {
+          "schema_version": { "const": "0.1.0" },
+          "session_id": { "type": "string" },
+          "lesson_id": { "type": "string" },
+          "state": { "type": "string", "enum": ["IDLE", "SPEAKING", "LISTENING", "TRANSCRIBING", "EVALUATING", "RECOVERABLE_ERROR", "COMPLETE"] },
+          "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+          "current_prompt": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "responses": {
+      "Lesson": {
+        "description": "Canonical teacher-reviewable lesson.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Lesson" } } }
+      },
+      "Utterance": {
+        "description": "Normalized utterance.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Utterance" } } }
+      },
+      "TurnResult": {
+        "description": "Student-safe turn result.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TurnResult" } } }
+      },
+      "Session": {
+        "description": "Student-safe session state; no answer keys or confidence fields.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Session" } } }
+      },
+      "Error": {
+        "description": "Stable error envelope.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      }
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hear Our Language MI300 Internal VLM API",
+    "version": "0.1.0",
+    "description": "Trusted-LAN, stateless inference API called only by Core Backend. It stores no image, prompt history, RAG index, lesson, session, or student record."
+  },
+  "servers": [{ "url": "http://mi300.internal:8100", "description": "Trusted LAN only; never public" }],
+  "paths": {
+    "/internal/health": {
+      "get": {
+        "operationId": "getVlmHealth",
+        "responses": {
+          "200": {
+            "description": "VLM service health.",
+            "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+            "content": { "application/json": { "schema": { "$ref": "../../schemas/v0.1/service-health.schema.json" } } }
+          }
+        }
+      }
+    },
+    "/internal/vlm/generate": {
+      "post": {
+        "operationId": "generateStructuredLessonMaterial",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["schema_version", "request_id", "image", "prompt", "response_schema", "model_revision"],
+                "properties": {
+                  "schema_version": { "const": "0.1.0" },
+                  "request_id": { "type": "string", "format": "uuid" },
+                  "image": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["media_type", "content_base64"],
+                    "properties": {
+                      "media_type": { "type": "string", "enum": ["image/jpeg", "image/png", "image/webp"] },
+                      "content_base64": { "type": "string", "contentEncoding": "base64" }
+                    }
+                  },
+                  "prompt": { "type": "string", "minLength": 1, "maxLength": 50000 },
+                  "response_schema": { "type": "object", "description": "JSON Schema supplied by Core Backend for this inference." },
+                  "evidence": {
+                    "type": "array",
+                    "description": "Optional compact evidence selected by laptop RAG; the MI300 does not retrieve or retain it.",
+                    "items": { "type": "object" },
+                    "maxItems": 20
+                  },
+                  "model_revision": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One inference result; discarded by MI300 after the response is sent.",
+            "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["schema_version", "request_id", "output", "model_revision", "latency_ms", "queue_ms"],
+                  "properties": {
+                    "schema_version": { "const": "0.1.0" },
+                    "request_id": { "type": "string", "format": "uuid" },
+                    "output": { "type": "object" },
+                    "model_revision": { "type": "string" },
+                    "latency_ms": { "type": "integer", "minimum": 0 },
+                    "queue_ms": { "type": "integer", "minimum": 0 }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" },
+          "503": { "$ref": "#/components/responses/Error" },
+          "504": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "headers": {
+      "RequestId": { "description": "Correlation UUID.", "schema": { "type": "string", "format": "uuid" } }
+    },
+    "parameters": {
+      "RequestId": { "name": "X-Request-ID", "in": "header", "required": true, "schema": { "type": "string", "format": "uuid" } }
+    },
+    "responses": {
+      "Error": {
+        "description": "Stable internal error envelope.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "../../schemas/v0.1/error.schema.json" } } }
+      }
+    }
+  }
+}

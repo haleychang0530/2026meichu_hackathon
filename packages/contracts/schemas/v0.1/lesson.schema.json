@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hear-our-language.local/contracts/v0.1/lesson.schema.json",
+  "title": "Lesson",
+  "description": "Canonical teacher-reviewable lesson. Do not expose this complete object to student routes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "lesson_id",
+    "topic",
+    "source_text",
+    "vocabulary",
+    "scene",
+    "original_activity",
+    "learning_objective",
+    "accessible_activity",
+    "evidence",
+    "confidence",
+    "review_status",
+    "vlm_model_revision",
+    "rag_index_revision"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "lesson_id": { "type": "string", "pattern": "^lesson_[A-Za-z0-9_-]+$" },
+    "topic": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "source_text": { "type": "string", "minLength": 1 },
+    "vocabulary": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/vocabulary_item" }
+    },
+    "scene": { "type": "string", "minLength": 1 },
+    "original_activity": { "type": "string", "minLength": 1 },
+    "learning_objective": { "type": "string", "minLength": 1 },
+    "accessible_activity": { "type": "string", "minLength": 1 },
+    "evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidence_item" }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "review_status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+    "vlm_model_revision": { "type": ["string", "null"], "minLength": 1 },
+    "rag_index_revision": { "type": ["string", "null"], "minLength": 1 }
+  },
+  "$defs": {
+    "vocabulary_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hanji", "tailo", "meaning", "audio_key"],
+      "properties": {
+        "hanji": { "type": "string", "minLength": 1 },
+        "tailo": { "type": "string", "minLength": 1 },
+        "meaning": { "type": "string", "minLength": 1 },
+        "audio_key": { "type": ["string", "null"] }
+      }
+    },
+    "evidence_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "title", "excerpt", "locator"],
+      "properties": {
+        "source_id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "excerpt": { "type": "string", "minLength": 1 },
+        "locator": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
