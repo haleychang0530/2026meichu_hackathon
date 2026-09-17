@@ -1,0 +1,254 @@
+import { adapterErrorFromResponse } from './errors';
+import type { FrontendAdapter } from './adapter';
+import type { components, operations } from '../generated/api';
+import type {
+  CaptureViewModel,
+  HealthSummaryView,
+  ObserverSessionViewModel,
+  ServiceHealthView,
+  SetupViewModel,
+  StudentAction,
+  StudentSessionViewModel,
+} from '../types/viewModels';
+
+type CoreHealthResponse = operations['getHealth']['responses'][200]['content']['application/json'];
+type CoreLesson = components['schemas']['Lesson'];
+type CoreSession = components['schemas']['Session'];
+type CoreTurnResult = components['schemas']['TurnResult'];
+type CoreObserverSummary = components['schemas']['ObserverSessionSummary'];
+type CoreStudentActionResult = components['schemas']['StudentAction'];
+type CoreStudentAction = components['schemas']['action'];
+type CoreStudentActionRequest = components['schemas']['StudentActionRequest'];
+type CoreTurnSubmission = components['schemas']['TurnSubmission'];
+type CoreServiceHealth = components['schemas']['ServiceHealth'];
+
+const DEMO_LESSON_ID = 'lesson_market_001';
+const SCHEMA_VERSION = '0.1.0' as const;
+
+const actionMap: Record<StudentAction, CoreStudentAction> = {
+  listen: 'replay_prompt',
+  answer: 'start_answer',
+  hint: 'request_hint',
+  pause: 'pause',
+};
+
+function serviceLabel(service: CoreServiceHealth['service']): string {
+  const labels: Record<CoreServiceHealth['service'], string> = {
+    'core-api': 'Core Backend',
+    rag: 'Local RAG',
+    'vlm-mi300': 'MI300 VLM',
+    asr: 'Speech ASR',
+    tts: 'Speech TTS',
+  };
+  return labels[service];
+}
+
+function toHealthSummary(payload: CoreHealthResponse): HealthSummaryView {
+  const services: readonly ServiceHealthView[] = payload.services.map((service) => ({
+    service: serviceLabel(service.service),
+    status: service.status,
+    device: service.device ?? 'unknown',
+    modelRevision: service.model_revision ?? undefined,
+    lastError: service.last_error?.message,
+  }));
+  const checkedAt = [...payload.services]
+    .map((service) => service.checked_at)
+    .sort()
+    .at(-1) ?? new Date().toISOString();
+  return {
+    status: payload.status,
+    checkedAt,
+    services,
+  };
+}
+
+function toProgress(progress: number): { readonly label: string; readonly value: number } {
+  const value = Math.round(progress * 100);
+  return { label: `目前進度 ${value}%`, value };
+}
+
+function toStudentView(
+  session: CoreSession,
+  health: HealthSummaryView,
+  feedback = '尚未收到回饋。',
+): StudentSessionViewModel {
+  const progress = toProgress(session.progress);
+  return {
+    sessionId: session.session_id,
+    lessonTitle: '目前教材',
+    prompt: session.current_prompt ?? '目前沒有可播放的提示。',
+    feedback,
+    progressLabel: progress.label,
+    progressValue: progress.value,
+    health,
+    canAnswer: health.status !== 'offline' && session.state !== 'COMPLETE',
+  };
+}
+
+function toStudentActionView(
+  actionResult: CoreStudentActionResult,
+  health: HealthSummaryView,
+): StudentSessionViewModel {
+  const progress = toProgress(actionResult.progress);
+  return {
+    sessionId: actionResult.session_id,
+    lessonTitle: '目前教材',
+    prompt: actionResult.current_prompt ?? actionResult.next_prompt ?? '目前沒有可播放的提示。',
+    feedback: actionResult.feedback ?? '操作已完成。',
+    progressLabel: progress.label,
+    progressValue: progress.value,
+    health,
+    canAnswer: actionResult.can_answer && health.status !== 'offline',
+  };
+}
+
+function toTurnStudentView(
+  turn: CoreTurnResult,
+  health: HealthSummaryView,
+): StudentSessionViewModel {
+  const progress = toProgress(turn.progress);
+  return {
+    sessionId: turn.session_id,
+    lessonTitle: '目前教材',
+    prompt: turn.next_prompt,
+    feedback: turn.feedback,
+    progressLabel: progress.label,
+    progressValue: progress.value,
+    health,
+    canAnswer: health.status !== 'offline',
+  };
+}
+
+export class RealAdapter implements FrontendAdapter {
+  constructor(private readonly baseUrl = import.meta.env.VITE_CORE_API_BASE_URL || '') {}
+
+  private url(path: string): string {
+    const normalizedBase = this.baseUrl.replace(/\/+$/, '');
+    if (!normalizedBase) return path;
+    if (normalizedBase.endsWith('/api') && path.startsWith('/api/')) {
+      return `${normalizedBase}${path.slice('/api'.length)}`;
+    }
+    return `${normalizedBase}${path}`;
+  }
+
+  private async request<T>(path: string, init?: RequestInit): Promise<T> {
+    const headers = new Headers(init?.headers);
+    headers.set('Accept', 'application/json');
+    if (init?.body && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+    const response = await fetch(this.url(path), { ...init, headers });
+    if (!response.ok) throw await adapterErrorFromResponse(response);
+    return (await response.json()) as T;
+  }
+
+  private async getHealth(): Promise<HealthSummaryView> {
+    const payload = await this.request<CoreHealthResponse>('/api/health');
+    return toHealthSummary(payload);
+  }
+
+  private async getLesson(lessonId: string): Promise<CoreLesson> {
+    return this.request<CoreLesson>(`/api/lessons/${encodeURIComponent(lessonId)}`);
+  }
+
+  async getSetup(): Promise<SetupViewModel> {
+    const health = await this.getHealth();
+    return {
+      title: '聽見母語｜正式 API 流程',
+      description: '服務健康狀態來自 Core Backend；教材、session 與回合狀態由 server-side session 管理。',
+      health,
+      nextRoute: '/capture',
+    };
+  }
+
+  async getCapture(): Promise<CaptureViewModel> {
+    const [lesson, health] = await Promise.all([
+      this.getLesson(DEMO_LESSON_ID),
+      this.getHealth(),
+    ]);
+    return {
+      lessonId: lesson.lesson_id,
+      title: lesson.topic,
+      description: lesson.scene,
+      reviewStatus: lesson.review_status,
+      images: [],
+      health,
+    };
+  }
+
+  async confirmLesson(lessonId: string): Promise<{ readonly sessionId: string }> {
+    const session = await this.request<CoreSession>('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ schema_version: SCHEMA_VERSION, lesson_id: lessonId }),
+    });
+    return { sessionId: session.session_id };
+  }
+
+  async getStudentSession(sessionId: string): Promise<StudentSessionViewModel> {
+    const [session, health] = await Promise.all([
+      this.request<CoreSession>(`/api/sessions/${encodeURIComponent(sessionId)}`),
+      this.getHealth(),
+    ]);
+    return toStudentView(session, health);
+  }
+
+  async submitStudentAction(sessionId: string, action: StudentAction): Promise<StudentSessionViewModel> {
+    const body: CoreStudentActionRequest = {
+      schema_version: SCHEMA_VERSION,
+      action: actionMap[action],
+      input_mode: 'keyboard',
+    };
+    const [actionResult, health] = await Promise.all([
+      this.request<CoreStudentActionResult>(`/api/sessions/${encodeURIComponent(sessionId)}/actions`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+      this.getHealth(),
+    ]);
+    return toStudentActionView(actionResult, health);
+  }
+
+  async submitStudentAnswer(
+    sessionId: string,
+    submission: CoreTurnSubmission,
+  ): Promise<StudentSessionViewModel> {
+    const [turn, health] = await Promise.all([
+      this.request<CoreTurnResult>(`/api/sessions/${encodeURIComponent(sessionId)}/turns`, {
+        method: 'POST',
+        body: JSON.stringify(submission),
+      }),
+      this.getHealth(),
+    ]);
+    return toTurnStudentView(turn, health);
+  }
+
+  async getObserverSession(sessionId: string): Promise<ObserverSessionViewModel> {
+    const summaryPromise = this.request<CoreObserverSummary>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/summary`,
+    );
+    const healthPromise = this.getHealth();
+    const summary = await summaryPromise;
+    const [lesson, health] = await Promise.all([
+      this.getLesson(summary.lesson_id),
+      healthPromise,
+    ]);
+    const latestTurn = summary.turns.at(-1);
+    return {
+      sessionId: summary.session_id,
+      lessonTitle: lesson.topic,
+      transcript: latestTurn?.transcript_raw || '尚未收到學生回答。',
+      evaluation: latestTurn?.result ?? 'not_started',
+      feedback: latestTurn?.feedback ?? '等待學生開始回答。',
+      progressLabel: `${summary.completed_turns} 回合 · ${Math.round(summary.progress * 100)}%`,
+      latencyMs: latestTurn
+        ? {
+            asr: latestTurn.latency_ms.asr,
+            backend: latestTurn.latency_ms.backend,
+            total: latestTurn.latency_ms.total,
+          }
+        : { asr: null, backend: null, total: null },
+      fallbacks: latestTurn?.fallbacks ?? [],
+      health,
+    };
+  }
+}

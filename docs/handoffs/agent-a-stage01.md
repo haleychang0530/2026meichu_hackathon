@@ -2,7 +2,7 @@
 
 ```text
 Stage: Agent A Stage 01 — architecture, repository, and contract baseline
-Status: done (implementation); v0.1 draft pending Agent B walkthrough/sign-off
+Status: done (implementation); v0.1 walkthrough accepted on Agent B integration branch; formal main-branch freeze pending review/merge
 Base: main @ ee5cbc1
 Branch: codex/agentA-stage01-contract-baseline
 Schema/OpenAPI version: 0.1.0 / OpenAPI 3.1.0
@@ -43,7 +43,7 @@ No Agent B React component, adapter, ASR/TTS worker, device fixture, or device r
 - JSON Schema dialect: 2020-12
 - Canonical `schema_version`: `0.1.0`
 - OpenAPI: `3.1.0`, API info version `0.1.0`
-- Contract status: `draft_pending_agent_b_walkthrough`
+- Contract status: `walkthrough_accepted_pending_main_merge`
 - Migration: none; this is the first canonical contract. Breaking changes require a new version directory and migration/compatibility notes.
 
 ## How to run
@@ -80,7 +80,7 @@ The test suite also asserts that MI300 exposes exactly `/internal/health` and `/
 
 ## Known limits
 
-- v0.1 is not formally frozen until Agent B reruns generated-type/frontend tests against this correction and records sign-off.
+- v0.1 frontend/contract walkthrough is accepted after Agent B regenerated types, mapped the real adapter, and reran contract/frontend suites. Formal main-branch freeze still awaits branch review/merge.
 - OpenAPI files are design contracts; runtime handlers arrive in later stages.
 - Student/observer separation is a response-shaping rule for the demo, not formal authorization. The full Lesson endpoint is observer/teacher-only and must not be called from student mode.
 - Timeout and memory values are baseline budgets pending later integration measurements.
@@ -98,7 +98,5 @@ The test suite also asserts that MI300 exposes exactly `/internal/health` and `/
 
 ## Next action
 
-1. Agent B regenerates TypeScript types from the corrected canonical Core OpenAPI.
-2. Agent B maps observer summary and student control/answer flows in the real adapter and reruns frontend tests/build.
-3. Agent B records walkthrough acceptance or any remaining concrete contract issue.
-4. Only after both agents record acceptance may the repository label v0.1 as formally frozen.
+1. User reviews the integrated Agent A/Agent B branch and the generated frontend mappings.
+2. After the branch is merged, later stages add Core API runtime handlers and run Real mode HTTP smoke.

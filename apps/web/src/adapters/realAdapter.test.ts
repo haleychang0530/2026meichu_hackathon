@@ -1,0 +1,184 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { RealAdapter } from './realAdapter';
+
+const healthPayload = {
+  schema_version: '0.1.0',
+  request_id: '00000000-0000-4000-8000-000000000101',
+  status: 'ready',
+  services: [
+    {
+      schema_version: '0.1.0',
+      service: 'core-api',
+      status: 'ready',
+      device: 'laptop',
+      model_revision: null,
+      queue_depth: 0,
+      last_error: null,
+      checked_at: '2026-09-17T10:00:00+08:00',
+    },
+    {
+      schema_version: '0.1.0',
+      service: 'asr',
+      status: 'ready',
+      device: 'laptop',
+      model_revision: 'breeze-cpu-v0.1',
+      queue_depth: 0,
+      last_error: null,
+      checked_at: '2026-09-17T10:00:00+08:00',
+    },
+  ],
+};
+
+const sessionPayload = {
+  schema_version: '0.1.0',
+  session_id: 'session_demo_001',
+  lesson_id: 'lesson_market_001',
+  state: 'SPEAKING',
+  progress: 0.4,
+  current_prompt: '請說：阿媽欲去市場。',
+};
+
+const lessonPayload = {
+  schema_version: '0.1.0',
+  lesson_id: 'lesson_market_001',
+  topic: '去市場',
+  source_text: '阿媽欲去市場買菜。',
+  vocabulary: [],
+  scene: '市場情境。',
+  original_activity: '看圖回答。',
+  learning_objective: '練習市場詞彙。',
+  accessible_activity: '聽線索回答。',
+  evidence: [],
+  confidence: 0.9,
+  review_status: 'pending',
+  vlm_model_revision: null,
+  rag_index_revision: null,
+};
+
+const actionPayload = {
+  schema_version: '0.1.0',
+  session_id: 'session_demo_001',
+  lesson_id: 'lesson_market_001',
+  state: 'SPEAKING',
+  progress: 0.4,
+  current_prompt: '想想人物要去哪裡。',
+  action: 'request_hint',
+  feedback: '提示已準備完成。',
+  next_prompt: '請再說一次：阿媽欲去市場。',
+  can_answer: false,
+};
+
+const turnPayload = {
+  schema_version: '0.1.0',
+  turn_id: 'turn_001',
+  session_id: 'session_demo_001',
+  transcript_raw: '市場',
+  transcript_normalized: '市場',
+  result: 'correct',
+  matched_concepts: ['市場'],
+  feedback: '答對了。',
+  next_prompt: '請說：阿媽欲去市場。',
+  progress: 0.4,
+  latency_ms: { asr: 820, backend: 95, vlm: null, tts: 310, total: 1225 },
+  asr_device: 'cpu',
+  fallbacks: ['asr_cpu'],
+};
+
+const summaryPayload = {
+  schema_version: '0.1.0',
+  session_id: 'session_demo_001',
+  lesson_id: 'lesson_market_001',
+  state: 'SPEAKING',
+  progress: 0.4,
+  completed_turns: 1,
+  turns: [turnPayload],
+  concepts_to_review: ['欲去'],
+  hint_history: [],
+  familiarity: [{ concept: '市場', status: 'developing' }],
+};
+
+function jsonResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+describe('RealAdapter', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('maps the canonical control action and sends no query-string action', async () => {
+    const calls: Array<{ readonly url: string; readonly init?: RequestInit }> = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.endsWith('/api/health')) return jsonResponse(healthPayload);
+      if (url.endsWith('/api/sessions/session_demo_001/actions')) {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          schema_version: '0.1.0',
+          action: 'request_hint',
+          input_mode: 'keyboard',
+        });
+        return jsonResponse(actionPayload);
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const view = await new RealAdapter('http://127.0.0.1:8000').submitStudentAction(
+      'session_demo_001',
+      'hint',
+    );
+
+    expect(view.feedback).toContain('提示已準備完成');
+    expect(view.canAnswer).toBe(false);
+    expect(calls.map((call) => call.url)).not.toContain(
+      'http://127.0.0.1:8000/api/sessions/session_demo_001/turns?action=hint',
+    );
+  });
+
+  it('sends answer submissions to /turns with the generated contract shape', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/health')) return jsonResponse(healthPayload);
+      if (url.endsWith('/api/sessions/session_demo_001/turns')) {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          schema_version: '0.1.0',
+          transcript: '市場',
+          input_mode: 'voice',
+          asr_device: 'cpu',
+        });
+        return jsonResponse(turnPayload);
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const view = await new RealAdapter().submitStudentAnswer('session_demo_001', {
+      schema_version: '0.1.0',
+      transcript: '市場',
+      input_mode: 'voice',
+      asr_device: 'cpu',
+    });
+
+    expect(view.feedback).toBe('答對了。');
+    expect(view.progressValue).toBe(40);
+  });
+
+  it('maps teacher-only summary data without putting it into the student view', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/api/health')) return jsonResponse(healthPayload);
+      if (url.endsWith('/api/sessions/session_demo_001/summary')) return jsonResponse(summaryPayload);
+      if (url.endsWith('/api/lessons/lesson_market_001')) return jsonResponse(lessonPayload);
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const view = await new RealAdapter().getObserverSession('session_demo_001');
+
+    expect(view.lessonTitle).toBe('去市場');
+    expect(view.transcript).toBe('市場');
+    expect(view.evaluation).toBe('correct');
+    expect(view.latencyMs.total).toBe(1225);
+    expect(view).not.toHaveProperty('confidence');
+    expect(view).not.toHaveProperty('answer');
+  });
+});

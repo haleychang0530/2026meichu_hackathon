@@ -1,0 +1,8 @@
+# Node/Vite build outputs
+node_modules/
+apps/web/dist/
+*.tsbuildinfo
+
+# Local developer overrides and secrets
+apps/web/.env.local
+apps/web/.env.*.local
