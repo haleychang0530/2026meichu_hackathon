@@ -1,0 +1,12 @@
+{
+  "schema_version": "0.1.0",
+  "session_id": "session_demo_empty_001",
+  "lesson_id": "lesson_market_001",
+  "state": "IDLE",
+  "progress": 0,
+  "completed_turns": 0,
+  "turns": [],
+  "concepts_to_review": [],
+  "hint_history": [],
+  "familiarity": []
+}

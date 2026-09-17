@@ -1,0 +1,5 @@
+{
+  "schema_version": "0.1.0",
+  "action": "request_hint",
+  "input_mode": "keyboard"
+}

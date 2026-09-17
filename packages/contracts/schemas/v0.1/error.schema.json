@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hear-our-language.local/contracts/v0.1/error.schema.json",
+  "title": "Error",
+  "description": "Stable error envelope returned by every service boundary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "code", "message", "retryable", "fallback", "request_id"],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "code": {
+      "type": "string",
+      "enum": [
+        "VALIDATION_ERROR",
+        "IMAGE_QUALITY_LOW",
+        "LESSON_NOT_FOUND",
+        "SESSION_NOT_FOUND",
+        "VLM_TIMEOUT",
+        "VLM_OFFLINE",
+        "VLM_INVALID_OUTPUT",
+        "RAG_NO_RESULT",
+        "ASR_UNAVAILABLE",
+        "ASR_FAILED",
+        "TTS_UNAVAILABLE",
+        "TTS_FAILED",
+        "CIRCUIT_OPEN",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "retryable": { "type": "boolean" },
+    "fallback": {
+      "type": ["string", "null"],
+      "enum": [
+        "cached_lesson",
+        "fixture_mode",
+        "manual_review",
+        "retry_later",
+        "keyboard_input",
+        "app_narration",
+        "prerecorded_audio",
+        null
+      ]
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "details": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

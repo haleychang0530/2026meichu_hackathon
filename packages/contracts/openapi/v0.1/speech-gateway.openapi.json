@@ -1,0 +1,181 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hear Our Language Local Speech Gateway API",
+    "version": "0.1.0",
+    "description": "Agent B-owned localhost API on the Ryzen AI 9 laptop. Half-duplex ASR/TTS execution; no MI300 dependency. Draft pending Agent B walkthrough."
+  },
+  "servers": [{ "url": "http://127.0.0.1:8200", "description": "Ryzen AI 9 localhost only" }],
+  "paths": {
+    "/local/health": {
+      "get": {
+        "operationId": "getSpeechHealth",
+        "responses": {
+          "200": {
+            "description": "ASR and TTS health snapshots.",
+            "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["schema_version", "request_id", "services"],
+                  "properties": {
+                    "schema_version": { "const": "0.1.0" },
+                    "request_id": { "type": "string", "format": "uuid" },
+                    "services": { "type": "array", "items": { "$ref": "../../schemas/v0.1/service-health.schema.json" }, "minItems": 2, "maxItems": 2 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/local/warmup": {
+      "post": {
+        "operationId": "warmupSpeechModels",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "services": { "type": "array", "items": { "type": "string", "enum": ["asr", "tts"] }, "uniqueItems": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Acknowledgement" },
+          "503": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/local/cancel": {
+      "post": {
+        "operationId": "cancelSpeechWork",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Acknowledgement" }
+        }
+      }
+    },
+    "/v1/audio/transcriptions": {
+      "post": {
+        "operationId": "transcribeAudio",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["file", "language"],
+                "properties": {
+                  "file": { "type": "string", "contentEncoding": "binary" },
+                  "language": { "type": "string", "enum": ["nan-TW", "zh-TW"] },
+                  "device_preference": { "type": "string", "enum": ["npu", "cpu", "auto"], "default": "auto" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transcript; raw audio is deleted after transcription.",
+            "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["schema_version", "request_id", "text", "language", "device", "latency_ms"],
+                  "properties": {
+                    "schema_version": { "const": "0.1.0" },
+                    "request_id": { "type": "string", "format": "uuid" },
+                    "text": { "type": "string" },
+                    "language": { "type": "string", "enum": ["nan-TW", "zh-TW"] },
+                    "device": { "type": "string", "enum": ["npu", "cpu"] },
+                    "latency_ms": { "type": "integer", "minimum": 0 }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "503": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/audio/speech": {
+      "post": {
+        "operationId": "synthesizeSpeech",
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["schema_version", "utterance", "format"],
+                "properties": {
+                  "schema_version": { "const": "0.1.0" },
+                  "utterance": { "$ref": "../../schemas/v0.1/utterance.schema.json" },
+                  "format": { "type": "string", "enum": ["wav"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Synthesized WAV audio.",
+            "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+            "content": { "audio/wav": { "schema": { "type": "string", "contentEncoding": "binary" } } }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "503": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "headers": {
+      "RequestId": { "description": "Correlation UUID.", "schema": { "type": "string", "format": "uuid" } }
+    },
+    "parameters": {
+      "RequestId": { "name": "X-Request-ID", "in": "header", "required": false, "schema": { "type": "string", "format": "uuid" } }
+    },
+    "responses": {
+      "Acknowledgement": {
+        "description": "Operation acknowledged.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["schema_version", "request_id", "status"],
+              "properties": {
+                "schema_version": { "const": "0.1.0" },
+                "request_id": { "type": "string", "format": "uuid" },
+                "status": { "type": "string", "enum": ["ready", "cancelled"] }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "description": "Stable local error envelope.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "../../schemas/v0.1/error.schema.json" } } }
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "scenario": "asr_failure",
+  "session_id": "session_demo_001",
+  "state": "RECOVERABLE_ERROR",
+  "progress": 0.4,
+  "prompt": "可以再說一次，或改用鍵盤輸入。",
+  "feedback": "這次沒有聽清楚。",
+  "actions": ["start_answer", "keyboard_input", "pause"],
+  "notice": "語音辨識暫時不可用。",
+  "services": [
+    { "service": "core-api", "status": "degraded" },
+    { "service": "asr", "status": "offline" }
+  ]
+}

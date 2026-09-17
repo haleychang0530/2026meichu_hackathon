@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "scenario": "mi300_offline",
+  "session_id": "session_demo_001",
+  "state": "IDLE",
+  "progress": 0.2,
+  "prompt": "今天先使用已準備好的市場課程。",
+  "feedback": "教材分析服務目前離線，已切換到離線教材。",
+  "actions": ["replay", "start_answer", "pause", "next"],
+  "notice": "離線模式：仍可繼續這堂課。",
+  "services": [
+    { "service": "core-api", "status": "degraded" },
+    { "service": "vlm-mi300", "status": "offline" }
+  ]
+}

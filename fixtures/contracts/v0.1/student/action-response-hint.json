@@ -1,0 +1,12 @@
+{
+  "schema_version": "0.1.0",
+  "session_id": "session_demo_001",
+  "lesson_id": "lesson_market_001",
+  "state": "SPEAKING",
+  "progress": 0.4,
+  "current_prompt": "想想人物要去哪裡，再說出完整句子。",
+  "action": "request_hint",
+  "feedback": "提示已準備完成。",
+  "next_prompt": "請再說一次：阿媽欲去市場。",
+  "can_answer": false
+}
