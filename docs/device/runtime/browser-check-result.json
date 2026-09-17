@@ -1,0 +1,22 @@
+{
+  "schema_version": "browser-device-check.v1",
+  "checked_at": "2026-09-17T02:35:59.104Z",
+  "browser_user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+  "secure_context": true,
+  "camera": {
+    "status": "pass",
+    "width": 1280,
+    "height": 720,
+    "captured": true
+  },
+  "microphone": {
+    "status": "pass",
+    "recorder_mime": "audio/webm;codecs=opus",
+    "recorded_bytes": 29290
+  },
+  "playback": {
+    "status": "pass",
+    "fixture": "synthetic-prompt.wav"
+  },
+  "persistence": "camera frames and microphone bytes are not persisted"
+}

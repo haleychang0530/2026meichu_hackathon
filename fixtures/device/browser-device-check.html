@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>裝置 Camera／Mic 健康檢查</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { max-width: 72rem; margin: 0 auto; padding: 1.5rem; color: #172033; background: #f7f9fc; }
+    h1, h2 { color: #102a43; }
+    .notice { padding: 1rem; border-left: .35rem solid #2f80ed; background: #eaf3ff; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem; }
+    section { padding: 1rem; border: 1px solid #cbd5e1; border-radius: .7rem; background: white; }
+    button { margin: .25rem .4rem .25rem 0; padding: .65rem .85rem; border: 0; border-radius: .45rem; color: white; background: #145da0; cursor: pointer; }
+    button:disabled { color: #64748b; background: #cbd5e1; cursor: not-allowed; }
+    video, canvas, audio, img { display: block; max-width: 100%; margin-top: .75rem; border-radius: .4rem; background: #0f172a; }
+    video { width: 100%; min-height: 12rem; }
+    canvas { width: 100%; }
+    .status { min-height: 1.5rem; padding: .5rem; background: #f1f5f9; }
+    .pass { color: #166534; }
+    .fail { color: #b91c1c; }
+    code { word-break: break-word; }
+  </style>
+</head>
+<body>
+  <h1>筆電 Camera／Mic 健康檢查</h1>
+  <p class="notice"><strong>本頁只在 127.0.0.1 執行。</strong>照片與錄音只留在本頁記憶體，不會上傳媒體內容；送回本機檢查 server 的只有成功狀態、尺寸與檔案大小。</p>
+  <p id="status" class="status" role="status" aria-live="polite">尚未開始測試。</p>
+
+  <div class="grid">
+    <section aria-labelledby="camera-heading">
+      <h2 id="camera-heading">1. Camera／拍照</h2>
+      <button id="camera-start">啟動 Camera</button>
+      <button id="camera-photo" disabled>拍一張測試照片</button>
+      <video id="camera-video" autoplay muted playsinline aria-label="Camera 即時預覽"></video>
+      <canvas id="camera-canvas" width="640" height="480" aria-label="Camera 測試擷取畫面"></canvas>
+      <p id="camera-result">結果：尚未測試</p>
+    </section>
+
+    <section aria-labelledby="mic-heading">
+      <h2 id="mic-heading">2. Mic／錄音</h2>
+      <button id="mic-start">啟動 Mic 並錄音 2 秒</button>
+      <audio id="recorded-audio" controls aria-label="本次 Mic 錄音預覽"></audio>
+      <p id="mic-result">結果：尚未測試</p>
+    </section>
+
+    <section aria-labelledby="playback-heading">
+      <h2 id="playback-heading">3. 播放</h2>
+      <p>播放合成測試音檔，確認瀏覽器可以把音訊送到預設輸出。</p>
+      <button id="playback">播放 synthetic-prompt.wav</button>
+      <audio id="fixture-audio" controls preload="metadata" src="/audio/synthetic-prompt.wav" aria-label="合成測試音檔"></audio>
+      <p id="playback-result">結果：尚未測試</p>
+    </section>
+
+    <section aria-labelledby="fixtures-heading">
+      <h2 id="fixtures-heading">4. 教材測試圖載入</h2>
+      <p>以下素材是無個資的幾何教材圖，僅測試瀏覽器載入與影像尺寸。</p>
+      <img src="/lesson-images/lesson-shapes.svg" alt="幾何形狀與顏色的合成教材圖" width="320" height="240">
+      <img src="/lesson-images/lesson-market.svg" alt="水果攤的合成教材圖" width="320" height="240">
+      <img src="/lesson-images/lesson-weather.svg" alt="太陽與雲朵的合成教材圖" width="320" height="240">
+    </section>
+  </div>
+
+  <script>
+    const result = {
+      browser_user_agent: navigator.userAgent,
+      secure_context: window.isSecureContext,
+      camera: { status: 'not_run', captured: false },
+      microphone: { status: 'not_run' },
+      playback: { status: 'not_run' }
+    };
+    const status = document.querySelector('#status');
+    const cameraVideo = document.querySelector('#camera-video');
+    const cameraCanvas = document.querySelector('#camera-canvas');
+    let cameraStream = null;
+
+    function setStatus(message, kind = '') {
+      status.textContent = message;
+      status.className = `status ${kind}`;
+    }
+
+    function getUserMediaWithTimeout(constraints, timeoutMs = 5000) {
+      const request = navigator.mediaDevices.getUserMedia(constraints);
+      const timeout = new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error(`media permission timed out after ${timeoutMs} ms`)), timeoutMs);
+      });
+      return Promise.race([request, timeout]);
+    }
+
+    async function persistResult() {
+      try {
+        await fetch('/api/result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(result)
+        });
+      } catch (error) {
+        setStatus(`測試完成，但無法寫入本機 metadata：${error.message}`, 'fail');
+      }
+    }
+
+    document.querySelector('#camera-start').addEventListener('click', async () => {
+      try {
+        cameraStream = await getUserMediaWithTimeout({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        cameraVideo.srcObject = cameraStream;
+        await cameraVideo.play();
+        document.querySelector('#camera-photo').disabled = false;
+        result.camera = { status: 'pass', width: cameraVideo.videoWidth, height: cameraVideo.videoHeight, captured: false };
+        document.querySelector('#camera-result').textContent = `結果：Camera 可用（${cameraVideo.videoWidth} × ${cameraVideo.videoHeight}）`;
+        document.querySelector('#camera-result').className = 'pass';
+        setStatus('Camera 權限與串流成功，請按「拍一張測試照片」完成擷取。', 'pass');
+        await persistResult();
+      } catch (error) {
+        result.camera = { status: 'not_run' };
+        document.querySelector('#camera-result').textContent = `結果：失敗（${error.name}: ${error.message}）`;
+        document.querySelector('#camera-result').className = 'fail';
+        setStatus('Camera 測試失敗；請確認目標瀏覽器的 localhost 權限。', 'fail');
+      }
+    });
+
+    document.querySelector('#camera-photo').addEventListener('click', async () => {
+      if (!cameraStream) return;
+      cameraCanvas.width = cameraVideo.videoWidth || 640;
+      cameraCanvas.height = cameraVideo.videoHeight || 480;
+      cameraCanvas.getContext('2d').drawImage(cameraVideo, 0, 0, cameraCanvas.width, cameraCanvas.height);
+      result.camera.captured = true;
+      document.querySelector('#camera-result').textContent = `結果：拍照擷取成功（${cameraCanvas.width} × ${cameraCanvas.height}，未保存）`;
+      setStatus('Camera 拍照 smoke test 通過；畫面只留在此頁。', 'pass');
+      await persistResult();
+    });
+
+    document.querySelector('#mic-start').addEventListener('click', async () => {
+      let stream = null;
+      try {
+        stream = await getUserMediaWithTimeout({ audio: true, video: false });
+        const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find(MediaRecorder.isTypeSupported) || '';
+        const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+        const chunks = [];
+        recorder.addEventListener('dataavailable', event => { if (event.data.size) chunks.push(event.data); });
+        recorder.addEventListener('stop', async () => {
+          const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+          document.querySelector('#recorded-audio').src = URL.createObjectURL(blob);
+          result.microphone = { status: 'pass', recorder_mime: recorder.mimeType || null, recorded_bytes: blob.size };
+          document.querySelector('#mic-result').textContent = `結果：錄音成功（${blob.size} bytes，未保存）`;
+          document.querySelector('#mic-result').className = 'pass';
+          setStatus('Mic 權限與 2 秒錄音 smoke test 通過；錄音只留在此頁。', 'pass');
+          await persistResult();
+          stream.getTracks().forEach(track => track.stop());
+        });
+        recorder.start();
+        setStatus('Mic 已啟動，正在錄音 2 秒……');
+        window.setTimeout(() => recorder.stop(), 2000);
+      } catch (error) {
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        document.querySelector('#mic-result').textContent = `結果：失敗（${error.name}: ${error.message}）`;
+        document.querySelector('#mic-result').className = 'fail';
+        setStatus('Mic 測試失敗；請確認目標瀏覽器的 localhost 權限。', 'fail');
+      }
+    });
+
+    document.querySelector('#playback').addEventListener('click', async () => {
+      const audio = document.querySelector('#fixture-audio');
+      try {
+        await audio.play();
+        result.playback = { status: 'pass', fixture: 'synthetic-prompt.wav' };
+        document.querySelector('#playback-result').textContent = '結果：播放成功（合成音檔）';
+        document.querySelector('#playback-result').className = 'pass';
+        setStatus('瀏覽器播放 smoke test 通過。', 'pass');
+        await persistResult();
+      } catch (error) {
+        document.querySelector('#playback-result').textContent = `結果：失敗（${error.name}: ${error.message}）`;
+        document.querySelector('#playback-result').className = 'fail';
+        setStatus('播放測試失敗；請確認輸出裝置與瀏覽器 autoplay 設定。', 'fail');
+      }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+    });
+  </script>
+</body>
+</html>

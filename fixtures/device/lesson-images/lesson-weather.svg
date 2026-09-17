@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="960" viewBox="0 0 1280 960" role="img" aria-labelledby="title desc">
+  <title id="title">天氣觀察</title>
+  <desc id="desc">藍色天空、黃色太陽、白色雲朵與藍色雨滴。</desc>
+  <rect width="1280" height="960" fill="#dff3ff"/>
+  <rect y="700" width="1280" height="260" fill="#90be6d"/>
+  <circle cx="330" cy="320" r="135" fill="#f9c74f"/>
+  <g stroke="#f9c74f" stroke-width="20" stroke-linecap="round">
+    <path d="M330 120 V70"/><path d="M330 570 V520"/><path d="M130 320 H80"/><path d="M580 320 H530"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="720" cy="410" r="120"/><circle cx="860" cy="380" r="150"/><circle cx="1000" cy="440" r="105"/>
+    <rect x="720" y="420" width="300" height="130" rx="65"/>
+  </g>
+  <g fill="#2f80ed">
+    <path d="M760 610 l-42 75 h84 z"/><path d="M890 610 l-42 75 h84 z"/><path d="M1020 610 l-42 75 h84 z"/>
+  </g>
+  <text x="640" y="850" text-anchor="middle" font-size="64" font-family="sans-serif" fill="#17324d">太陽、雲朵與雨滴</text>
+</svg>
