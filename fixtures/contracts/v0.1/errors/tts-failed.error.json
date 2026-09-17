@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.1.0",
+  "code": "TTS_FAILED",
+  "message": "語音合成暫時不可用，改用已核可錄音。",
+  "retryable": true,
+  "fallback": "prerecorded_audio",
+  "request_id": "00000000-0000-4000-8000-000000000404"
+}

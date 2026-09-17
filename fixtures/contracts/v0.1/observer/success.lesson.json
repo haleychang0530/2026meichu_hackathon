@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.1.0",
+  "lesson_id": "lesson_market_001",
+  "topic": "去市場",
+  "source_text": "阿媽欲去市場買菜。",
+  "vocabulary": [
+    { "hanji": "市場", "tailo": "tshī-tiûnn", "meaning": "市場", "audio_key": "nan-market-001" },
+    { "hanji": "欲", "tailo": "beh", "meaning": "要", "audio_key": "nan-want-001" }
+  ],
+  "scene": "市場裡有阿媽、菜販與囡仔。",
+  "original_activity": "看圖片，說說看誰正在買菜。",
+  "learning_objective": "辨識人物與買菜動作，練習市場詞彙。",
+  "accessible_activity": "聽三個角色與動作線索，判斷哪一位角色正在買菜，不直接描述圖中答案。",
+  "evidence": [
+    {
+      "source_id": "moe-dict-market",
+      "title": "教育部臺灣台語常用詞辭典",
+      "excerpt": "市場：tshī-tiûnn",
+      "locator": "entry/市場"
+    }
+  ],
+  "confidence": 0.91,
+  "review_status": "pending",
+  "vlm_model_revision": "qwen3-vl-32b-instruct-fp8@candidate-1",
+  "rag_index_revision": "rag-demo-2026-09-17"
+}

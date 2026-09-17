@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "scenario": "rag_no_result",
+  "session_id": "session_demo_001",
+  "state": "IDLE",
+  "progress": 0.2,
+  "prompt": "這段內容需要老師確認，先練習已確認的詞語。",
+  "feedback": "目前找不到可靠的參考資料。",
+  "actions": ["replay", "pause", "next"],
+  "notice": "部分內容等待教師確認。",
+  "services": [
+    { "service": "core-api", "status": "degraded" },
+    { "service": "rag", "status": "degraded" }
+  ]
+}

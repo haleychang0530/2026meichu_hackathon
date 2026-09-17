@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "scenario": "tts_failure",
+  "session_id": "session_demo_001",
+  "state": "RECOVERABLE_ERROR",
+  "progress": 0.4,
+  "prompt": "語音暫時不可用，畫面文字仍可由螢幕閱讀器讀取。",
+  "feedback": "已停止語音播放。",
+  "actions": ["replay", "pause", "next"],
+  "notice": "正在使用文字與螢幕閱讀器備援。",
+  "services": [
+    { "service": "core-api", "status": "degraded" },
+    { "service": "tts", "status": "offline" }
+  ]
+}

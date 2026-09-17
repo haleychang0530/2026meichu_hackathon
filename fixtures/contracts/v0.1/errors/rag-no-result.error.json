@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.1.0",
+  "code": "RAG_NO_RESULT",
+  "message": "找不到可引用的本機資料，內容需要教師確認。",
+  "retryable": false,
+  "fallback": "manual_review",
+  "request_id": "00000000-0000-4000-8000-000000000402"
+}

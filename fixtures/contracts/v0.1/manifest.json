@@ -1,0 +1,22 @@
+{
+  "schema_version": "0.1.0",
+  "contract_status": "draft_pending_agent_b_walkthrough",
+  "fixtures": [
+    { "path": "observer/success.lesson.json", "audience": "observer", "schema": "lesson.schema.json", "scenario": "success" },
+    { "path": "observer/rag-no-result.lesson.json", "audience": "observer", "schema": "lesson.schema.json", "scenario": "rag_no_result" },
+    { "path": "observer/success.utterance.json", "audience": "observer", "schema": "utterance.schema.json", "scenario": "success" },
+    { "path": "observer/success.turn-result.json", "audience": "observer", "schema": "turn-result.schema.json", "scenario": "success" },
+    { "path": "observer/partial-success.turn-result.json", "audience": "observer", "schema": "turn-result.schema.json", "scenario": "partial_success" },
+    { "path": "observer/mi300-offline.service-health.json", "audience": "observer", "schema": "service-health.schema.json", "scenario": "mi300_offline" },
+    { "path": "errors/mi300-offline.error.json", "audience": "shared", "schema": "error.schema.json", "scenario": "mi300_offline" },
+    { "path": "errors/rag-no-result.error.json", "audience": "shared", "schema": "error.schema.json", "scenario": "rag_no_result" },
+    { "path": "errors/asr-failed.error.json", "audience": "shared", "schema": "error.schema.json", "scenario": "asr_failure" },
+    { "path": "errors/tts-failed.error.json", "audience": "shared", "schema": "error.schema.json", "scenario": "tts_failure" },
+    { "path": "student/success.json", "audience": "student", "schema": null, "scenario": "success" },
+    { "path": "student/partial-success.json", "audience": "student", "schema": null, "scenario": "partial_success" },
+    { "path": "student/mi300-offline.json", "audience": "student", "schema": null, "scenario": "mi300_offline" },
+    { "path": "student/rag-no-result.json", "audience": "student", "schema": null, "scenario": "rag_no_result" },
+    { "path": "student/asr-failure.json", "audience": "student", "schema": null, "scenario": "asr_failure" },
+    { "path": "student/tts-failure.json", "audience": "student", "schema": null, "scenario": "tts_failure" }
+  ]
+}

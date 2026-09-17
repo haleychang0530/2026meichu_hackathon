@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1.0",
+  "scenario": "success",
+  "session_id": "session_demo_001",
+  "state": "SPEAKING",
+  "progress": 0.4,
+  "prompt": "請說：阿媽欲去市場。",
+  "feedback": "答對了，現在試著用台語說完整句子。",
+  "actions": ["replay", "start_answer", "hint", "pause", "next"],
+  "notice": null,
+  "services": [
+    { "service": "core-api", "status": "ready" },
+    { "service": "asr", "status": "ready" },
+    { "service": "tts", "status": "ready" }
+  ]
+}

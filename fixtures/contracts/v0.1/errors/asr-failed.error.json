@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.1.0",
+  "code": "ASR_FAILED",
+  "message": "這次沒有聽清楚，可以再說一次或改用鍵盤。",
+  "retryable": true,
+  "fallback": "keyboard_input",
+  "request_id": "00000000-0000-4000-8000-000000000403"
+}

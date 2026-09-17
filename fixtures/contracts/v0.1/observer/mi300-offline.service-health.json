@@ -1,0 +1,17 @@
+{
+  "schema_version": "0.1.0",
+  "service": "vlm-mi300",
+  "status": "offline",
+  "device": "MI300 96GB",
+  "model_revision": null,
+  "queue_depth": 0,
+  "last_error": {
+    "schema_version": "0.1.0",
+    "code": "VLM_OFFLINE",
+    "message": "MI300 VLM 無法連線，改用已快取教材或示範 fixture。",
+    "retryable": true,
+    "fallback": "cached_lesson",
+    "request_id": "00000000-0000-4000-8000-000000000301"
+  },
+  "checked_at": "2026-09-17T10:00:00+08:00"
+}
