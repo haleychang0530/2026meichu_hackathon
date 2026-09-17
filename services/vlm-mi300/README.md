@@ -1,7 +1,168 @@
 # MI300 stateless VLM service
 
-Owner: Agent A. Runtime: MI300 trusted-LAN host.
+Owner: Agent A. Runtime: MI300 trusted-LAN host. The gateway is a thin
+stateless wrapper around the local OpenAI-compatible vLLM process. It never
+owns RAG, SQLite, sessions, student records, product APIs, or callbacks to the
+laptop.
 
-Only `/internal/health` and `/internal/vlm/generate` are permitted. The service accepts one image, prompt, response schema, optional compact laptop-selected evidence, request ID, and model revision. It returns structured inference output and metrics, then discards request data.
+## Endpoints
 
-This service must not contain RAG ingestion/retrieval, SQLite, sessions, student records, SSE, speech, product APIs, or callbacks to the laptop. Contract: `packages/contracts/openapi/v0.1/vlm-mi300.openapi.json`.
+Only these routes are exposed:
+
+- `GET /internal/health`
+- `POST /internal/vlm/generate`
+
+The canonical contract is
+`packages/contracts/openapi/v0.1/vlm-mi300.openapi.json` (OpenAPI 3.1.0,
+`schema_version` `0.1.0`). Every response includes `X-Request-ID`; every error
+body uses the shared v0.1 error envelope.
+
+`POST /internal/vlm/generate` accepts one image, prompt, JSON Schema, optional
+laptop-selected evidence, UUID `request_id`, `schema_version`, and the exact
+running `model_revision`:
+
+```json
+{
+  "schema_version": "0.1.0",
+  "request_id": "00000000-0000-4000-8000-000000000001",
+  "image": {"media_type": "image/png", "content_base64": "..."},
+  "prompt": "依照指定 schema 回傳結果，不要輸出 markdown。",
+  "response_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {"answer": {"type": "string"}},
+    "required": ["answer"]
+  },
+  "model_revision": "d9748a51ae66354c4dad665aab2c71f26cf2c8cd"
+}
+```
+
+The service verifies base64, MIME/container, dimensions, pixels, prompt and
+schema size, evidence size, context budget, and model revision before queuing
+the request. Images are decoded, checked, and metadata-stripped in memory;
+they are never written to a file. The default limits are 8 MiB image, 4096 px
+per dimension, 16,777,216 pixels, 50,000 prompt characters, 20 evidence items,
+65,536 estimated context tokens, and 8,192 output tokens.
+
+The response keeps raw output and the schema-validated candidate together with
+token usage and finish reason:
+
+```json
+{
+  "schema_version": "0.1.0",
+  "request_id": "00000000-0000-4000-8000-000000000001",
+  "output": {
+    "raw_output": "{\"answer\":\"...\"}",
+    "parsed_candidate": {"answer": "..."},
+    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+    "finish_reason": "stop"
+  },
+  "model_revision": "d9748a51ae66354c4dad665aab2c71f26cf2c8cd",
+  "latency_ms": 1200,
+  "queue_ms": 4,
+  "inference_ms": 1196
+}
+```
+
+The queue is bounded (`VLM_QUEUE_MAX`, default 8) and has at most two worker
+sequences (`VLM_CONCURRENCY`, default 2). Queue overflow returns retryable
+`VLM_TIMEOUT`/429. A request timeout cancels an in-flight upstream operation
+and returns `VLM_TIMEOUT`/504. Upstream connection failures return
+`VLM_OFFLINE`/503; invalid model JSON or schema output returns
+`VLM_INVALID_OUTPUT`/503 with no payload logging.
+
+## MI300 lifecycle
+
+The Manta image used for Stage 02 has a full `/mlsteam/workspace` NFS volume.
+Use `/usr/bin/python3.12` plus the existing vLLM site-packages and keep runtime
+logs/PID files under `/tmp`:
+
+```bash
+export VLM_PYTHON=/usr/bin/python3.12
+export VLM_SITE_PACKAGES=/mlsteam/workspace/qwen3-benchmark/qwen38-venv/lib/python3.12/site-packages
+export VLM_UPSTREAM_URL=http://127.0.0.1:8000/v1
+export VLM_MODEL=Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
+export VLM_MODEL_REVISION=d9748a51ae66354c4dad665aab2c71f26cf2c8cd
+export VLM_ALLOWED_CIDRS=127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+
+bash services/vlm-mi300/launch_service.sh
+bash services/vlm-mi300/health_check.sh
+bash services/vlm-mi300/stop_service.sh
+```
+
+The upstream vLLM model must already be ready on port 8000. The gateway listens
+on port 8100 by default; expose that port only through the trusted LAN/port
+forwarding rule, never to the public internet. The IP allowlist does not trust
+`X-Forwarded-For`; set it to the laptop's exact source CIDR in a controlled
+deployment.
+
+To switch models, stop the gateway, stop the verified vLLM parent, launch the
+other pinned checkpoint on port 8000, update `VLM_MODEL` and
+`VLM_MODEL_REVISION`, then start the gateway again. The revision mismatch check
+prevents a laptop from accidentally sending a request for a different
+checkpoint. Stage 02's 30B-A3B FP8 revision is provisional primary and the
+32B FP8 revision is provisional fallback; the 96 GB allocation gate remains
+open.
+
+## Example laptop client
+
+`client_example.py` uses only Python's standard library and sends a data URL
+equivalent request to the gateway:
+
+```bash
+python client_example.py textbook.png \
+  --endpoint http://mi300.internal:8100/internal/vlm/generate \
+  --prompt '請分析教材圖片並依 schema 回傳，不要輸出 markdown。'
+```
+
+For multi-turn teaching, the laptop owns history. Send a fresh request with
+the intentionally retained text/evidence (and image again when needed); the
+MI300 gateway does not retain conversations between calls.
+
+## Tests
+
+Run dependency-free syntax checks from the repository root:
+
+```bash
+python -m py_compile services/vlm-mi300/service.py services/vlm-mi300/test_service.py services/vlm-mi300/client_example.py
+```
+
+On MI300, with the existing vLLM runtime on `PYTHONPATH`, run the gateway unit
+tests before the live smoke workload:
+
+```bash
+PYTHONPATH=/mlsteam/workspace/qwen3-benchmark/qwen38-venv/lib/python3.12/site-packages \
+  /usr/bin/python3.12 -m unittest discover -s services/vlm-mi300 -p 'test_service.py' -v
+```
+
+Live evidence must record the exact model/revision, vLLM/ROCm versions, service
+PID, health response, at least 20 sequential image requests, malformed image,
+timeout, cancellation, restart, and offline/fallback behavior. Record only
+metadata, latency and error codes under `/tmp`; do not commit images, prompts,
+raw student audio, model weights, caches or databases.
+
+The dependency-free runner used for the MI300 evidence is:
+
+```bash
+PYTHONPATH=/tmp/stage03-vlm-service/src:/mlsteam/workspace/qwen3-benchmark/qwen38-venv/lib/python3.12/site-packages \
+  /usr/bin/python3.12 /tmp/stage03-vlm-service/src/run_live_eval.py \
+  --dataset /tmp/stage02-eval/dataset \
+  --output /tmp/stage03-vlm-service/evidence/20-results.jsonl \
+  --repeat 2
+```
+
+The final restart verification used 10 student-safe fixtures twice (20
+sequential calls): all 20 returned HTTP 200 and schema-valid candidates, with
+P50 975.5 ms, P95 1,220 ms, minimum 573 ms and maximum 1,221 ms. The model
+reported 42,662 total tokens and `stop` for every call. AMD-SMI JSON reported
+196,592 MB total, 158,189 MB used and 38,403 MB free both before and after the
+run (22 samples), so no sustained VRAM growth was observed. The run was on
+vLLM 0.18.0 / ROCm 7.0.0 (AMD-SMI 26.0.0+37d158ab), service PID 141351, revision
+`d9748a51ae66354c4dad665aab2c71f26cf2c8cd`.
+
+The same run verified malformed base64 (HTTP 400 `VALIDATION_ERROR`), an
+isolated delayed upstream (HTTP 504 `VLM_TIMEOUT`), restart and health recovery,
+and an unavailable upstream (HTTP 503 `VLM_OFFLINE`, fallback
+`cached_lesson`). Cancellation and bounded-queue behavior are covered by the
+seven MI300 unit tests. Evidence remains in the MI300 `/tmp` tree and is not a
+repository artifact.
