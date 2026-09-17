@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "turn_id": "turn_001",
+  "session_id": "session_demo_001",
+  "transcript_raw": "市場",
+  "transcript_normalized": "市場",
+  "result": "correct",
+  "matched_concepts": ["市場"],
+  "feedback": "答對了，現在試著用台語說完整句子。",
+  "next_prompt": "請說：阿媽欲去市場。",
+  "progress": 0.4,
+  "latency_ms": { "asr": 820, "backend": 95, "vlm": null, "tts": 310, "total": 1225 },
+  "asr_device": "cpu",
+  "fallbacks": ["asr_cpu"]
+}

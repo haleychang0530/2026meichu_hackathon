@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hear-our-language.local/contracts/v0.1/turn-result.schema.json",
+  "title": "TurnResult",
+  "description": "Result of one student teaching turn. Teacher-only answer keys are intentionally absent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "turn_id",
+    "session_id",
+    "transcript_raw",
+    "transcript_normalized",
+    "result",
+    "matched_concepts",
+    "feedback",
+    "next_prompt",
+    "progress",
+    "latency_ms",
+    "asr_device",
+    "fallbacks"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "turn_id": { "type": "string", "pattern": "^turn_[A-Za-z0-9_-]+$" },
+    "session_id": { "type": "string", "pattern": "^session_[A-Za-z0-9_-]+$" },
+    "transcript_raw": { "type": "string" },
+    "transcript_normalized": { "type": "string" },
+    "result": { "type": "string", "enum": ["correct", "partial", "retry"] },
+    "matched_concepts": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "feedback": { "type": "string", "minLength": 1 },
+    "next_prompt": { "type": "string", "minLength": 1 },
+    "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+    "latency_ms": { "$ref": "#/$defs/latency" },
+    "asr_device": { "type": "string", "enum": ["npu", "cpu"] },
+    "fallbacks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["mi300_offline", "rag_no_result", "asr_cpu", "tts_prerecorded", "cached_lesson", "fixture_mode"]
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "latency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asr", "backend", "vlm", "tts", "total"],
+      "properties": {
+        "asr": { "type": ["integer", "null"], "minimum": 0 },
+        "backend": { "type": "integer", "minimum": 0 },
+        "vlm": { "type": ["integer", "null"], "minimum": 0 },
+        "tts": { "type": ["integer", "null"], "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

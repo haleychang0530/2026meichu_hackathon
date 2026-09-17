@@ -1,0 +1,27 @@
+{
+  "schema_version": "0.1.0",
+  "id": "utt_market_prompt_001",
+  "segments": [
+    {
+      "lang": "zh-TW",
+      "hanji": "先聽一次台語。",
+      "tailo_citation": null,
+      "poj_citation": null,
+      "zh_gloss": null,
+      "source": "generated",
+      "pronunciation_status": "verified"
+    },
+    {
+      "lang": "nan-TW",
+      "hanji": "阿媽欲去市場買菜。",
+      "tailo_citation": "A-má beh khì tshī-tiûnn bé tshài.",
+      "poj_citation": "A-má beh khì chhī-tiûⁿ bé chhài.",
+      "zh_gloss": "阿嬤要去市場買菜。",
+      "source": "textbook",
+      "pronunciation_status": "verified"
+    }
+  ],
+  "tts_provider": "mms-tts-nan",
+  "audio_url": "/api/audio/nan-market-prompt-001.wav",
+  "audio_cache_key": "nan-market-prompt-001"
+}

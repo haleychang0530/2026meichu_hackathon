@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1.0",
+  "scenario": "partial_success",
+  "session_id": "session_demo_001",
+  "state": "IDLE",
+  "progress": 0.5,
+  "prompt": "再試一次：阿媽欲去市場。",
+  "feedback": "你說到人物和地點了，再加上「欲去」。",
+  "actions": ["replay", "start_answer", "hint", "pause"],
+  "notice": null,
+  "services": [
+    { "service": "core-api", "status": "ready" },
+    { "service": "asr", "status": "ready" },
+    { "service": "tts", "status": "ready" }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1.0",
+  "lesson_id": "lesson_market_no_rag_001",
+  "topic": "去市場",
+  "source_text": "阿媽欲去市場買菜。",
+  "vocabulary": [
+    { "hanji": "市場", "tailo": "tshī-tiûnn", "meaning": "市場", "audio_key": null }
+  ],
+  "scene": "市場情境，細節等待教師確認。",
+  "original_activity": "看圖回答。",
+  "learning_objective": "練習市場相關詞彙。",
+  "accessible_activity": "改用不洩漏答案的角色與動作口語選擇題。",
+  "evidence": [],
+  "confidence": 0.55,
+  "review_status": "pending",
+  "vlm_model_revision": "qwen3-vl-32b-instruct-fp8@candidate-1",
+  "rag_index_revision": null
+}

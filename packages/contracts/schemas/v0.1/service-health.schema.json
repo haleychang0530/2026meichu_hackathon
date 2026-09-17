@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hear-our-language.local/contracts/v0.1/service-health.schema.json",
+  "title": "ServiceHealth",
+  "description": "Health snapshot for Core, RAG, VLM, ASR, or TTS.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "service",
+    "status",
+    "device",
+    "model_revision",
+    "queue_depth",
+    "last_error",
+    "checked_at"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "service": { "type": "string", "enum": ["core-api", "rag", "vlm-mi300", "asr", "tts"] },
+    "status": { "type": "string", "enum": ["ready", "degraded", "offline"] },
+    "device": { "type": ["string", "null"] },
+    "model_revision": { "type": ["string", "null"] },
+    "queue_depth": { "type": "integer", "minimum": 0 },
+    "last_error": {
+      "oneOf": [
+        { "$ref": "error.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "checked_at": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": "0.1.0",
+  "session_id": "session_demo_001",
+  "lesson_id": "lesson_market_001",
+  "state": "IDLE",
+  "progress": 0.5,
+  "completed_turns": 2,
+  "turns": [
+    {
+      "schema_version": "0.1.0",
+      "turn_id": "turn_002",
+      "session_id": "session_demo_001",
+      "transcript_raw": "阿媽市場",
+      "transcript_normalized": "阿媽 市場",
+      "result": "partial",
+      "matched_concepts": ["阿媽", "市場"],
+      "feedback": "你說到人物和地點了，再加上「欲去」。",
+      "next_prompt": "再試一次：阿媽欲去市場。",
+      "progress": 0.5,
+      "latency_ms": { "asr": 910, "backend": 105, "vlm": null, "tts": 300, "total": 1315 },
+      "asr_device": "cpu",
+      "fallbacks": ["asr_cpu"]
+    }
+  ],
+  "concepts_to_review": ["欲去"],
+  "hint_history": [
+    { "turn_id": "turn_002", "prompt": "請再說一次。", "feedback": "可補上動作「欲去」。" }
+  ],
+  "familiarity": [
+    { "concept": "阿媽", "status": "familiar" },
+    { "concept": "市場", "status": "developing" },
+    { "concept": "欲去", "status": "new" }
+  ]
+}

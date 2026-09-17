@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hear-our-language.local/contracts/v0.1/observer-session-summary.schema.json",
+  "title": "ObserverSessionSummary",
+  "description": "Teacher/parent-only session summary with turn history and learning signals. Never expose this object to student routes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "lesson_id",
+    "state",
+    "progress",
+    "completed_turns",
+    "turns",
+    "concepts_to_review",
+    "hint_history",
+    "familiarity"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "session_id": { "type": "string", "pattern": "^session_[A-Za-z0-9_-]+$" },
+    "lesson_id": { "type": "string", "pattern": "^lesson_[A-Za-z0-9_-]+$" },
+    "state": {
+      "type": "string",
+      "enum": ["IDLE", "SPEAKING", "LISTENING", "TRANSCRIBING", "EVALUATING", "RECOVERABLE_ERROR", "COMPLETE"]
+    },
+    "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+    "completed_turns": { "type": "integer", "minimum": 0 },
+    "turns": {
+      "type": "array",
+      "items": { "$ref": "turn-result.schema.json" }
+    },
+    "concepts_to_review": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "hint_history": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/hint" }
+    },
+    "familiarity": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/familiarity" }
+    }
+  },
+  "$defs": {
+    "hint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["turn_id", "prompt", "feedback"],
+      "properties": {
+        "turn_id": { "type": "string", "pattern": "^turn_[A-Za-z0-9_-]+$" },
+        "prompt": { "type": "string", "minLength": 1 },
+        "feedback": { "type": "string", "minLength": 1 }
+      }
+    },
+    "familiarity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["concept", "status"],
+      "properties": {
+        "concept": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["new", "developing", "familiar"] }
+      }
+    }
+  }
+}
