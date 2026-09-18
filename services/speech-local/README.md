@@ -1,12 +1,12 @@
 # Local Speech Gateway
 
-Owner: Agent B. Runtime: Ryzen AI 9 laptop. Stage: 04.
+Owner: Agent B. Runtime: Ryzen AI 9 laptop. Stage: 05.
 
 The gateway implements the frozen v0.1 boundary in
-`packages/contracts/openapi/v0.1/speech-gateway.openapi.json` with Python's
-standard library. It is localhost-only, half-duplex, and CPU-first. The
-mock workers stand in for the Stage 05 Breeze-ASR and Stage 07 MMS-TTS workers;
-their protocols are the integration seam for those real implementations.
+`packages/contracts/openapi/v0.1/speech-gateway.openapi.json` with a
+localhost-only, half-duplex, CPU-first scheduler. The mock workers remain the
+default for contract tests; Stage 05 adds an explicit Breeze-ASR-26 CPU path
+using the pinned faster-whisper/CTranslate2 runtime.
 
 ## Run
 
@@ -15,6 +15,27 @@ From the repository root:
 ```powershell
 python .\services\speech-local\gateway.py --host 127.0.0.1 --port 8200
 ```
+
+The default `mock` backend does not download model weights. To install the
+CPU runtime in the local speech environment:
+
+```powershell
+python -m venv services/speech-local/.venv
+& services/speech-local/.venv/Scripts/python.exe -m pip install -r services/speech-local/requirements.txt
+```
+
+Start the pinned CPU Breeze backend explicitly. The first warmup/transcription
+downloads the CT2 model revision `7bf9dadb2f7f2bb418e82b3f074549fda82f7f47`
+unless `--asr-model-path` points at an already prepared local model:
+
+```powershell
+& services/speech-local/.venv/Scripts/python.exe services/speech-local/gateway.py `
+  --asr-backend breeze --asr-cpu-threads 4 --port 8200
+```
+
+`BREEZE_ASR_MODEL_PATH`, `BREEZE_ASR_MODEL_REVISION`,
+`BREEZE_ASR_LOCAL_FILES_ONLY`, and `BREEZE_ASR_CPU_THREADS` are available as
+environment overrides. Model files and local runtime output are not tracked.
 
 The server refuses non-local bind addresses. The browser may use the
 development origins `http://127.0.0.1:5173`, `http://localhost:5173`,
@@ -41,10 +62,17 @@ cancels playback; starting playback cancels recording/transcription. Successful
 ASR ends in `EVALUATING` so Core Backend can decide the next product action;
 playback, cancellation, and failures return to `IDLE`.
 
-Audio bytes are held in memory only for the transcription request. The gateway
-passes only the byte count to the mock ASR worker, drops the request bytes before
-queueing the job, writes no recordings, and emits no request body or utterance
-content in logs. Runtime diagnostics retain only queue/state/memory metadata.
+The Breeze worker decodes browser audio in memory, converts it to 16 kHz mono
+float32 PCM, applies bounded volume normalization, and optionally trims
+silence with a deterministic energy VAD. It passes `language="zh"` to Breeze,
+which emits Mandarin Chinese characters for Taigi input; `nan-TW` remains the
+product/API language label for the caller. Raw bytes and transcripts are not
+written by the Gateway.
+
+Audio bytes are held in memory only for the transcription request and are
+dropped after the queued worker completes. The Gateway emits no request body,
+audio bytes, or utterance content in logs. Runtime diagnostics retain only
+queue/state/memory metadata.
 The canonical v0.1 health body remains unchanged; its two service entries
 report device, model revision, queue depth, status, and recent stable errors.
 The health response additionally exposes local-only metadata in the
@@ -57,6 +85,24 @@ snapshot to device checks without changing Agent A's frozen schema.
 ```powershell
 python -m unittest discover -s services/speech-local -p "test_*.py" -v
 ```
+
+The Stage 05 benchmark requires an operator-supplied manifest with at least 20
+authorized recordings. Start from
+`services/speech-local/benchmarks/cpu-cases.example.json`, fill in the audio
+paths and authorization metadata, then run:
+
+```powershell
+& services/speech-local/.venv/Scripts/python.exe scripts/benchmark_breeze_cpu.py `
+  --manifest path\to\cpu-cases.json `
+  --output services/speech-local/.runtime/breeze-cpu-benchmark.json
+```
+
+The report records model revision, load time, per-case latency, real-time
+factor, RSS peak, VAD/preprocessing metrics, expected no-speech rejections,
+unexpected failures, and transcript hashes.
+Full raw/normalized transcripts are opt-in with
+`--include-transcripts` and should only be used for an authorized non-student
+test set.
 
 The integration suite covers the HTTP routes and localhost CORS, playback ↔
 recording cancellation, duplicate-click single-flight behavior, CPU fallback,

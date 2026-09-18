@@ -1,9 +1,10 @@
-"""Localhost Speech Gateway for Agent B Stage 04.
+"""Localhost Speech Gateway for Agent B Stage 05.
 
-This module intentionally uses only Python's standard library.  The HTTP
-boundary follows ``packages/contracts/openapi/v0.1/speech-gateway.openapi.json``
-and the worker interfaces are injectable so the mock path can be tested before
-Breeze ASR and MMS-TTS are installed on the laptop.
+The HTTP boundary follows
+``packages/contracts/openapi/v0.1/speech-gateway.openapi.json``.  The worker
+interfaces are injectable: the default mock path keeps contract tests light,
+while the explicit ``breeze`` backend loads the pinned CPU Breeze-ASR-26
+adapter only when requested.
 
 The gateway is a scheduler, not a product-session owner.  It provides one
 bounded inference queue, one CPU semaphore shared by ASR/TTS, cooperative
@@ -35,11 +36,17 @@ from uuid import UUID, uuid4
 
 from workers import (
     ASRWorker,
+    BREEZE_ASR_COMPUTE_TYPE,
+    BREEZE_ASR_DEFAULT_CPU_THREADS,
+    BREEZE_ASR_MODEL_ID,
+    BREEZE_ASR_MODEL_REVISION,
     CancellationToken,
     MockASRWorker,
     MockTTSWorker,
+    SpeechWorkerError,
     TTSWorker,
     WorkerCancelled,
+    create_asr_worker,
 )
 
 
@@ -640,9 +647,10 @@ class SpeechGatewayService:
                 status_code=HTTPStatus.BAD_REQUEST,
             )
 
-        # The mock and the future real worker only need metadata at this
-        # boundary.  Drop the bytes before creating the queued closure.
+        # Keep one immutable in-memory copy until the queued worker finishes.
+        # It is never written to disk, logged, or retained after this request.
         audio_size = len(audio)
+        audio_payload = bytes(audio)
         del audio
         started_at = time.monotonic()
         device = "cpu"  # NPU is opt-in later; CPU is the reliable fallback.
@@ -651,6 +659,7 @@ class SpeechGatewayService:
             with self.cpu_inference_semaphore:
                 token.checkpoint()
                 return self.asr_worker.transcribe(
+                    audio=audio_payload,
                     audio_size=audio_size,
                     language=language,
                     device=device,
@@ -677,6 +686,15 @@ class SpeechGatewayService:
                 kind="asr",
                 request_id=request_id,
                 message="ASR work was cancelled.",
+            ) from exc
+        except SpeechWorkerError as exc:
+            self._finish_operation(request_id, kind="asr", success=False)
+            self._record_failure(service="asr", request_id=request_id, code="ASR_FAILED")
+            raise self._operation_error(
+                kind="asr",
+                request_id=request_id,
+                message=exc.safe_message,
+                details={"reason": exc.reason},
             ) from exc
         except Exception as exc:
             self._finish_operation(request_id, kind="asr", success=False)
@@ -757,6 +775,10 @@ class SpeechGatewayService:
 
     def close(self) -> None:
         self._executor.shutdown()
+        for worker in (self.asr_worker, self.tts_worker):
+            close = getattr(worker, "close", None)
+            if callable(close):
+                close()
 
     def _submit_operation(
         self,
@@ -853,6 +875,7 @@ class SpeechGatewayService:
         kind: str,
         request_id: str,
         message: str,
+        details: Mapping[str, Any] | None = None,
     ) -> GatewayError:
         if kind == "asr":
             return _make_error(
@@ -862,6 +885,7 @@ class SpeechGatewayService:
                 retryable=True,
                 fallback="keyboard_input",
                 status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+                details=details,
             )
         return _make_error(
             code="TTS_FAILED",
@@ -870,6 +894,7 @@ class SpeechGatewayService:
             retryable=True,
             fallback="prerecorded_audio",
             status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+            details=details,
         )
 
     def _record_failure(self, *, service: str, request_id: str, code: str) -> None:
@@ -1394,10 +1419,64 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", default=DEFAULT_PORT, type=int)
     parser.add_argument("--timeout", default=DEFAULT_TIMEOUT_S, type=float)
+    parser.add_argument(
+        "--asr-backend",
+        choices=("mock", "breeze"),
+        default=os.environ.get("SPEECH_ASR_BACKEND", "mock"),
+        help="ASR worker to use; mock avoids model loading, breeze enables CPU ASR.",
+    )
+    parser.add_argument(
+        "--asr-model-path",
+        default=os.environ.get("BREEZE_ASR_MODEL_PATH"),
+        help="Optional local CT2 model directory; otherwise use the pinned Hub model.",
+    )
+    parser.add_argument(
+        "--asr-model-id",
+        default=os.environ.get("BREEZE_ASR_MODEL_ID", BREEZE_ASR_MODEL_ID),
+    )
+    parser.add_argument(
+        "--asr-model-revision",
+        default=os.environ.get("BREEZE_ASR_MODEL_REVISION", BREEZE_ASR_MODEL_REVISION),
+        help="Pinned model revision; defaults to the reviewed CT2 commit.",
+    )
+    parser.add_argument(
+        "--asr-compute-type",
+        default=os.environ.get("BREEZE_ASR_COMPUTE_TYPE", BREEZE_ASR_COMPUTE_TYPE),
+    )
+    parser.add_argument(
+        "--asr-cpu-threads",
+        default=_env_int("BREEZE_ASR_CPU_THREADS", BREEZE_ASR_DEFAULT_CPU_THREADS),
+        type=int,
+    )
+    parser.add_argument(
+        "--asr-local-files-only",
+        action="store_true",
+        default=_env_bool("BREEZE_ASR_LOCAL_FILES_ONLY", False),
+        help="Do not contact the Hub; useful for an offline, pre-cached model.",
+    )
+    parser.add_argument(
+        "--asr-no-vad",
+        action="store_true",
+        default=_env_bool("BREEZE_ASR_DISABLE_VAD", False),
+        help="Disable the deterministic energy VAD for an explicit benchmark.",
+    )
     args = parser.parse_args(argv)
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
         parser.error("Speech Gateway must bind to localhost")
-    service = SpeechGatewayService(timeout_s=args.timeout)
+    try:
+        asr_worker = create_asr_worker(
+            args.asr_backend,
+            model_path=args.asr_model_path,
+            model_id=args.asr_model_id,
+            revision=args.asr_model_revision,
+            compute_type=args.asr_compute_type,
+            cpu_threads=args.asr_cpu_threads,
+            vad_enabled=not args.asr_no_vad,
+            local_files_only=args.asr_local_files_only,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+    service = SpeechGatewayService(asr_worker=asr_worker, timeout_s=args.timeout)
     server = build_server(service, host=args.host, port=args.port)
     try:
         server.serve_forever()
@@ -1408,6 +1487,23 @@ def main(argv: list[str] | None = None) -> int:
         server.server_close()
         service.close()
     return 0
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised by the run command
