@@ -14,6 +14,58 @@ export interface HealthSummaryView {
   readonly services: readonly ServiceHealthView[];
 }
 
+export type ImageQualityStatus = 'good' | 'warning' | 'rejected';
+
+export type ImageQualityIssueCode =
+  | 'unsupported_type'
+  | 'file_too_large'
+  | 'resolution_too_low'
+  | 'too_blurry'
+  | 'too_dark'
+  | 'too_bright';
+
+export interface ImageQualityMetrics {
+  readonly meanLuminance: number;
+  readonly darkPixelRatio: number;
+  readonly brightPixelRatio: number;
+  readonly sharpness: number;
+}
+
+export interface ImageQualityIssue {
+  readonly code: ImageQualityIssueCode;
+  readonly severity: 'blocking' | 'warning';
+  readonly message: string;
+  readonly suggestion: string;
+}
+
+export interface ImageQualityReport {
+  readonly status: ImageQualityStatus;
+  readonly width: number;
+  readonly height: number;
+  readonly bytes: number;
+  readonly mimeType: string;
+  readonly issues: readonly ImageQualityIssue[];
+  readonly metrics?: ImageQualityMetrics;
+}
+
+/**
+ * A browser-prepared image. The Core Backend receives only `blob`; previewUrl
+ * is a short-lived object URL owned by the Camera component.
+ */
+export interface LessonImageUpload {
+  readonly blob: Blob;
+  readonly fileName: string;
+  readonly mimeType: string;
+  readonly width: number;
+  readonly height: number;
+  readonly sourceBytes: number;
+  readonly quality: ImageQualityReport;
+}
+
+export interface CaptureAsset extends LessonImageUpload {
+  readonly previewUrl: string;
+}
+
 export interface SetupViewModel {
   readonly title: string;
   readonly description: string;
@@ -27,6 +79,8 @@ export interface CaptureImageView {
   readonly label: string;
 }
 
+export type CaptureProviderMode = 'mock' | 'real' | 'fixture' | 'fixture-fallback';
+
 export interface CaptureViewModel {
   readonly lessonId: string;
   readonly title: string;
@@ -34,6 +88,9 @@ export interface CaptureViewModel {
   readonly reviewStatus: 'pending' | 'approved' | 'rejected';
   readonly images: readonly CaptureImageView[];
   readonly health: HealthSummaryView;
+  readonly providerMode: CaptureProviderMode;
+  /** Stage 08 owns the runtime session-confirmation endpoint. */
+  readonly canConfirm: boolean;
 }
 
 export type StudentAction = 'listen' | 'answer' | 'hint' | 'pause';
