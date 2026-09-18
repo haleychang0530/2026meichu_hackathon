@@ -170,7 +170,7 @@ Fixtures are synthetic metadata only; no original page image is required.
 ## Git state
 
 - Local implementation: complete after final tests and diff review.
-- Commits: `0ac6ff0`, `ef7cfa5`, `b7c2c2a`, plus the handoff metadata update.
+- Commits: `0ac6ff0`, `ef7cfa5`, `b7c2c2a`, `baf77ca`.
 - Remote branch: pushed to `origin/codex/agentA-stage07-lesson-analysis`.
 - Pull request: #12 is open against `main`; merge not performed and still
   requires explicit repository-owner authorization.
