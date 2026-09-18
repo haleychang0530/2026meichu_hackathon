@@ -66,14 +66,37 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["schema_version", "request_id", "output", "model_revision", "latency_ms", "queue_ms"],
+                  "required": ["schema_version", "request_id", "output", "model_revision", "latency_ms", "queue_ms", "inference_ms"],
                   "properties": {
                     "schema_version": { "const": "0.1.0" },
                     "request_id": { "type": "string", "format": "uuid" },
-                    "output": { "type": "object" },
+                    "output": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["raw_output", "parsed_candidate", "usage", "finish_reason"],
+                      "properties": {
+                        "raw_output": { "type": "string" },
+                        "parsed_candidate": {
+                          "description": "Candidate parsed from raw_output and validated against the request response_schema.",
+                          "type": ["object", "array", "string", "number", "boolean", "null"]
+                        },
+                        "usage": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["prompt_tokens", "completion_tokens", "total_tokens"],
+                          "properties": {
+                            "prompt_tokens": { "type": ["integer", "null"], "minimum": 0 },
+                            "completion_tokens": { "type": ["integer", "null"], "minimum": 0 },
+                            "total_tokens": { "type": ["integer", "null"], "minimum": 0 }
+                          }
+                        },
+                        "finish_reason": { "type": ["string", "null"] }
+                      }
+                    },
                     "model_revision": { "type": "string" },
                     "latency_ms": { "type": "integer", "minimum": 0 },
-                    "queue_ms": { "type": "integer", "minimum": 0 }
+                    "queue_ms": { "type": "integer", "minimum": 0 },
+                    "inference_ms": { "type": "integer", "minimum": 0 }
                   }
                 }
               }
