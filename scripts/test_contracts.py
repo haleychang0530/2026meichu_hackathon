@@ -219,6 +219,10 @@ def validate_openapi() -> int:
     assert component_schemas["ObserverSessionSummary"]["$ref"].endswith(
         "observer-session-summary.schema.json"
     )
+    normalize = core["paths"]["/api/utterances/normalize"]["post"]
+    normalize_request = normalize["requestBody"]["content"]["application/json"]["schema"]
+    assert set(normalize_request["required"]) == {"schema_version", "text", "lang"}
+    assert normalize["responses"]["200"]["$ref"] == "#/components/responses/Utterance"
     return response_count
 
 
@@ -287,6 +291,13 @@ def validate_fixtures(schemas: dict[str, dict[str, Any]]) -> tuple[int, int]:
     assert actual_json == manifest_paths, "Fixture manifest and filesystem differ"
     assert EXPECTED_OBSERVER_SUMMARIES <= manifest_paths, "Observer summary fixture set is incomplete"
     assert EXPECTED_STUDENT_ACTION_FIXTURES <= manifest_paths, "Student action fixture set is incomplete"
+    tts_ready = load_json(FIXTURE_DIR / "observer/success.utterance.json")
+    tts_segment = next(item for item in tts_ready["segments"] if item["lang"] == "nan-TW")
+    assert "ⁿ" not in tts_segment["poj_citation"], "MMS fixture contains unsupported superscript nasal"
+    needs_review = load_json(FIXTURE_DIR / "observer/needs-review.utterance.json")
+    assert needs_review["segments"][0]["pronunciation_status"] == "needs_review"
+    assert needs_review["segments"][0]["poj_citation"] is None
+    assert needs_review["tts_provider"] is None
     assert student_scenarios == REQUIRED_SCENARIOS, (
         f"Student scenarios differ: {student_scenarios ^ REQUIRED_SCENARIOS}"
     )

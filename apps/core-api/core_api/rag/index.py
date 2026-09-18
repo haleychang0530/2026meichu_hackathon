@@ -11,7 +11,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from .chunking import IngestReport, ingest_manifest, load_manifest
 from .embeddings import EmbeddingBackend, EmbeddingError, normalize_for_embedding, pack_vector, unpack_vector
@@ -214,6 +214,40 @@ class RagIndex:
                 scores[str(row[0])] = scores.get(str(row[0]), 0.0) + 3.0
         return scores
 
+    def _exact_scores(self, query: str) -> dict[str, float]:
+        normalized_query = normalize_for_embedding(query)
+        if not normalized_query:
+            return {}
+        escaped_query = (
+            normalized_query.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+        )
+        scores: dict[str, float] = {}
+        self._connection.row_factory = sqlite3.Row
+        for row in self._connection.execute(
+            "SELECT chunk_id, normalized_text FROM chunks "
+            "WHERE normalized_text LIKE ? ESCAPE '!'",
+            (f"%{escaped_query}%",),
+        ):
+            scores[str(row[0])] = 1.0 if str(row[1]) == normalized_query else 0.88
+        return scores
+
+    @staticmethod
+    def _matches_metadata(row: sqlite3.Row, filters: Mapping[str, str] | None) -> bool:
+        if not filters:
+            return True
+        values = {
+            "source_id": str(row[2]),
+            "title": str(row[3]),
+            "source_type": str(row[4]),
+            "source_version": str(row[5]),
+            "source_sha256": str(row[6]),
+            "license": str(row[7]),
+            "language": str(row[9]),
+            "locator": str(row[10]),
+            "section": "" if row[11] is None else str(row[11]),
+        }
+        return all(values.get(key) == value for key, value in filters.items())
+
     def _fetch_rows(self, chunk_ids: Sequence[str]) -> dict[str, sqlite3.Row]:
         if not chunk_ids:
             return {}
@@ -227,7 +261,15 @@ class RagIndex:
         )
         return {str(row[0]): row for row in rows}
 
-    def search(self, query: str, *, top_k: int = 5, min_vector_score: float = 0.34) -> list[RetrievalResult]:
+    def search(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        min_vector_score: float = 0.34,
+        min_score: float = 0.34,
+        metadata_filter: Mapping[str, str] | None = None,
+    ) -> list[RetrievalResult]:
         if top_k < 1:
             return []
         cleaned_query = query.strip()
@@ -240,27 +282,61 @@ class RagIndex:
             vector_rows.append((score, row))
         vector_rows.sort(key=lambda item: (item[0], str(item[1][0])), reverse=True)
         keywords = self._keyword_scores(cleaned_query)
+        exact = self._exact_scores(cleaned_query)
         candidate_rows = self._fetch_rows([str(row[0]) for _, row in vector_rows[: max(top_k * 3, 10)]])
         candidate_rows.update(self._fetch_rows(list(keywords)))
+        candidate_rows.update(self._fetch_rows(list(exact)))
         vector_by_id = {str(row[0]): score for score, row in vector_rows}
         ranked: list[tuple[float, str, str]] = []
+        # Three independent lexical matches (for example 市 + 場 + 市場) are
+        # already strong evidence for short Hanji queries. Capping the
+        # denominator avoids penalizing natural wrappers such as「市場的台語」
+        # while the final reliability threshold still rejects one-character
+        # coincidences.
+        query_token_count = max(min(len(_keyword_tokens(cleaned_query)), 3), 1)
         for chunk_id, row in candidate_rows.items():
+            if not self._matches_metadata(row, metadata_filter):
+                continue
             vector_score = vector_by_id.get(chunk_id, 0.0)
             keyword_score = keywords.get(chunk_id, 0.0)
-            if vector_score < min_vector_score and keyword_score <= 0:
+            exact_score = exact.get(chunk_id, 0.0)
+            if vector_score < min_vector_score and keyword_score <= 0 and exact_score <= 0:
                 continue
-            combined = vector_score + min(keyword_score, 4.0) * 0.08
-            if keyword_score >= 3:
-                combined += 0.2
-            match_kind = "hybrid" if vector_score >= min_vector_score and keyword_score > 0 else (
-                "vector" if vector_score >= min_vector_score else "keyword"
+            keyword_ratio = min(keyword_score / query_token_count, 1.0)
+            combined = min(
+                max(exact_score, max(vector_score, 0.0) * 0.62 + keyword_ratio * 0.38),
+                1.0,
             )
+            if combined < min_score:
+                continue
+            if exact_score == 1.0:
+                match_kind = "normalized_exact"
+            elif exact_score > 0:
+                match_kind = "normalized_substring"
+            elif vector_score >= min_vector_score and keyword_score > 0:
+                match_kind = "hybrid"
+            elif keyword_score > 0:
+                match_kind = "keyword"
+            else:
+                match_kind = "vector"
             ranked.append((combined, chunk_id, match_kind))
         ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
         return [
             self._row_to_result(candidate_rows[chunk_id], score, match_kind)
             for score, chunk_id, match_kind in ranked[:top_k]
         ]
+
+    def resolve(self, *, source_id: str, locator: str, revision: str) -> RetrievalResult | None:
+        if revision != self.revision:
+            return None
+        self._connection.row_factory = sqlite3.Row
+        row = self._connection.execute(
+            "SELECT chunk_id, text, source_id, source_title, source_type, source_version, "
+            "source_sha256, source_license, acquired_at, language, locator, section, embedding "
+            "FROM chunks WHERE source_id = ? AND locator = ?",
+            (source_id, locator),
+        ).fetchone()
+        return self._row_to_result(row, 1.0, "citation_replay") if row else None
 
 
 class _IndexWriter:
@@ -553,10 +629,37 @@ class RagIndexManager:
             None,
         )
 
-    def search(self, query: str, *, top_k: int = 5) -> list[RetrievalResult]:
+    def search(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        min_vector_score: float = 0.34,
+        min_score: float = 0.34,
+        metadata_filter: Mapping[str, str] | None = None,
+    ) -> list[RetrievalResult]:
         if self.index is None:
             self.open_active()
-        return self.index.search(query, top_k=top_k) if self.index is not None else []
+        return (
+            self.index.search(
+                query,
+                top_k=top_k,
+                min_vector_score=min_vector_score,
+                min_score=min_score,
+                metadata_filter=metadata_filter,
+            )
+            if self.index is not None
+            else []
+        )
+
+    def resolve(self, *, source_id: str, locator: str, revision: str) -> RetrievalResult | None:
+        if self.index is None:
+            self.open_active()
+        return (
+            self.index.resolve(source_id=source_id, locator=locator, revision=revision)
+            if self.index is not None
+            else None
+        )
 
     def close(self) -> None:
         if self.index is not None:

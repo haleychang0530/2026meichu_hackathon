@@ -228,3 +228,31 @@ the generated frontend output, adapters, UI projections, and accessibility
 tests. Any breaking change updates the version directory, schema, OpenAPI,
 fixtures, contract tests, and this handoff together. No agent should silently
 rename a field or reinterpret a response without recording the change here.
+
+## 8. Stage 06 utterance normalization profile
+
+`POST /api/utterances/normalize` now implements the already-reserved v0.1
+operation. The request and response fields are unchanged. Agent B may pass a
+`nan-TW` segment's `poj_citation` directly to `facebook/mms-tts-nan` only when
+`pronunciation_status` is `verified` or `converted` and `tts_provider` is
+`mms-tts-nan`. A `needs_review` segment always has `poj_citation: null` and no
+TTS provider.
+
+The MMS-facing POJ profile is lower-case, punctuation-free, and uses `nn` for
+nasalization because the pinned official model vocabulary contains `n` but not
+the superscript nasal marker. The scholarly/source 臺羅 remains unchanged in
+`tailo_citation`; the MMS-compatible representation belongs only in
+`poj_citation`.
+
+Hanji-only input uses the versioned, manually reviewed repository lexicon.
+Textbook-provided 臺羅 always takes precedence, but a disagreement with the
+reviewed candidate is blocked as `needs_review`. OOV, multiple readings, and
+literary/colloquial conflicts are likewise blocked. Internal audit records keep
+the version and input/output of Unicode normalization, Hanji lookup, 臺羅→POJ,
+and MMS vocabulary validation without adding private/internal trace fields to
+the frozen public Utterance response.
+
+No JSON Schema or OpenAPI version bump is required: Stage 06 fills the frozen
+v0.1 endpoint and corrects the POJ fixture value without adding, removing, or
+reinterpreting a field. Agent B should regenerate types as a regression check;
+the generated type shape is expected to remain unchanged.

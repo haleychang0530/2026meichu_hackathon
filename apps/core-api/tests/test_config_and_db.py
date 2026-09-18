@@ -32,6 +32,11 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.provider_mode, "fixture")
         self.assertEqual(settings.allowed_origins, ("http://127.0.0.1:5173",))
 
+    def test_rag_reliability_threshold_is_bounded(self) -> None:
+        with patch.dict(os.environ, {"RAG_MIN_SCORE": "1.1"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "RAG_MIN_SCORE"):
+                Settings.from_env("test")
+
 
 class DatabaseTests(unittest.TestCase):
     def test_migrations_are_idempotent(self) -> None:

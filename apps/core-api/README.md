@@ -1,11 +1,11 @@
-# Core Backend (Agent A Stage 05)
+# Core Backend (Agent A Stage 06)
 
 The FastAPI Core Backend is the browser's only product API and runs on the
 Ryzen AI 9 laptop. It owns image validation, orchestration, product fallback,
 SQLite readiness, and dependency health. The browser never receives or calls
 the MI300 URL.
 
-The Stage 04 baseline plus Stage 05 implements:
+The Stage 04/05 baseline plus Stage 06 implements:
 
 - `GET /api/health`
 - `POST /api/lessons/analyze`
@@ -20,6 +20,10 @@ The Stage 04 baseline plus Stage 05 implements:
 - SQLite migration tracking without a Stage 08 session domain
 - laptop-only Local RAG manifest validation, UTF-8 cleaning, chunking, and
   persistent vector/keyword index support
+- bounded hybrid retrieval, reproducible evidence citations, and honest empty
+  evidence below the reliability threshold
+- `POST /api/utterances/normalize` with textbook-臺羅 precedence, reviewed
+  Hanji candidates, deterministic MMS-compatible POJ, and `needs_review` gates
 
 The full cross-agent contract remains
 `packages/contracts/openapi/v0.1/core-api.openapi.json`. Stage 04 runtime
@@ -64,6 +68,7 @@ Important variables:
 - `RAG_MANIFEST_PATH`, `RAG_INDEX_ROOT`, `RAG_EMBEDDING_BACKEND`, and
   `RAG_EMBEDDING_DIMENSION`
 - `RAG_ONNX_MODEL_PATH` and `RAG_ONNX_TOKENIZER_PATH` when using `onnx-local`
+- `LANGUAGE_GOLDEN_PATH` for the reviewed Hanji/臺羅/POJ set
 - `VLM_CONNECT_TIMEOUT_SECONDS`, `VLM_READ_TIMEOUT_SECONDS`,
   `VLM_MAX_ATTEMPTS`, `VLM_RETRY_BACKOFF_SECONDS`,
   `VLM_CIRCUIT_FAILURE_THRESHOLD`, and `VLM_CIRCUIT_RECOVERY_SECONDS`
@@ -104,6 +109,10 @@ curl.exe -X POST http://127.0.0.1:8000/api/lessons/analyze `
   -F "language=nan-TW" `
   -F "use_fixture_on_failure=true" `
   -F "image=@page.jpg;type=image/jpeg"
+
+curl.exe -X POST http://127.0.0.1:8000/api/utterances/normalize `
+  -H "Content-Type: application/json" `
+  -d '{"schema_version":"0.1.0","text":"市場","lang":"nan-TW","tailo_citation":"tshī-tiûnn"}'
 ```
 
 When the real provider is unavailable and `use_fixture_on_failure=true`, the
@@ -149,6 +158,36 @@ CPU-only, and preserves Hanji plus 臺羅 code points. An approved local
 tokenizer/model may opt into the optional `onnx-local` CPU adapter; this
 repository does not download or commit model weights.
 
+Stage 06 adds a policy layer over the index: normalized exact match, keyword,
+and vector scores are combined; optional metadata filters are applied before
+ranking; results below the configured threshold are discarded; duplicate text
+is removed; and excerpts are clipped to a total context character budget. Each
+internal evidence item contains `source_id`, `title`, `excerpt`, `locator`,
+`score`, and `index_revision`. The frozen Lesson response keeps score internal,
+places provenance in `evidence[]`, and carries the revision once in
+`rag_index_revision`.
+
+## Language normalization
+
+The laptop environment does not require a network Taibun/THOKIT service. The
+fallback mandated by Stage 06 is implemented as a versioned, reviewed offline
+lexicon plus deterministic rules. `data/language/normalization-golden.json`
+contains 38 Hanji/臺羅/POJ/Chinese-gloss/example rows. The conversion target is
+the official `facebook/mms-tts-nan` vocabulary profile, so `poj_citation` is
+lower-case, punctuation-free, and uses `nn` instead of the unsupported `ⁿ`.
+
+Run the traceable golden report from the repository root:
+
+```powershell
+& apps/core-api/.venv/Scripts/python.exe scripts/language_golden.py
+```
+
+The report records every row's input/output plus the lexicon, converter,
+pipeline, and MMS vocabulary versions. OOV, multiple readings,
+literary/colloquial readings, and textbook/dictionary conflicts return
+`needs_review` with no POJ or TTS provider. See
+`data/language/manual-review.json` for the human confirmation queue.
+
 ## Test
 
 ```powershell
@@ -157,6 +196,8 @@ Set-Location apps/core-api
 
 Set-Location ../..
 & apps/core-api/.venv/Scripts/python.exe scripts/test_contracts.py
+& apps/core-api/.venv/Scripts/python.exe scripts/language_golden.py
+& apps/core-api/.venv/Scripts/python.exe scripts/retrieval_citation_smoke.py
 ```
 
 Tests cover profiles, idempotent migrations, request IDs, canonical errors,
@@ -164,7 +205,9 @@ image validation, success/error/cancellation cleanup, real/fixture schema
 parity, retry, circuit breaker, runtime OpenAPI, MI300-offline startup, fixture
 fallback, manifest/license gates, chunk cleaning, incremental reuse, atomic
 switching, persistent vector retrieval, keyword fallback, and the 20-query
-RAG smoke set.
+RAG smoke set. Stage 06 adds golden normalization, textbook-priority,
+OOV/conflict review gates, MMS vocabulary validation, hybrid ranking, metadata
+filtering, context budgets, empty-evidence behavior, and citation replay.
 
 ## Data and privacy
 
