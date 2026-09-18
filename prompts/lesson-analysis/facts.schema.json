@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hear-our-language.local/prompts/stage07/facts.schema.json",
+  "title": "Stage07LessonPageFacts",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "topic",
+    "source_text",
+    "vocabulary",
+    "scene",
+    "visual_elements",
+    "original_activity",
+    "answer_evidence",
+    "question_type",
+    "quality_warnings",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "stage07-facts.v1" },
+    "topic": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "source_text": { "type": "string", "minLength": 1 },
+    "vocabulary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["hanji", "tailo", "meaning"],
+        "properties": {
+          "hanji": { "type": "string", "minLength": 1 },
+          "tailo": { "type": ["string", "null"] },
+          "meaning": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "scene": { "type": "string", "minLength": 1 },
+    "visual_elements": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "original_activity": { "type": "string", "minLength": 1 },
+    "answer_evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "question_type": {
+      "type": "string",
+      "enum": ["visual_question", "dialogue", "reading", "matching", "none"]
+    },
+    "quality_warnings": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

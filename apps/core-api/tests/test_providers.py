@@ -18,6 +18,58 @@ from tests.support import REPOSITORY_ROOT, lesson_payload
 
 
 class Mi300ClientTests(unittest.IsolatedAsyncioTestCase):
+    async def test_generate_uses_stage_schema_and_does_not_retry_invalid_json(self) -> None:
+        calls = 0
+        revision = "stage07-test-revision"
+        stage_schema = json.loads(
+            (REPOSITORY_ROOT / "prompts" / "lesson-analysis" / "facts.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            body = json.loads(request.content)
+            self.assertEqual(body["response_schema"]["title"], "Stage07LessonPageFacts")
+            self.assertEqual(body["prompt"], "facts prompt")
+            return httpx.Response(
+                200,
+                json={
+                    "schema_version": "0.1.0",
+                    "request_id": body["request_id"],
+                    "output": {"raw_output": "{}", "parsed_candidate": {}},
+                    "model_revision": revision,
+                },
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            image_path = Path(directory) / "image.jpg"
+            image_path.write_bytes(b"jpeg")
+            settings = replace(
+                Settings.from_env("test"),
+                provider_mode="real",
+                vlm_model_revision=revision,
+                max_attempts=3,
+                retry_backoff_seconds=0,
+            )
+            client = Mi300Client(
+                settings,
+                load_lesson_schema(REPOSITORY_ROOT),
+                transport=httpx.MockTransport(handler),
+            )
+            with self.assertRaises(ProviderError) as caught:
+                await client.generate(
+                    PreparedImage(image_path, "image/jpeg", 1, 1, 4),
+                    str(uuid.uuid4()),
+                    prompt="facts prompt",
+                    response_schema=stage_schema,
+                )
+            self.assertEqual(caught.exception.code, ErrorCode.VLM_INVALID_OUTPUT)
+            self.assertFalse(caught.exception.retryable)
+            self.assertEqual(calls, 1)
+            await client.close()
+
     async def test_timeout_is_bounded_and_retryable(self) -> None:
         calls = 0
 

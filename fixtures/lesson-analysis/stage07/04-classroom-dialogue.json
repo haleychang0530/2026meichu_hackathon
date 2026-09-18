@@ -1,0 +1,30 @@
+{
+  "fixture_schema_version": "stage07-fixture.v1",
+  "fixture_id": "stage07-classroom-dialogue",
+  "input_profile": { "page_type": "classroom_scene", "quality": "good", "media": "synthetic-metadata-only" },
+  "facts": {
+    "schema_version": "stage07-facts.v1",
+    "topic": "教室物件",
+    "source_text": "這是冊仔，彼是筆。",
+    "vocabulary": [
+      { "hanji": "冊仔", "tailo": "chheh-á", "meaning": "書本" },
+      { "hanji": "筆", "tailo": "pit", "meaning": "筆" }
+    ],
+    "scene": "教室裡有人介紹書本與筆等學用品。",
+    "visual_elements": ["書本", "筆", "學生對話"],
+    "original_activity": "看圖指出課堂中不同的學用品並說出名稱。",
+    "answer_evidence": ["畫面呈現書本與筆兩種學用品，活動目標是辨識並命名。"],
+    "question_type": "visual_question",
+    "quality_warnings": [],
+    "confidence": 0.86
+  },
+  "activity": {
+    "schema_version": "stage07-activity.v1",
+    "learning_objective": "辨識並說出兩種教室用品的臺語名稱。",
+    "accessible_activity": "先聽兩個物件名稱，再聽描述判斷是哪一項，最後用臺語完整說出名稱。",
+    "activity_type": "auditory_reasoning",
+    "safety_checks": { "answer_leak_free": true, "no_position_hint": true, "no_sighted_only_clue": true },
+    "confidence": 0.84
+  },
+  "expected": { "review_status": "pending", "answer_evidence_required": true, "citation_binding": "local_rag_only" }
+}

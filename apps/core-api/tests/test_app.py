@@ -126,6 +126,42 @@ class AppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.json()["vlm_model_revision"], "fixture:v0.1")
         self.assertEqual(list(self.settings.upload_dir.glob("lesson-*")), [])
 
+    async def test_lesson_stays_pending_until_teacher_review(self) -> None:
+        app = create_app(self.settings)
+        created = await self._request(
+            app,
+            "POST",
+            "/api/lessons/analyze",
+            files={"image": ("page.jpg", jpeg_bytes(), "image/jpeg")},
+            data={"language": "nan-TW", "use_fixture_on_failure": "true"},
+        )
+        self.assertEqual(created.status_code, 200, created.text)
+        lesson_id = created.json()["lesson_id"]
+        self.assertEqual(created.json()["review_status"], "pending")
+        self.assertTrue(created.json()["answer_evidence"])
+
+        fetched = await self._request(app, "GET", f"/api/lessons/{lesson_id}")
+        self.assertEqual(fetched.status_code, 200, fetched.text)
+        self.assertEqual(fetched.json()["review_status"], "pending")
+
+        approved = await self._request(
+            app,
+            "PATCH",
+            f"/api/lessons/{lesson_id}",
+            json={"review_status": "approved"},
+        )
+        self.assertEqual(approved.status_code, 200, approved.text)
+        self.assertEqual(approved.json()["review_status"], "approved")
+
+        unsafe = await self._request(
+            app,
+            "PATCH",
+            f"/api/lessons/{lesson_id}",
+            json={"accessible_activity": "請看圖左邊的答案"},
+        )
+        self.assertEqual(unsafe.status_code, 400, unsafe.text)
+        self.assertEqual(unsafe.json()["code"], "VALIDATION_ERROR")
+
     async def test_offline_provider_falls_back_only_when_requested(self) -> None:
         app = create_app(self.settings, provider=OfflineProvider())
         fallback = await self._request(

@@ -1,0 +1,30 @@
+{
+  "fixture_schema_version": "stage07-fixture.v1",
+  "fixture_id": "stage07-food-order",
+  "input_profile": { "page_type": "sequence_and_roleplay", "quality": "occluded-warning", "media": "synthetic-metadata-only" },
+  "facts": {
+    "schema_version": "stage07-facts.v1",
+    "topic": "點餐對話",
+    "source_text": "我欲一碗麵，毋欲辣。",
+    "vocabulary": [
+      { "hanji": "一碗麵", "tailo": "chi̍t uánn mī", "meaning": "一碗麵" },
+      { "hanji": "毋欲辣", "tailo": "m̄ beh la̍t", "meaning": "不要辣" }
+    ],
+    "scene": "顧客和店員進行點餐並說明口味需求。",
+    "visual_elements": ["顧客", "店員", "菜單", "對話順序"],
+    "original_activity": "看圖依照點餐順序完成對話。",
+    "answer_evidence": ["活動依序包含選擇餐點、說明不要辣、店員確認三個對話功能。"],
+    "question_type": "dialogue",
+    "quality_warnings": ["對話框下緣被裁切，最後一句需教師確認。"],
+    "confidence": 0.64
+  },
+  "activity": {
+    "schema_version": "stage07-activity.v1",
+    "learning_objective": "練習點餐、表達口味需求與確認的臺語對話順序。",
+    "accessible_activity": "聽三個點餐功能的句子，請把它們口頭排成合理順序，再分別扮演顧客與店員。",
+    "activity_type": "role_play",
+    "safety_checks": { "answer_leak_free": true, "no_position_hint": true, "no_sighted_only_clue": true },
+    "confidence": 0.62
+  },
+  "expected": { "review_status": "pending", "answer_evidence_required": true, "citation_binding": "local_rag_only" }
+}

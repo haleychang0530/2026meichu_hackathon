@@ -1,0 +1,30 @@
+{
+  "fixture_schema_version": "stage07-fixture.v1",
+  "fixture_id": "stage07-family-greeting",
+  "input_profile": { "page_type": "dialogue_with_illustration", "quality": "good", "media": "synthetic-metadata-only" },
+  "facts": {
+    "schema_version": "stage07-facts.v1",
+    "topic": "家庭問候",
+    "source_text": "阿爸食飽未？食飽矣。",
+    "vocabulary": [
+      { "hanji": "食飽未", "tailo": "chia̍h pá bōe", "meaning": "吃飽了嗎" },
+      { "hanji": "食飽矣", "tailo": "chia̍h pá ah", "meaning": "吃飽了" }
+    ],
+    "scene": "家人互相問候並回應是否吃飽。",
+    "visual_elements": ["兩位家人", "對話框", "餐桌"],
+    "original_activity": "看圖練習家人之間的問候對話。",
+    "answer_evidence": ["頁面以兩個對話框呈現問候與回答的輪替。"],
+    "question_type": "dialogue",
+    "quality_warnings": [],
+    "confidence": 0.9
+  },
+  "activity": {
+    "schema_version": "stage07-activity.v1",
+    "learning_objective": "練習以臺語問候家人並用完整句子回應。",
+    "accessible_activity": "聽到問候句後，先跟讀一次，再用另一個角色的語氣回答是否食飽。",
+    "activity_type": "role_play",
+    "safety_checks": { "answer_leak_free": true, "no_position_hint": true, "no_sighted_only_clue": true },
+    "confidence": 0.9
+  },
+  "expected": { "review_status": "pending", "answer_evidence_required": true, "citation_binding": "local_rag_only" }
+}

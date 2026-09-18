@@ -1,0 +1,30 @@
+{
+  "fixture_schema_version": "stage07-fixture.v1",
+  "fixture_id": "stage07-weather-clothing",
+  "input_profile": { "page_type": "matching_activity", "quality": "glare-warning", "media": "synthetic-metadata-only" },
+  "facts": {
+    "schema_version": "stage07-facts.v1",
+    "topic": "天氣與衣物",
+    "source_text": "天氣寒冷，愛穿外套。",
+    "vocabulary": [
+      { "hanji": "寒冷", "tailo": "hân-líng", "meaning": "寒冷" },
+      { "hanji": "外套", "tailo": "guā-thò", "meaning": "外套" }
+    ],
+    "scene": "教材把天氣描述與合適的衣物放在同一個活動中。",
+    "visual_elements": ["天氣圖示", "衣物圖示", "配對線索"],
+    "original_activity": "看圖把天氣和適合的衣物配起來。",
+    "answer_evidence": ["題目要求根據寒冷天氣選擇外套作為配對結果。"],
+    "question_type": "matching",
+    "quality_warnings": ["部分小圖反光，圖示細節需教師確認。"],
+    "confidence": 0.72
+  },
+  "activity": {
+    "schema_version": "stage07-activity.v1",
+    "learning_objective": "理解寒冷天氣與衣物詞彙的關聯，練習以臺語說明選擇。",
+    "accessible_activity": "聽到天氣描述後，從兩個衣物詞中口頭選出較合適的一個，並說出完整短句。",
+    "activity_type": "oral_choice",
+    "safety_checks": { "answer_leak_free": true, "no_position_hint": true, "no_sighted_only_clue": true },
+    "confidence": 0.68
+  },
+  "expected": { "review_status": "pending", "answer_evidence_required": true, "citation_binding": "local_rag_only" }
+}

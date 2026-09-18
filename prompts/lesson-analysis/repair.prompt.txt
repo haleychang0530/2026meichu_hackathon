@@ -1,0 +1,3 @@
+上一個模型輸出未通過結構或無障礙安全檢查。這是唯一一次可追蹤修復；請根據同一張教材影像、輸入 facts、Local RAG evidence 與 response_schema，重新輸出一個 JSON 物件。
+
+只輸出 JSON，不要 Markdown 或說明。不要捏造看不清楚的文字。若是活動輸出，accessible_activity 不得洩漏答案、複製 answer_evidence、提供任何位置暗示，且不得依賴只有明眼者能取得的圖片／顏色／圈選／指向線索；safety_checks 三個欄位都必須為 true。若仍無法安全產生，維持可審查的保守內容，不要猜測。

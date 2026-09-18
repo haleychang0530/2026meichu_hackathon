@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hear-our-language.local/prompts/stage07/activity.schema.json",
+  "title": "Stage07AccessibleActivity",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "learning_objective",
+    "accessible_activity",
+    "activity_type",
+    "safety_checks",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "stage07-activity.v1" },
+    "learning_objective": { "type": "string", "minLength": 1 },
+    "accessible_activity": { "type": "string", "minLength": 1 },
+    "activity_type": {
+      "type": "string",
+      "enum": ["auditory_reasoning", "oral_choice", "role_play", "listen_repeat", "sequence"]
+    },
+    "safety_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answer_leak_free", "no_position_hint", "no_sighted_only_clue"],
+      "properties": {
+        "answer_leak_free": { "type": "boolean" },
+        "no_position_hint": { "type": "boolean" },
+        "no_sighted_only_clue": { "type": "boolean" }
+      }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "fixture_schema_version": "stage07-errors.v1",
+  "cases": [
+    {
+      "case_id": "invalid-facts-json",
+      "stage": "facts",
+      "failure": "missing required field answer_evidence",
+      "expected": "one repair attempt, then VLM_INVALID_OUTPUT/manual review or explicit fixture fallback"
+    },
+    {
+      "case_id": "accessible-answer-leak",
+      "stage": "activity",
+      "failure": "accessible_activity states the answer directly",
+      "expected": "one safety repair attempt; unresolved output returns VLM_INVALID_OUTPUT/manual review"
+    },
+    {
+      "case_id": "accessible-position-hint",
+      "stage": "activity",
+      "failure": "accessible_activity uses left/right position language",
+      "expected": "blocked by deterministic no_position_hint check"
+    },
+    {
+      "case_id": "rag-empty",
+      "stage": "citation-binding",
+      "failure": "no local indexed evidence reaches the reliability threshold",
+      "expected": "evidence=[] and rag_index_revision=null; never fabricate a citation"
+    }
+  ]
+}
