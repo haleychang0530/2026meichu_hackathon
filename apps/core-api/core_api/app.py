@@ -19,9 +19,24 @@ from .db import Database
 from .errors import AppError
 from .health import HealthAggregator
 from .image_pipeline import ImagePreparer
-from .models import ErrorCode, ErrorEnvelope, HealthResponse, Lesson, SCHEMA_VERSION
+from .language import LanguageNormalizer
+from .models import (
+    ErrorCode,
+    ErrorEnvelope,
+    HealthResponse,
+    Lesson,
+    NormalizeUtteranceRequest,
+    SCHEMA_VERSION,
+    Utterance,
+)
 from .providers import FixtureProvider, LessonProvider, Mi300Client, load_lesson_schema
-from .rag import EmbeddingError, RagIndexManager, create_embedding_backend
+from .rag import (
+    EmbeddingError,
+    HybridRetrievalConfig,
+    HybridRetriever,
+    RagIndexManager,
+    create_embedding_backend,
+)
 
 
 LOGGER = logging.getLogger("hear_our_language.core_api")
@@ -68,6 +83,10 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
     database = Database(settings.database_path, settings.migration_dir)
     preparer = ImagePreparer(settings)
     analyzer = LessonAnalyzer(preparer, primary, fixture)
+    language_golden_path = settings.language_golden_path
+    if not language_golden_path.is_absolute():
+        language_golden_path = REPOSITORY_ROOT / language_golden_path
+    normalizer = LanguageNormalizer(language_golden_path)
     try:
         embedding_backend = create_embedding_backend(
             settings.rag_embedding_backend,
@@ -83,6 +102,14 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         fallback_backend = create_embedding_backend("hashing-char-ngram-v1")
         rag_manager = RagIndexManager(settings.rag_index_root, fallback_backend)
         rag_manager.last_error = str(exc)
+    retriever = HybridRetriever(
+        rag_manager,
+        HybridRetrievalConfig(
+            top_k=settings.rag_top_k,
+            min_score=settings.rag_min_score,
+            context_budget_chars=settings.rag_context_budget_chars,
+        ),
+    )
     health = HealthAggregator(settings, database, primary, rag_manager)
 
     @asynccontextmanager
@@ -95,7 +122,9 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         application.state.settings = settings
         application.state.database = database
         application.state.analyzer = analyzer
+        application.state.language_normalizer = normalizer
         application.state.rag = rag_manager
+        application.state.retriever = retriever
         application.state.health = health
         try:
             yield
@@ -218,6 +247,32 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
             content=result.lesson.model_dump(mode="json"),
             headers={"X-Provider-Mode": result.provider_mode},
         )
+
+    @app.post(
+        "/api/utterances/normalize",
+        response_model=Utterance,
+        responses={400: {"model": ErrorEnvelope, "description": "Invalid normalization input."}},
+        operation_id="normalizeUtterance",
+    )
+    async def normalize_utterance(
+        request: Request,
+        body: NormalizeUtteranceRequest,
+    ) -> Utterance:
+        del request
+        try:
+            result = normalizer.normalize(
+                text=body.text,
+                lang=body.lang,
+                tailo_citation=body.tailo_citation,
+            )
+        except ValueError as exc:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                str(exc),
+                status_code=400,
+                fallback="manual_review",
+            ) from exc
+        return result.utterance
 
     return app
 

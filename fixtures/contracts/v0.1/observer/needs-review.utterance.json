@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1.0",
+  "id": "utt_needs_review_001",
+  "segments": [
+    {
+      "lang": "nan-TW",
+      "hanji": "行",
+      "tailo_citation": "kiânn",
+      "poj_citation": null,
+      "zh_gloss": "走路",
+      "source": "dictionary",
+      "pronunciation_status": "needs_review"
+    }
+  ],
+  "tts_provider": null,
+  "audio_url": null,
+  "audio_cache_key": null
+}

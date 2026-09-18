@@ -1,0 +1,11 @@
+{
+  "schema_version": "language-review.v1",
+  "generated_from": "normalization-golden.json@1.0.0",
+  "policy": "Items marked needs_review must not expose poj_citation to MMS-TTS until a teacher or language reviewer approves the intended reading.",
+  "items": [
+    {"hanji":"行","reason":["multiple_pronunciations","literary_colloquial_reading"],"tailo_candidates":["kiânn","hâng"],"tts_blocked":true,"review_status":"pending"},
+    {"hanji":"未收錄詞","reason":["oov"],"tailo_candidates":[],"tts_blocked":true,"review_status":"pending"},
+    {"hanji":"市場","reason":["textbook_dictionary_conflict"],"tailo_candidates":["tshī-tiûnn"],"tts_blocked":true,"review_status":"verify_when_textbook_tailo_differs"},
+    {"hanji":"阿媽欲去市場買菜","reason":["critical_demo_audio_listen_check"],"tailo_candidates":["A-má beh khì tshī-tiûnn bé tshài."],"tts_blocked":false,"review_status":"pending_agent_b_stage07_listen_check"}
+  ]
+}

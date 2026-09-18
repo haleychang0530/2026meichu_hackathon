@@ -5,6 +5,7 @@
     { "path": "observer/success.lesson.json", "audience": "observer", "schema": "lesson.schema.json", "scenario": "success" },
     { "path": "observer/rag-no-result.lesson.json", "audience": "observer", "schema": "lesson.schema.json", "scenario": "rag_no_result" },
     { "path": "observer/success.utterance.json", "audience": "observer", "schema": "utterance.schema.json", "scenario": "success" },
+    { "path": "observer/needs-review.utterance.json", "audience": "observer", "schema": "utterance.schema.json", "scenario": "partial_success" },
     { "path": "observer/success.turn-result.json", "audience": "observer", "schema": "turn-result.schema.json", "scenario": "success" },
     { "path": "observer/partial-success.turn-result.json", "audience": "observer", "schema": "turn-result.schema.json", "scenario": "partial_success" },
     { "path": "observer/no-turn.observer-session-summary.json", "audience": "observer", "schema": "observer-session-summary.schema.json", "scenario": "success" },

@@ -74,6 +74,10 @@ class Settings:
     rag_embedding_dimension: int = 256
     rag_onnx_model_path: Path | None = None
     rag_onnx_tokenizer_path: Path | None = None
+    rag_top_k: int = 5
+    rag_min_score: float = 0.40
+    rag_context_budget_chars: int = 1600
+    language_golden_path: Path = Path("data/language/normalization-golden.json")
 
     @property
     def database_path(self) -> Path:
@@ -117,6 +121,9 @@ class Settings:
         index_root = os.getenv("RAG_INDEX_ROOT", "").strip()
         model_path = os.getenv("RAG_ONNX_MODEL_PATH", "").strip()
         tokenizer_path = os.getenv("RAG_ONNX_TOKENIZER_PATH", "").strip()
+        rag_min_score = _float_env("RAG_MIN_SCORE", defaults.rag_min_score, 0.0)
+        if rag_min_score > 1.0:
+            raise ValueError("RAG_MIN_SCORE must be <= 1.0")
 
         return replace(
             defaults,
@@ -155,4 +162,12 @@ class Settings:
             rag_embedding_dimension=_int_env("RAG_EMBEDDING_DIMENSION", defaults.rag_embedding_dimension, 32),
             rag_onnx_model_path=Path(model_path).expanduser() if model_path else None,
             rag_onnx_tokenizer_path=Path(tokenizer_path).expanduser() if tokenizer_path else None,
+            rag_top_k=_int_env("RAG_TOP_K", defaults.rag_top_k, 1),
+            rag_min_score=rag_min_score,
+            rag_context_budget_chars=_int_env(
+                "RAG_CONTEXT_BUDGET_CHARS", defaults.rag_context_budget_chars, 1
+            ),
+            language_golden_path=Path(
+                os.getenv("LANGUAGE_GOLDEN_PATH", str(defaults.language_golden_path))
+            ).expanduser(),
         )

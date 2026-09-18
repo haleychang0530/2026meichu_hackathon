@@ -175,10 +175,17 @@ class AppTests(unittest.IsolatedAsyncioTestCase):
         document = response.json()
         self.assertIn("/api/health", document["paths"])
         self.assertIn("/api/lessons/analyze", document["paths"])
+        self.assertIn("/api/utterances/normalize", document["paths"])
         self.assertNotIn("/internal/vlm/generate", document["paths"])
         self.assertNotIn(self.settings.vlm_base_url, response.text)
         responses = document["paths"]["/api/lessons/analyze"]["post"]["responses"]
         self.assertTrue({"200", "400", "503", "504"}.issubset(responses))
+        normalize = document["paths"]["/api/utterances/normalize"]["post"]
+        self.assertEqual(normalize["operationId"], "normalizeUtterance")
+        request_schema = normalize["requestBody"]["content"]["application/json"]["schema"]
+        if "$ref" in request_schema:
+            request_schema = document["components"]["schemas"][request_schema["$ref"].rsplit("/", 1)[-1]]
+        self.assertIn("schema_version", request_schema["required"])
 
 
 if __name__ == "__main__":

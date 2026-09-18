@@ -9,11 +9,15 @@ from .embeddings import (
 )
 from .index import BuildReport, RagIndexBuilder, RagIndexManager
 from .models import RagChunk, RagManifest, RagSource, RetrievalResult
+from .retrieval import EvidenceCitation, HybridRetrievalConfig, HybridRetriever, RetrievalBundle
 
 __all__ = [
     "BuildReport",
     "EmbeddingError",
+    "EvidenceCitation",
     "HashingCharNgramEmbedding",
+    "HybridRetrievalConfig",
+    "HybridRetriever",
     "IngestReport",
     "OnnxEmbedding",
     "RagChunk",
@@ -22,6 +26,7 @@ __all__ = [
     "RagManifest",
     "RagSource",
     "RetrievalResult",
+    "RetrievalBundle",
     "SourceContentError",
     "create_embedding_backend",
     "ingest_manifest",

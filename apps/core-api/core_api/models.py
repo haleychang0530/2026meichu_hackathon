@@ -83,6 +83,32 @@ class Lesson(StrictModel):
     rag_index_revision: str | None
 
 
+class NormalizeUtteranceRequest(StrictModel):
+    schema_version: Literal["0.1.0"]
+    text: str = Field(min_length=1)
+    lang: Literal["nan-TW", "zh-TW"]
+    tailo_citation: str | None = None
+
+
+class UtteranceSegment(StrictModel):
+    lang: Literal["nan-TW", "zh-TW"]
+    hanji: str = Field(min_length=1)
+    tailo_citation: str | None
+    poj_citation: str | None
+    zh_gloss: str | None
+    source: Literal["textbook", "dictionary", "generated"]
+    pronunciation_status: Literal["verified", "converted", "needs_review"]
+
+
+class Utterance(StrictModel):
+    schema_version: Literal["0.1.0"] = SCHEMA_VERSION
+    id: str = Field(pattern=r"^utt_[A-Za-z0-9_-]+$")
+    segments: list[UtteranceSegment] = Field(min_length=1)
+    tts_provider: Literal["mms-tts-nan", "windows", "prerecorded"] | None
+    audio_url: str | None = None
+    audio_cache_key: str | None = None
+
+
 class ServiceHealth(StrictModel):
     schema_version: Literal["0.1.0"] = SCHEMA_VERSION
     service: Literal["core-api", "rag", "vlm-mi300", "asr", "tts"]
