@@ -1,0 +1,30 @@
+{
+  "fixture_schema_version": "stage07-fixture.v1",
+  "fixture_id": "stage07-market-picture",
+  "input_profile": { "page_type": "picture_question", "quality": "good", "media": "synthetic-metadata-only" },
+  "facts": {
+    "schema_version": "stage07-facts.v1",
+    "topic": "去市場",
+    "source_text": "阿媽欲去市場買菜。",
+    "vocabulary": [
+      { "hanji": "市場", "tailo": "tshī-tiûnn", "meaning": "市場" },
+      { "hanji": "欲", "tailo": "beh", "meaning": "要" }
+    ],
+    "scene": "市場裡有阿媽、菜販與囡仔。",
+    "visual_elements": ["阿媽", "菜販", "囡仔", "買菜動作"],
+    "original_activity": "看圖片，說說看誰正在買菜。",
+    "answer_evidence": ["教師檢視依據：阿媽與菜販互動，題目要辨識正在買菜的人。"],
+    "question_type": "visual_question",
+    "quality_warnings": [],
+    "confidence": 0.91
+  },
+  "activity": {
+    "schema_version": "stage07-activity.v1",
+    "learning_objective": "辨識人物與買菜動作，練習市場詞彙。",
+    "accessible_activity": "先聽三個角色的名稱，再聽一段買菜對話，請說出你認為正在進行買菜對話的角色。",
+    "activity_type": "auditory_reasoning",
+    "safety_checks": { "answer_leak_free": true, "no_position_hint": true, "no_sighted_only_clue": true },
+    "confidence": 0.88
+  },
+  "expected": { "review_status": "pending", "answer_evidence_required": true, "citation_binding": "local_rag_only" }
+}

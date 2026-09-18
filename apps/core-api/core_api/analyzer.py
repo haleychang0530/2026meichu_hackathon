@@ -6,6 +6,7 @@ from fastapi import UploadFile
 
 from .errors import ProviderError
 from .image_pipeline import ImagePreparer, PreparedImage
+from .lesson_pipeline import LessonAnalysisPipeline
 from .models import Lesson
 from .providers import FixtureProvider, LessonProvider
 
@@ -22,10 +23,12 @@ class LessonAnalyzer:
         preparer: ImagePreparer,
         primary: LessonProvider,
         fixture: FixtureProvider,
+        pipeline: LessonAnalysisPipeline | None = None,
     ) -> None:
         self.preparer = preparer
         self.primary = primary
         self.fixture = fixture
+        self.pipeline = pipeline
 
     async def analyze(
         self,
@@ -38,12 +41,19 @@ class LessonAnalyzer:
         try:
             prepared = await self.preparer.prepare(upload)
             try:
-                lesson = await self.primary.analyze(prepared, request_id)
+                if self.pipeline is not None and self.pipeline.supports_two_step_generation:
+                    lesson = await self.pipeline.analyze(prepared, request_id)
+                else:
+                    lesson = await self.primary.analyze(prepared, request_id)
+                if self.pipeline is not None and not self.pipeline.supports_two_step_generation:
+                    lesson = self.pipeline.bind_existing(lesson)
                 return AnalysisResult(lesson=lesson, provider_mode=self.primary.mode)
             except ProviderError:
                 if not use_fixture_on_failure or self.primary.mode == "fixture":
                     raise
                 lesson = await self.fixture.analyze(prepared, request_id)
+                if self.pipeline is not None:
+                    lesson = self.pipeline.bind_existing(lesson)
                 return AnalysisResult(lesson=lesson, provider_mode="fixture-fallback")
         finally:
             if prepared is not None:

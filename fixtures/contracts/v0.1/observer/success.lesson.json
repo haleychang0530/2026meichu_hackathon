@@ -11,6 +11,9 @@
   "original_activity": "看圖片，說說看誰正在買菜。",
   "learning_objective": "辨識人物與買菜動作，練習市場詞彙。",
   "accessible_activity": "聽三個角色與動作線索，判斷哪一位角色正在買菜，不直接描述圖中答案。",
+  "answer_evidence": [
+    "教師檢視依據：畫面中的阿媽與菜販互動，題目要辨識正在買菜的人。"
+  ],
   "evidence": [
     {
       "source_id": "moe-dict-market",

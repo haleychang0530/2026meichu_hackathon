@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -19,12 +20,14 @@ from .db import Database
 from .errors import AppError
 from .health import HealthAggregator
 from .image_pipeline import ImagePreparer
+from .lesson_pipeline import LessonAnalysisPipeline, accessible_activity_issues
 from .language import LanguageNormalizer
 from .models import (
     ErrorCode,
     ErrorEnvelope,
     HealthResponse,
     Lesson,
+    LessonPatch,
     NormalizeUtteranceRequest,
     SCHEMA_VERSION,
     Utterance,
@@ -82,7 +85,6 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
     )
     database = Database(settings.database_path, settings.migration_dir)
     preparer = ImagePreparer(settings)
-    analyzer = LessonAnalyzer(preparer, primary, fixture)
     language_golden_path = settings.language_golden_path
     if not language_golden_path.is_absolute():
         language_golden_path = REPOSITORY_ROOT / language_golden_path
@@ -110,6 +112,11 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
             context_budget_chars=settings.rag_context_budget_chars,
         ),
     )
+    pipeline = LessonAnalysisPipeline(
+        primary if hasattr(primary, "generate") else None,
+        retriever,
+    )
+    analyzer = LessonAnalyzer(preparer, primary, fixture, pipeline=pipeline)
     health = HealthAggregator(settings, database, primary, rag_manager)
 
     @asynccontextmanager
@@ -241,12 +248,83 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
                 _request_id(request),
                 use_fixture_on_failure=use_fixture_on_failure,
             )
+            try:
+                await asyncio.to_thread(database.save_lesson, result.lesson)
+            except Exception as exc:  # pragma: no cover - defensive storage boundary
+                LOGGER.exception("lesson persistence failed", extra={"request_id": _request_id(request)})
+                raise AppError(
+                    ErrorCode.INTERNAL_ERROR,
+                    "lesson draft could not be stored",
+                    status_code=500,
+                    retryable=True,
+                    fallback="manual_review",
+                ) from exc
         finally:
             await image.close()
         return JSONResponse(
             content=result.lesson.model_dump(mode="json"),
             headers={"X-Provider-Mode": result.provider_mode},
         )
+
+    @app.get(
+        "/api/lessons/{lesson_id}",
+        response_model=Lesson,
+        responses={404: {"model": ErrorEnvelope, "description": "Lesson was not found."}},
+        operation_id="getLesson",
+    )
+    async def get_lesson(lesson_id: str) -> Lesson:
+        lesson = await asyncio.to_thread(database.get_lesson, lesson_id)
+        if lesson is None:
+            raise AppError(
+                ErrorCode.LESSON_NOT_FOUND,
+                "lesson was not found",
+                status_code=404,
+                fallback="manual_review",
+            )
+        return lesson
+
+    @app.patch(
+        "/api/lessons/{lesson_id}",
+        response_model=Lesson,
+        responses={
+            400: {"model": ErrorEnvelope, "description": "Invalid teacher review update."},
+            404: {"model": ErrorEnvelope, "description": "Lesson was not found."},
+        },
+        operation_id="reviewLesson",
+    )
+    async def review_lesson(lesson_id: str, body: LessonPatch) -> Lesson:
+        current = await asyncio.to_thread(database.get_lesson, lesson_id)
+        if current is None:
+            raise AppError(
+                ErrorCode.LESSON_NOT_FOUND,
+                "lesson was not found",
+                status_code=404,
+                fallback="manual_review",
+            )
+        patch = body.model_dump(exclude_none=True)
+        candidate = current.model_copy(update=patch)
+        safety_reasons = accessible_activity_issues(
+            candidate.accessible_activity,
+            candidate.answer_evidence,
+            {"answer_leak_free": True, "no_position_hint": True, "no_sighted_only_clue": True},
+        )
+        if safety_reasons:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                "accessible activity failed the safety checks",
+                status_code=400,
+                fallback="manual_review",
+                details={"reasons": list(safety_reasons)},
+            )
+        updated = await asyncio.to_thread(database.update_lesson, lesson_id, patch)
+        if updated is None:  # pragma: no cover - guarded by the read above
+            raise AppError(
+                ErrorCode.LESSON_NOT_FOUND,
+                "lesson was not found",
+                status_code=404,
+                fallback="manual_review",
+            )
+        return updated
 
     @app.post(
         "/api/utterances/normalize",

@@ -70,6 +70,7 @@ STUDENT_FORBIDDEN_KEYS = {
     "original_activity",
     "learning_objective",
     "accessible_activity",
+    "answer_evidence",
     "vlm_model_revision",
     "rag_index_revision",
 }

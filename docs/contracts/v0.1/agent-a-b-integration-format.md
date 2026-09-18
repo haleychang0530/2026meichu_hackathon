@@ -82,7 +82,7 @@ must not receive, store, render, or place in DOM data from the full teacher
 review `Lesson`, including:
 
 - `source_text`, `original_activity`, `learning_objective`,
-  `accessible_activity`;
+  `accessible_activity`, `answer_evidence`;
 - `evidence`, `confidence`, `review_status`;
 - `vlm_model_revision`, `rag_index_revision`; or
 - teacher notes, controls, answer keys, or internal review fields.
@@ -91,6 +91,14 @@ Observer/teacher routes may request the full Lesson and turn history. The
 frontend must use different response selectors and cache keys for student and
 observer data. Mock fixtures must follow the same visibility boundary as real
 responses.
+
+Stage 07 lesson analysis keeps the generated Lesson in `review_status=pending`
+until a teacher/parent review action approves it. For a visual question,
+`original_activity`, `learning_objective`, `answer_evidence`, and
+`accessible_activity` are distinct fields. `answer_evidence` is populated for
+teacher review only; it is not used as student prompt content or indexed into
+Local RAG. The laptop binds `evidence[]` and `rag_index_revision` from the
+active Local RAG revision after MI300 facts extraction; MI300 remains stateless.
 
 ## 4. Observer summary — accepted v0.1 shape
 

@@ -313,7 +313,7 @@
     },
     "responses": {
       "Lesson": {
-        "description": "Canonical teacher-reviewable lesson.",
+        "description": "Canonical teacher-reviewable lesson. `answer_evidence` is teacher/parent-only and must never be returned by student routes.",
         "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Lesson" } } }
       },

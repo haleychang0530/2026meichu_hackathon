@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
@@ -8,6 +9,8 @@ from unittest.mock import patch
 
 from core_api.config import Settings
 from core_api.db import Database
+from core_api.models import Lesson
+from tests.support import FIXTURE_PATH
 
 
 class SettingsTests(unittest.TestCase):
@@ -44,9 +47,29 @@ class DatabaseTests(unittest.TestCase):
             root = Path(directory)
             migrations = Path(__file__).resolve().parents[1] / "migrations"
             database = Database(root / "db" / "app.sqlite3", migrations)
-            self.assertEqual(database.migrate(), ["0001_runtime_metadata.sql"])
+            self.assertEqual(database.migrate(), ["0001_runtime_metadata.sql", "0002_lessons.sql"])
             self.assertEqual(database.migrate(), [])
             self.assertTrue(database.healthy())
+
+    def test_lessons_are_structurally_persisted_and_reviewable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            migrations = Path(__file__).resolve().parents[1] / "migrations"
+            database = Database(root / "db" / "app.sqlite3", migrations)
+            database.migrate()
+            lesson = Lesson.model_validate(json.loads(FIXTURE_PATH.read_text(encoding="utf-8")))
+
+            database.save_lesson(lesson)
+            stored = database.get_lesson(lesson.lesson_id)
+            self.assertIsNotNone(stored)
+            self.assertEqual(stored.review_status, "pending")
+            self.assertEqual(stored.answer_evidence, lesson.answer_evidence)
+
+            updated = database.update_lesson(lesson.lesson_id, {"review_status": "approved"})
+            self.assertIsNotNone(updated)
+            self.assertEqual(updated.review_status, "approved")
+            self.assertEqual(database.get_lesson(lesson.lesson_id).review_status, "approved")
+            self.assertIsNone(database.get_lesson("lesson_missing"))
 
 
 if __name__ == "__main__":
