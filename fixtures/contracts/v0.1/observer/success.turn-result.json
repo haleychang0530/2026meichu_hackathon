@@ -11,5 +11,8 @@
   "progress": 0.4,
   "latency_ms": { "asr": 820, "backend": 95, "vlm": null, "tts": 310, "total": 1225 },
   "asr_device": "cpu",
-  "fallbacks": ["asr_cpu"]
+  "fallbacks": ["asr_cpu"],
+  "phase": "comprehension",
+  "revision": 2,
+  "last_event_id": 2
 }

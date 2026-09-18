@@ -16,7 +16,7 @@ from jsonschema import Draft202012Validator, SchemaError, ValidationError
 from .config import Settings
 from .errors import ProviderError
 from .image_pipeline import PreparedImage
-from .models import ErrorCode, Lesson, SCHEMA_VERSION, ServiceHealth
+from .models import ErrorCode, Lesson, SCHEMA_VERSION, SemanticJudgement, ServiceHealth
 
 
 class LessonProvider(Protocol):
@@ -241,6 +241,70 @@ class Mi300Client:
                 retryable=False,
                 fallback="manual_review",
             ) from exc
+
+    async def judge_answer(
+        self,
+        request_id: str,
+        *,
+        transcript: str,
+        expected_concepts: list[str],
+        lesson_context: dict[str, str],
+    ) -> SemanticJudgement:
+        """Use the stateless VLM only for a difficult, text-heavy judgment.
+
+        The internal MI300 contract is image-based. A synthetic one-pixel image
+        satisfies that transport contract while all semantic context remains in
+        the bounded prompt. The temporary image is deleted immediately and no
+        student audio or lesson media is written.
+        """
+
+        from PIL import Image
+
+        semantic_schema: dict[str, Any] = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Stage08SemanticJudgement",
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["decision", "matched_concepts"],
+            "properties": {
+                "decision": {"type": "string", "enum": ["correct", "partial", "retry"]},
+                "matched_concepts": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "uniqueItems": True,
+                },
+            },
+        }
+        semantic_dir = self.settings.data_dir / "tmp" / "semantic"
+        semantic_dir.mkdir(parents=True, exist_ok=True)
+        path = semantic_dir / f"judge-{uuid.uuid4().hex}.jpg"
+        Image.new("RGB", (1, 1), "white").save(path, format="JPEG", quality=70)
+        context = json.dumps(lesson_context, ensure_ascii=False, separators=(",", ":"))
+        expected = json.dumps(expected_concepts, ensure_ascii=False, separators=(",", ":"))
+        prompt = (
+            "判斷學生對臺語教材活動的回答，只回傳符合 JSON Schema 的 decision 與 matched_concepts。"
+            "不要回傳答案解釋、信心或教師欄位。decision 只能是 correct、partial、retry。\n"
+            f"LESSON_CONTEXT={context}\nEXPECTED_CONCEPTS={expected}\nSTUDENT_TRANSCRIPT={transcript}"
+        )
+        try:
+            generation = await self.generate(
+                PreparedImage(path, "image/jpeg", 1, 1, path.stat().st_size),
+                request_id,
+                prompt=prompt,
+                response_schema=semantic_schema,
+            )
+            candidate = generation.candidate
+            if not isinstance(candidate, dict):
+                raise ValueError("semantic candidate must be an object")
+            return SemanticJudgement.model_validate(
+                {
+                    "decision": candidate.get("decision"),
+                    "matched_concepts": candidate.get("matched_concepts", []),
+                    "latency_ms": generation.latency_ms,
+                }
+            )
+        finally:
+            path.unlink(missing_ok=True)
 
     def _parse_structured_response(
         self,

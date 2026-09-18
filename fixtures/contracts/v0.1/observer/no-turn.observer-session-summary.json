@@ -8,5 +8,15 @@
   "turns": [],
   "concepts_to_review": [],
   "hint_history": [],
-  "familiarity": []
+  "familiarity": [],
+  "evidence": [],
+  "health": [],
+  "review_status": "pending",
+  "confidence": 0.0,
+  "answer_evidence": [],
+  "vlm_model_revision": null,
+  "rag_index_revision": null,
+  "phase": "introduction",
+  "revision": 0,
+  "last_event_id": 0
 }

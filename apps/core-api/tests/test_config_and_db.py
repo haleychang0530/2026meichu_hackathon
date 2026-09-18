@@ -47,9 +47,27 @@ class DatabaseTests(unittest.TestCase):
             root = Path(directory)
             migrations = Path(__file__).resolve().parents[1] / "migrations"
             database = Database(root / "db" / "app.sqlite3", migrations)
-            self.assertEqual(database.migrate(), ["0001_runtime_metadata.sql", "0002_lessons.sql"])
+            self.assertEqual(
+                database.migrate(),
+                [
+                    "0001_runtime_metadata.sql",
+                    "0002_lessons.sql",
+                    "0003_sessions.sql",
+                    "0004_turns.sql",
+                    "0005_mastery.sql",
+                    "0006_events.sql",
+                    "0007_settings.sql",
+                ],
+            )
             self.assertEqual(database.migrate(), [])
             self.assertTrue(database.healthy())
+            connection = database._connect()
+            try:
+                values = dict(connection.execute("SELECT key, value_json FROM settings"))
+            finally:
+                connection.close()
+            self.assertEqual(json.loads(values["teaching_agent_version"]), "stage08-v1")
+            self.assertEqual(json.loads(values["schema_version"]), "0.1.0")
 
     def test_lessons_are_structurally_persisted_and_reviewable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

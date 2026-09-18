@@ -18,7 +18,10 @@
     "progress",
     "latency_ms",
     "asr_device",
-    "fallbacks"
+    "fallbacks",
+    "phase",
+    "revision",
+    "last_event_id"
   ],
   "properties": {
     "schema_version": { "const": "0.1.0" },
@@ -40,7 +43,13 @@
         "enum": ["mi300_offline", "rag_no_result", "asr_cpu", "tts_prerecorded", "cached_lesson", "fixture_mode"]
       },
       "uniqueItems": true
-    }
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["introduction", "demonstration", "read_aloud", "comprehension", "hint", "review", "complete"]
+    },
+    "revision": { "type": "integer", "minimum": 0 },
+    "last_event_id": { "type": "integer", "minimum": 0 }
   },
   "$defs": {
     "latency": {

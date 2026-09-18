@@ -1,4 +1,4 @@
-"""Validate Stage 01 JSON Schema, OpenAPI, fixtures, and student-data policy."""
+"""Validate canonical v0.1 JSON Schema, OpenAPI, fixtures, and privacy policy."""
 
 from __future__ import annotations
 
@@ -29,6 +29,8 @@ EXPECTED_SCHEMAS = {
     "student-action.schema.json",
     "service-health.schema.json",
     "error.schema.json",
+    "session.schema.json",
+    "session-event.schema.json",
 }
 
 EXPECTED_PATHS = {
@@ -39,6 +41,7 @@ EXPECTED_PATHS = {
         "/api/utterances/normalize",
         "/api/sessions",
         "/api/sessions/{session_id}",
+        "/api/sessions/{session_id}/snapshot",
         "/api/sessions/{session_id}/turns",
         "/api/sessions/{session_id}/actions",
         "/api/sessions/{session_id}/events",
@@ -210,6 +213,8 @@ def validate_openapi() -> int:
     )
     summary_response = core["paths"]["/api/sessions/{session_id}/summary"]["get"]["responses"]["200"]
     assert summary_response["$ref"] == "#/components/responses/ObserverSessionSummary"
+    snapshot_response = core["paths"]["/api/sessions/{session_id}/snapshot"]["get"]["responses"]["200"]
+    assert snapshot_response["$ref"] == "#/components/responses/Session"
     component_schemas = core["components"]["schemas"]
     assert component_schemas["StudentActionRequest"]["$ref"].endswith(
         "student-action.schema.json#/$defs/control_request"
@@ -220,6 +225,8 @@ def validate_openapi() -> int:
     assert component_schemas["ObserverSessionSummary"]["$ref"].endswith(
         "observer-session-summary.schema.json"
     )
+    assert component_schemas["Session"]["$ref"].endswith("session.schema.json")
+    assert component_schemas["SessionEvent"]["$ref"].endswith("session-event.schema.json")
     normalize = core["paths"]["/api/utterances/normalize"]["post"]
     normalize_request = normalize["requestBody"]["content"]["application/json"]["schema"]
     assert set(normalize_request["required"]) == {"schema_version", "text", "lang"}

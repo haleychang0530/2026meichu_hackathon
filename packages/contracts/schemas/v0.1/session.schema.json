@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hear-our-language.local/contracts/v0.1/session.schema.json",
+  "title": "SessionView",
+  "description": "Student-safe teaching session snapshot. Teacher evidence and answer controls are intentionally absent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "lesson_id",
+    "state",
+    "phase",
+    "progress",
+    "current_prompt",
+    "can_answer",
+    "revision",
+    "last_event_id"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "session_id": { "type": "string", "pattern": "^session_[A-Za-z0-9_-]+$" },
+    "lesson_id": { "type": "string", "pattern": "^lesson_[A-Za-z0-9_-]+$" },
+    "state": {
+      "type": "string",
+      "enum": ["IDLE", "SPEAKING", "LISTENING", "TRANSCRIBING", "EVALUATING", "RECOVERABLE_ERROR", "COMPLETE"]
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["introduction", "demonstration", "read_aloud", "comprehension", "hint", "review", "complete"]
+    },
+    "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+    "current_prompt": { "type": ["string", "null"] },
+    "can_answer": { "type": "boolean" },
+    "revision": { "type": "integer", "minimum": 0 },
+    "last_event_id": { "type": "integer", "minimum": 0 }
+  }
+}

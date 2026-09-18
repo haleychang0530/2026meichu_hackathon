@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1.0",
+  "event_id": 1,
+  "session_id": "session_demo_001",
+  "event": "session.created",
+  "request_id": "00000000-0000-4000-8000-000000000401",
+  "revision": 0,
+  "payload": {
+    "schema_version": "0.1.0",
+    "session_id": "session_demo_001",
+    "lesson_id": "lesson_market_001",
+    "state": "SPEAKING",
+    "phase": "introduction",
+    "progress": 0,
+    "current_prompt": "今天我們來學習市場。",
+    "can_answer": false,
+    "revision": 0,
+    "last_event_id": 1
+  }
+}
