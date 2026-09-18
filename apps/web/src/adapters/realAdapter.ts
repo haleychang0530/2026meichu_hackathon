@@ -1,4 +1,4 @@
-import { adapterErrorFromResponse } from './errors';
+import { AdapterError, adapterErrorFromResponse } from './errors';
 import { consumeSessionEventFrames } from './sessionEvents';
 import type {
   FrontendAdapter,
@@ -11,8 +11,12 @@ import type {
   CaptureProviderMode,
   CaptureViewModel,
   HealthSummaryView,
+  LessonReviewPatch,
   LessonImageUpload,
+  ObserverAction,
+  ObserverLessonViewModel,
   ObserverSessionViewModel,
+  ObserverTurnView,
   ServiceHealthView,
   SetupViewModel,
   SessionState,
@@ -32,6 +36,7 @@ type CoreStudentAction = components['schemas']['action'];
 type CoreStudentActionRequest = components['schemas']['StudentActionRequest'];
 type CoreTurnSubmission = components['schemas']['TurnSubmission'];
 type CoreServiceHealth = components['schemas']['ServiceHealth'];
+type CoreLessonPatch = operations['reviewLesson']['requestBody']['content']['application/merge-patch+json'];
 
 const DEMO_LESSON_ID = 'lesson_market_001';
 const PENDING_CAPTURE_ID = 'pending-capture';
@@ -44,6 +49,14 @@ const actionMap: Record<StudentAction, CoreStudentAction> = {
   pause: 'pause',
   resume: 'resume',
   next: 'next',
+};
+
+const observerActionMap: Partial<Record<ObserverAction, StudentAction>> = {
+  skip: 'next',
+  redo: 'answer',
+  // v0.1 has no separate end-session command. Pausing is the only safe
+  // server-side operation until Agent A adds an observer control contract.
+  end: 'pause',
 };
 
 function createIdempotencyKey(prefix: string): string {
@@ -65,26 +78,41 @@ function serviceLabel(service: CoreServiceHealth['service']): string {
     'core-api': 'Core Backend',
     rag: 'Local RAG',
     'vlm-mi300': 'MI300 VLM',
-    asr: 'Speech ASR',
-    tts: 'Speech TTS',
+    asr: 'ASR',
+    tts: 'TTS',
   };
   return labels[service];
 }
 
 function toHealthSummary(payload: CoreHealthResponse): HealthSummaryView {
-  const services: readonly ServiceHealthView[] = payload.services.map((service) => ({
+  return toHealthSummaryFromServices(payload.services, payload.status);
+}
+
+function toHealthSummaryFromServices(
+  sourceServices: readonly CoreServiceHealth[],
+  overallStatus?: HealthSummaryView['status'],
+): HealthSummaryView {
+  const services: readonly ServiceHealthView[] = sourceServices.map((service) => ({
     service: serviceLabel(service.service),
     status: service.status,
     device: service.device ?? 'unknown',
     modelRevision: service.model_revision ?? undefined,
+    queueDepth: service.queue_depth,
     lastError: service.last_error?.message,
   }));
-  const checkedAt = [...payload.services]
+  const checkedAt = [...sourceServices]
     .map((service) => service.checked_at)
     .sort()
     .at(-1) ?? new Date().toISOString();
+  const status = overallStatus ?? (
+    services.some((service) => service.status === 'offline')
+      ? 'offline'
+      : services.some((service) => service.status === 'degraded')
+        ? 'degraded'
+        : 'ready'
+  );
   return {
-    status: payload.status,
+    status,
     checkedAt,
     services,
   };
@@ -238,6 +266,54 @@ function toTurnStudentView(
     canAnswer: health.status !== 'offline' && turn.phase !== 'complete',
     transcript: turn.transcript_raw,
     fallbacks: turn.fallbacks,
+  };
+}
+
+function toObserverLesson(lesson: CoreLesson): ObserverLessonViewModel {
+  return {
+    lessonId: lesson.lesson_id,
+    topic: lesson.topic,
+    sourceText: lesson.source_text,
+    vocabulary: lesson.vocabulary.map((item) => ({
+      hanji: item.hanji,
+      tailo: item.tailo,
+      meaning: item.meaning,
+      audioKey: item.audio_key,
+    })),
+    scene: lesson.scene,
+    originalActivity: lesson.original_activity,
+    learningObjective: lesson.learning_objective,
+    accessibleActivity: lesson.accessible_activity,
+    evidence: lesson.evidence.map((item) => ({
+      sourceId: item.source_id,
+      title: item.title,
+      excerpt: item.excerpt,
+      locator: item.locator,
+    })),
+    confidence: lesson.confidence,
+    reviewStatus: lesson.review_status,
+    answerEvidence: lesson.answer_evidence ?? [],
+    vlmModelRevision: lesson.vlm_model_revision,
+    ragIndexRevision: lesson.rag_index_revision,
+  };
+}
+
+function toObserverTurn(turn: CoreObserverSummary['turns'][number]): ObserverTurnView {
+  return {
+    turnId: turn.turn_id,
+    transcriptRaw: turn.transcript_raw,
+    transcriptNormalized: turn.transcript_normalized,
+    result: turn.result,
+    matchedConcepts: turn.matched_concepts,
+    feedback: turn.feedback,
+    nextPrompt: turn.next_prompt,
+    progress: turn.progress,
+    latencyMs: turn.latency_ms,
+    asrDevice: turn.asr_device,
+    fallbacks: turn.fallbacks,
+    phase: turn.phase,
+    revision: turn.revision,
+    lastEventId: turn.last_event_id,
   };
 }
 
@@ -412,6 +488,52 @@ export class RealAdapter implements FrontendAdapter {
     return toTurnStudentView(turnResult.value, health);
   }
 
+  async reviewLesson(lessonId: string, patch: LessonReviewPatch): Promise<ObserverLessonViewModel> {
+    const body: CoreLessonPatch = {
+      ...(patch.topic === undefined ? {} : { topic: patch.topic }),
+      ...(patch.sourceText === undefined ? {} : { source_text: patch.sourceText }),
+      ...(patch.accessibleActivity === undefined ? {} : { accessible_activity: patch.accessibleActivity }),
+      ...(patch.reviewStatus === undefined ? {} : { review_status: patch.reviewStatus }),
+    };
+    const lesson = await this.request<CoreLesson>(
+      `/api/lessons/${encodeURIComponent(lessonId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/merge-patch+json' },
+        body: JSON.stringify(body),
+      },
+    );
+    return toObserverLesson(lesson);
+  }
+
+  async submitObserverAction(sessionId: string, action: ObserverAction): Promise<ObserverSessionViewModel> {
+    if (action === 'reset') {
+      throw new AdapterError({
+        code: 'OBSERVER_RESET_UNSUPPORTED',
+        message: '目前 v0.1 Core API 沒有 reset endpoint；請由 demo 操作員清除或重新建立 session。',
+        retryable: false,
+        fallback: 'manual_review',
+        request_id: null,
+      });
+    }
+    const mappedAction = observerActionMap[action];
+    if (!mappedAction) {
+      throw new AdapterError({
+        code: 'OBSERVER_ACTION_UNSUPPORTED',
+        message: '目前的 Core API 尚未提供這個教師控制。',
+        retryable: false,
+        fallback: 'manual_review',
+        request_id: null,
+      });
+    }
+    const current = await this.getObserverSession(sessionId);
+    await this.submitStudentAction(sessionId, mappedAction, {
+      expectedRevision: current.revision,
+      idempotencyKey: createIdempotencyKey(`observer-${action}`),
+    });
+    return this.getObserverSession(sessionId);
+  }
+
   subscribeStudentSession(sessionId: string, options: StudentSessionStreamOptions): () => void {
     const controller = new AbortController();
     let closed = false;
@@ -488,13 +610,43 @@ export class RealAdapter implements FrontendAdapter {
     );
     const healthPromise = this.getHealth();
     const summary = await summaryPromise;
-    const [lesson, health] = await Promise.all([
-      this.getLesson(summary.lesson_id),
-      healthPromise,
-    ]);
+    const lesson = await this.getLesson(summary.lesson_id);
+    const health = await healthPromise.catch(() => (
+      (summary.health ?? []).length
+        ? toHealthSummaryFromServices(summary.health ?? [])
+        : degradedHealth('健康檢查暫時失敗；觀察摘要仍來自 Core Backend。')
+    ));
     const latestTurn = summary.turns.at(-1);
+    const lessonView = toObserverLesson(lesson);
+    const turns = summary.turns.map(toObserverTurn);
     return {
       sessionId: summary.session_id,
+      lessonId: summary.lesson_id,
+      state: summary.state as SessionState,
+      phase: summary.phase as TeachingPhase,
+      progress: summary.progress,
+      completedTurns: summary.completed_turns,
+      lesson: lessonView,
+      turns,
+      conceptsToReview: summary.concepts_to_review,
+      hintHistory: (summary.hint_history ?? []).map((hint) => ({
+        turnId: hint.turn_id,
+        prompt: hint.prompt,
+        feedback: hint.feedback,
+      })),
+      familiarity: summary.familiarity ?? [],
+      evidence: (summary.evidence ?? []).map((item) => ({
+        sourceId: item.source_id,
+        title: item.title,
+        excerpt: item.excerpt,
+        locator: item.locator,
+      })),
+      answerEvidence: (summary.answer_evidence ?? []).length ? summary.answer_evidence : lessonView.answerEvidence,
+      vlmModelRevision: summary.vlm_model_revision ?? lesson.vlm_model_revision,
+      ragIndexRevision: summary.rag_index_revision ?? lesson.rag_index_revision,
+      reviewStatus: summary.review_status ?? lesson.review_status,
+      revision: summary.revision,
+      lastEventId: summary.last_event_id,
       lessonTitle: lesson.topic,
       transcript: latestTurn?.transcript_raw || '尚未收到學生回答。',
       evaluation: latestTurn?.result ?? 'not_started',

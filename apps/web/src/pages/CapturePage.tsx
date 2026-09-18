@@ -142,7 +142,7 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
     <AppShell currentLabel="教材">
       <main id="main-content" className="page" tabIndex={-1}>
         <p className="eyebrow">STAGE 03 · 教材擷取</p>
-        <h1>選擇一頁教材</h1>
+        <h1 data-page-title tabIndex={-1}>選擇一頁教材</h1>
         {!view && !error ? <LoadingState label="載入教材入口……" /> : null}
         {error ? (
           <>

@@ -78,3 +78,35 @@ direction cancels the other, and `停止音訊／暫停` releases browser media.
 The generated `src/generated/speech.ts` is derived from the canonical Speech
 OpenAPI. Full Core session orchestration and the 10-round student flow remain
 Stage 08; App narration and Narrator/NVDA integration remain Stage 09.
+
+## Stage 09 observer, review, and accessibility
+
+`/session/{id}/observer` is the teacher/parent projection of the same
+server-side session. It loads the full observer summary plus the teacher-only
+Lesson endpoint and shows vocabulary/臺羅, learning goals, citations, review
+metadata, turn history, hints, familiarity, latency, fallbacks, and all five
+Core health services (Core, Local RAG, MI300 VLM, ASR, and TTS).
+
+Pending Lessons can be edited through the canonical merge-patch endpoint and
+approved or returned for revision. Skip and redo reuse the existing session
+revision/idempotency path. The v0.1 contract has no separate end/reset
+observer endpoints: real mode maps end to a safe pause and reports reset as an
+explicit unsupported fallback; Mock mode exercises all four controls.
+
+The first visit requires an explicit choice between system screen-reader mode
+and App narration. The App narrator is Chinese UI speech only and provides a
+priority queue, stale-message cancellation, stop/pause/resume/replay, rate,
+and detail controls. Student lesson audio still uses the Stage 07 language
+router; every recording or mode switch cancels App narration first.
+
+Run the Stage 09 checks from the repository root:
+
+```powershell
+npm --prefix apps/web test -- --run
+npm --prefix apps/web run typecheck
+npm --prefix apps/web run build
+```
+
+The browser smoke path is `/setup` → choose a narration mode →
+`/session/demo-session/student` → `/session/demo-session/observer`; use the
+browser zoom controls to verify 200% reflow and visible focus.
