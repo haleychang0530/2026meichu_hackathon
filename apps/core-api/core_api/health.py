@@ -9,6 +9,7 @@ from .config import Settings
 from .db import Database
 from .models import ErrorCode, HealthResponse, SCHEMA_VERSION, ServiceHealth
 from .providers import LessonProvider
+from .rag.index import RagIndexManager
 
 
 def _health(
@@ -47,10 +48,17 @@ def _health(
 
 
 class HealthAggregator:
-    def __init__(self, settings: Settings, database: Database, provider: LessonProvider) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        database: Database,
+        provider: LessonProvider,
+        rag_manager: RagIndexManager | None = None,
+    ) -> None:
         self.settings = settings
         self.database = database
         self.provider = provider
+        self.rag_manager = rag_manager
         self.speech_client = httpx.AsyncClient(
             base_url=settings.speech_base_url or "http://127.0.0.1",
             timeout=settings.health_timeout_seconds,
@@ -71,14 +79,25 @@ class HealthAggregator:
             message=None if database_ok else "SQLite readiness check failed",
             fallback=None,
         )
+        rag_snapshot = self.rag_manager.health() if self.rag_manager is not None else None
+        rag_ready = rag_snapshot is not None and rag_snapshot.status == "ready"
         rag = _health(
             "rag",
-            "degraded",
+            "ready" if rag_ready else "degraded",
             request_id,
             device="Ryzen AI 9 laptop CPU",
-            error_code=ErrorCode.RAG_NO_RESULT,
-            message="Local RAG is a Stage 05 placeholder",
-            fallback="manual_review",
+            model_revision=(rag_snapshot.revision if rag_ready and rag_snapshot else None),
+            error_code=None if rag_ready else ErrorCode.RAG_NO_RESULT,
+            message=(
+                None
+                if rag_ready
+                else (
+                    "Local RAG index is not available"
+                    if rag_snapshot is None or not rag_snapshot.last_error
+                    else f"Local RAG index unavailable: {rag_snapshot.last_error}"
+                )
+            ),
+            fallback=None if rag_ready else "manual_review",
         )
         services = [core, rag, vlm, *speech]
         overall = "offline" if core.status == "offline" else (
