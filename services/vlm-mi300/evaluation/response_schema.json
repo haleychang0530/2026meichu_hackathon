@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Stage02TextbookAnalysis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "topic",
+    "source_text",
+    "vocabulary",
+    "scene",
+    "original_activity",
+    "learning_objective",
+    "accessible_activity",
+    "quality_warnings",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "stage02-eval.v1" },
+    "topic": { "type": "string" },
+    "source_text": { "type": "string" },
+    "vocabulary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["hanji", "tailo", "meaning"],
+        "properties": {
+          "hanji": { "type": "string" },
+          "tailo": { "type": "string" },
+          "meaning": { "type": "string" }
+        }
+      }
+    },
+    "scene": { "type": "string" },
+    "original_activity": { "type": "string" },
+    "learning_objective": { "type": "string" },
+    "accessible_activity": { "type": "string" },
+    "quality_warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}
