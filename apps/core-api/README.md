@@ -1,14 +1,16 @@
-# Core Backend (Agent A Stage 06)
+# Core Backend (Agent A Stage 07)
 
 The FastAPI Core Backend is the browser's only product API and runs on the
 Ryzen AI 9 laptop. It owns image validation, orchestration, product fallback,
 SQLite readiness, and dependency health. The browser never receives or calls
 the MI300 URL.
 
-The Stage 04/05 baseline plus Stage 06 implements:
+The Stage 04/05/06 baseline plus Stage 07 implements:
 
 - `GET /api/health`
 - `POST /api/lessons/analyze`
+- `GET /api/lessons/{lesson_id}` for teacher/parent review
+- `PATCH /api/lessons/{lesson_id}` for teacher/parent approval or bounded edits
 - FastAPI `/openapi.json` and `/docs`
 - development, demo, and test configuration profiles
 - request IDs, canonical error envelopes, CORS, metadata-only request logs
@@ -24,11 +26,17 @@ The Stage 04/05 baseline plus Stage 06 implements:
   evidence below the reliability threshold
 - `POST /api/utterances/normalize` with textbook-臺羅 precedence, reviewed
   Hanji candidates, deterministic MMS-compatible POJ, and `needs_review` gates
+- two-step lesson analysis: page facts first, then teaching objective and
+  accessible activity, with laptop-only Local RAG citation binding
+- one traceable JSON repair attempt per invalid facts/activity output; a second
+  failure returns `VLM_INVALID_OUTPUT` with `manual_review` and no raw model
+  output
+- teacher/parent-only `answer_evidence`, deterministic checks for answer leaks,
+  position hints, and sighted-only clues, and SQLite-backed `pending` lessons
 
 The full cross-agent contract remains
-`packages/contracts/openapi/v0.1/core-api.openapi.json`. Stage 04 runtime
-OpenAPI documents the handlers currently implemented; later Agent A stages
-will fill the remaining frozen paths.
+`packages/contracts/openapi/v0.1/core-api.openapi.json`. Student-mode adapters
+must use safe projections rather than the full teacher/parent Lesson object.
 
 ## Install
 
@@ -128,6 +136,35 @@ represented by the `core-api` service because
 the frozen v0.1 `ServiceHealth.service` enum does not include a separate
 `sqlite` value.
 
+## Stage 07 lesson analysis
+
+With `CORE_PROVIDER=real`, the laptop owns the complete orchestration:
+
+1. `ImagePreparer` validates and normalizes the uploaded page into a short-lived
+   JPEG; the temporary file is deleted in `finally`.
+2. `Mi300Client.generate` sends only the image, prompt, requested JSON Schema,
+   and bounded Local RAG evidence to the stateless MI300 gateway.
+3. `LessonAnalysisPipeline` validates the facts response, queries the laptop
+   Local RAG index, and requests the accessible activity in a second call.
+4. The laptop validates activity safety, binds citations from the active RAG
+   revision, persists the structured Lesson, and always returns
+   `review_status=pending`.
+
+Prompts and stage schemas are versioned under
+`prompts/lesson-analysis/`. The facts prompt keeps `answer_evidence` separate
+from the student activity. The activity prompt forbids answer leakage, location
+clues, and sighted-only instructions. The review endpoint may approve a lesson
+or edit only bounded teacher-facing fields; it cannot edit `answer_evidence`.
+
+Teacher/parent review example:
+
+```powershell
+curl.exe http://127.0.0.1:8000/api/lessons/lesson_<id>
+curl.exe -X PATCH http://127.0.0.1:8000/api/lessons/lesson_<id> `
+  -H "Content-Type: application/merge-patch+json" `
+  -d '{"review_status":"approved"}'
+```
+
 ## Local RAG
 
 The manifest at `data/rag/manifest.json` is the only checked-in source list.
@@ -198,16 +235,20 @@ Set-Location ../..
 & apps/core-api/.venv/Scripts/python.exe scripts/test_contracts.py
 & apps/core-api/.venv/Scripts/python.exe scripts/language_golden.py
 & apps/core-api/.venv/Scripts/python.exe scripts/retrieval_citation_smoke.py
+& apps/core-api/.venv/Scripts/python.exe scripts/stage07_fixture_review.py
 ```
 
-Tests cover profiles, idempotent migrations, request IDs, canonical errors,
-image validation, success/error/cancellation cleanup, real/fixture schema
-parity, retry, circuit breaker, runtime OpenAPI, MI300-offline startup, fixture
-fallback, manifest/license gates, chunk cleaning, incremental reuse, atomic
-switching, persistent vector retrieval, keyword fallback, and the 20-query
-RAG smoke set. Stage 06 adds golden normalization, textbook-priority,
-OOV/conflict review gates, MMS vocabulary validation, hybrid ranking, metadata
-filtering, context budgets, empty-evidence behavior, and citation replay.
+Tests cover profiles, idempotent migrations, structured lesson persistence,
+request IDs, canonical errors, image validation, success/error/cancellation
+cleanup, real/fixture schema parity, retry, circuit breaker, runtime OpenAPI,
+MI300-offline startup, fixture fallback, teacher review/pending status,
+manifest/license gates, chunk cleaning, incremental reuse, atomic switching,
+persistent vector retrieval, keyword fallback, and the 20-query RAG smoke set.
+Stage 06 adds golden normalization, textbook-priority, OOV/conflict review
+gates, MMS vocabulary validation, hybrid ranking, metadata filtering, context
+budgets, empty-evidence behavior, and citation replay. Stage 07 adds the
+facts/activity two-step pipeline, one-repair boundary, safety checks, citation
+binding, and five metadata-only representative fixture reviews.
 
 ## Data and privacy
 
@@ -218,7 +259,11 @@ filtering, context budgets, empty-evidence behavior, and citation replay.
   only for the active request, and deleted in `finally`.
 - Startup removes abandoned `lesson-*` temporary files older than 15 minutes.
 - Logs contain request ID, route, status, and latency only; they do not contain
-  image bytes, prompt text, VLM output, or student transcripts.
+  image bytes, prompt text, raw VLM output, or student transcripts. Repair
+  traces contain only stage, attempt count, model revision, and safe reason
+  codes.
+- `answer_evidence` is teacher/parent-only structured review data; it is not
+  indexed into Local RAG and must not be exposed by student routes.
 - RAG logs and reports contain revision, source IDs, locators, counts, and
   latency/RAM measurements only; they do not contain student data or raw
   textbook media.
