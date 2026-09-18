@@ -11,6 +11,23 @@ This directory is a reproducible evaluation kit, not a product service. It keeps
 - The same `prompt.txt` and `response_schema.json` are used for every model.
 - Human review uses anonymized model labels. The model's self-reported confidence is never used as the quality score.
 
+## Locked Stage 02 decision
+
+The Stage 02 decision is now fixed in `benchmark_config.json`:
+
+- **Primary:** `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`, revision
+  `d9748a51ae66354c4dad665aab2c71f26cf2c8cd`.
+- **Fallback:** `Qwen/Qwen2.5-VL-7B-Instruct`, revision
+  `cc594898137f460bfe9f0759e9844b3ce807cfb5`.
+- `Qwen/Qwen3-VL-32B-Instruct-FP8` remains comparison-only; its exposed-slice
+  measurements are retained but it is not the fallback for the 96 GB target.
+
+Both selected models booted and completed 30/30 measured requests under the
+same conservative equivalent-cap run (`--gpu-memory-utilization 0.48` on the
+exposed 196,592 MB MI300X slice, about 94 GB of allocator budget). This is
+evidence for the Stage 02 decision, not a claim that the lab exposed an
+isolated physical 96 GB partition.
+
 The synthetic pages are generated at runtime and are not committed as binaries. This prevents real textbook photos, student data, model weights, caches, and large artifacts from entering Git.
 
 ## Generate the dataset
@@ -35,6 +52,11 @@ bash launch_vllm.sh \
   cc594898137f460bfe9f0759e9844b3ce807cfb5 \
   qwen25-vl-7b
 ```
+
+For the conservative Stage 02 memory gate, set
+`STAGE02_GPU_MEMORY_UTILIZATION=0.48` before the same command. The launcher
+defaults to `0.80` for the original exposed-slice comparison and records the
+effective value in the command evidence file.
 
 With exactly one model running, execute the fixed workload:
 

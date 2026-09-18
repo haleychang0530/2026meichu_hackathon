@@ -19,19 +19,19 @@
       "id": "Qwen/Qwen2.5-VL-7B-Instruct",
       "revision": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
       "license": "apache-2.0",
-      "role": "baseline"
+      "role": "fallback"
     },
     {
       "id": "Qwen/Qwen3-VL-32B-Instruct-FP8",
       "revision": "4bf2c2f39c37c0fede78bede4056e1f18cdf8109",
       "license": "apache-2.0",
-      "role": "primary_candidate"
+      "role": "comparison_only"
     },
     {
       "id": "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8",
       "revision": "d9748a51ae66354c4dad665aab2c71f26cf2c8cd",
       "license": "apache-2.0",
-      "role": "performance_candidate"
+      "role": "primary"
     }
   ]
 }

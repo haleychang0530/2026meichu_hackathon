@@ -19,6 +19,7 @@ hf_home="${STAGE02_HF_HOME:-${cache_root}-hf-${slug}}"
 xdg_home="${STAGE02_XDG_CACHE_HOME:-${cache_root}-xdg-${slug}}"
 vllm_cache="${STAGE02_VLLM_CACHE_ROOT:-${cache_root}-vllm-cache-${slug}}"
 triton_cache="${STAGE02_TRITON_CACHE_DIR:-${cache_root}-triton-${slug}}"
+gpu_memory_utilization="${STAGE02_GPU_MEMORY_UTILIZATION:-0.80}"
 
 mkdir -p "$log_dir" "$stage_home" "$hf_home" "$xdg_home" "$vllm_cache" "$triton_cache"
 start_epoch="$(date +%s)"
@@ -34,7 +35,7 @@ command=(
   --port 8000
   --tensor-parallel-size 1
   --max-model-len 8192
-  --gpu-memory-utilization 0.80
+  --gpu-memory-utilization "$gpu_memory_utilization"
 )
 printf 'HOME=%q PYTHONPATH=%q HF_HOME=%q XDG_CACHE_HOME=%q VLLM_CACHE_ROOT=%q TRITON_CACHE_DIR=%q ' \
   "$stage_home" "$venv_site" "$hf_home" "$xdg_home" "$vllm_cache" "$triton_cache" \
