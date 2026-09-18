@@ -22,6 +22,9 @@ onnxruntime==1.30.0
 packaging==26.3
 protobuf==7.36.2
 PyYAML==6.0.3
+safetensors==0.8.0
 tokenizers==0.23.2
 tqdm==4.70.1
+torch==2.8.0
+transformers==5.17.0
 typing_extensions==4.16.0

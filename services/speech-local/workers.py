@@ -418,7 +418,7 @@ def make_synthetic_wav(*, duration_ms: int = 160, sample_rate: int = 8000) -> by
 
 
 class MockTTSWorker:
-    """Deterministic CPU TTS worker used until MMS-TTS is wired in."""
+    """Deterministic CPU TTS worker retained for tests and offline UI work."""
 
     model_revision = "mock-mms-tts-nan-v0.1"
     device = "cpu"
@@ -466,3 +466,51 @@ class MockTTSWorker:
             with self._lock:
                 self.stats.active -= 1
             self.finished.set()
+
+
+def create_tts_worker(
+    backend: str = "mock",
+    *,
+    model_path: str | None = None,
+    model_id: str | None = None,
+    revision: str | None = None,
+    speed: float = 1.0,
+    local_files_only: bool = False,
+    cache_dir: str | None = None,
+    fallback_manifest: str | None = None,
+) -> TTSWorker:
+    """Build the explicitly selected TTS backend.
+
+    Mock remains the import-safe default for development and contract tests.
+    The ``mms`` backend is lazy and imports Transformers/Torch only when it is
+    warmed or asked to synthesize speech.
+    """
+
+    selected = backend.strip().lower()
+    if selected == "mock":
+        return MockTTSWorker()
+    if selected in {"mms", "mms-tts-nan", "cpu"}:
+        from tts import (
+            AudioCache,
+            MMSNanTTSWorker,
+            MMS_TTS_MODEL_ID,
+            MMS_TTS_MODEL_REVISION,
+            PrerecordedFallbackManifest,
+            RoutedSpeechTTSWorker,
+        )
+
+        cache = AudioCache(cache_dir) if cache_dir else None
+        mms_worker = MMSNanTTSWorker(
+            model_path=model_path,
+            model_id=model_id or MMS_TTS_MODEL_ID,
+            revision=revision or MMS_TTS_MODEL_REVISION,
+            speed=speed,
+            local_files_only=local_files_only,
+            cache=cache,
+        )
+        manifest = PrerecordedFallbackManifest.load(fallback_manifest)
+        return RoutedSpeechTTSWorker(
+            mms_worker=mms_worker,
+            fallback_manifest=manifest,
+        )
+    raise ValueError("backend must be mock or mms")

@@ -1,0 +1,42 @@
+{
+  "schema": "stage07-prerecorded-fallback.v1",
+  "model_policy": "Only owner- or language-consultant-approved WAV files may be played.",
+  "audio_format": {
+    "container": "wav",
+    "channels": 1,
+    "sample_rate": 16000,
+    "sample_width_bytes": 2
+  },
+  "entries": [
+    { "key": "nan-TW:阿媽", "language": "nan-TW", "text": "a-má", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:欲", "language": "nan-TW", "text": "beh", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:去", "language": "nan-TW", "text": "khì", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:市場", "language": "nan-TW", "text": "chhī-tiûnn", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:買", "language": "nan-TW", "text": "bé", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:菜", "language": "nan-TW", "text": "chhài", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:阿媽欲去市場買菜", "language": "nan-TW", "text": "a-má beh khì chhī-tiûnn bé chhài", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:囡仔", "language": "nan-TW", "text": "gín-á", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:老師", "language": "nan-TW", "text": "lāu-su", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:學校", "language": "nan-TW", "text": "ha̍k-hāu", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:食飯", "language": "nan-TW", "text": "chia̍h-pn̄g", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:啉水", "language": "nan-TW", "text": "lim-chúi", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:朋友", "language": "nan-TW", "text": "pêng-iú", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:厝", "language": "nan-TW", "text": "chhù", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:門", "language": "nan-TW", "text": "mn̂g", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:看", "language": "nan-TW", "text": "khoànn", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:聽", "language": "nan-TW", "text": "thiann", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:講", "language": "nan-TW", "text": "kóng", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:好", "language": "nan-TW", "text": "hó", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:真", "language": "nan-TW", "text": "chin", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:歡喜", "language": "nan-TW", "text": "hoann-hí", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:早起", "language": "nan-TW", "text": "chá-khí", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:暗時", "language": "nan-TW", "text": "àm-sî", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:今日", "language": "nan-TW", "text": "kin-á-ji̍t", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:明仔載", "language": "nan-TW", "text": "bîn-á-chài", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:逐家", "language": "nan-TW", "text": "ta̍k-ke", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:多謝", "language": "nan-TW", "text": "to-siā", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:拜拜", "language": "nan-TW", "text": "pài-pài", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:佗位", "language": "nan-TW", "text": "tó-ūi", "path": null, "approved": false, "review_status": "pending_owner_review" },
+    { "key": "nan-TW:台灣", "language": "nan-TW", "text": "tâi-oân", "path": null, "approved": false, "review_status": "pending_owner_review" }
+  ]
+}
