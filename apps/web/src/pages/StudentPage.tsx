@@ -4,6 +4,7 @@ import { asAdapterError } from '../adapters/errors';
 import { AppShell } from '../components/AppShell';
 import { StatusBanner } from '../components/StatusBanner';
 import { ErrorState, LoadingState } from '../components/States';
+import { useNarration } from '../accessibility/NarrationProvider';
 import type {
   SessionState,
   StudentAction,
@@ -116,6 +117,7 @@ export function StudentPage({
   readonly sessionId: string;
   readonly speechClient?: SpeechGatewayClient;
 }) {
+  const narration = useNarration();
   const [view, setView] = useState<StudentSessionViewModel | null>(null);
   const viewRef = useRef<StudentSessionViewModel | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -178,6 +180,7 @@ export function StudentPage({
     return () => {
       unsubscribe();
       void speechClient.cancel();
+      narration.stop();
       speechClient.dispose();
     };
   }, [speechClient]);
@@ -254,6 +257,7 @@ export function StudentPage({
     setSpeechError(null);
     try {
       // Every control boundary first stops TTS, browser speech and recording.
+      narration.stop();
       await speechClient.cancel();
       const next = await adapter.submitStudentAction(sessionId, action, {
         expectedRevision: current.revision,
@@ -262,6 +266,7 @@ export function StudentPage({
       actionKeysRef.current.delete(action);
       commitView(withPreservedTranscript(next, current));
       setSessionMessage(next.feedback);
+      narration.announce(next.feedback, { priority: 2, key: 'student-feedback' });
       return next;
     } catch (nextError) {
       if (isRevisionConflict(nextError)) actionKeysRef.current.delete(action);
@@ -320,6 +325,7 @@ export function StudentPage({
   }
 
   async function stopVoiceAnswer(): Promise<void> {
+    narration.stop();
     setBusyLabel('辨識回答……');
     setSpeechError(null);
     try {
@@ -372,6 +378,7 @@ export function StudentPage({
     setError(null);
     setSpeechError(null);
     try {
+      narration.stop();
       await speechClient.cancel();
       const next = await adapter.submitStudentAnswer(sessionId, {
         schema_version: '0.1.0',
@@ -386,6 +393,7 @@ export function StudentPage({
       commitView(withPreservedTranscript(next, current));
       setDraftTranscript(next.transcript || transcript);
       setSessionMessage(next.feedback);
+      narration.announce(next.feedback, { priority: 2, key: 'student-feedback' });
       setTranscriptMode(null);
     } catch (nextError) {
       if (isRevisionConflict(nextError)) pendingTurnRef.current = null;
@@ -404,6 +412,7 @@ export function StudentPage({
   }
 
   async function switchToObserver(): Promise<void> {
+    narration.stop();
     await speechClient.cancel();
     navigateTo(`/session/${encodeURIComponent(sessionId)}/observer`);
   }
@@ -451,7 +460,7 @@ export function StudentPage({
                 <span>Core：{sessionStateLabels[currentView.state]}</span>
                 <span>同步：{streamLabel}</span>
               </div>
-              <h1 id="student-heading">{currentView.lessonTitle}</h1>
+              <h1 id="student-heading" data-page-title tabIndex={-1}>{currentView.lessonTitle}</h1>
               <p className="prompt">{currentView.prompt}</p>
               <p className="live-message" role="status" aria-live="polite">{sessionMessage || currentView.feedback}</p>
               {fallbackMessage(currentView.fallbacks) ? (

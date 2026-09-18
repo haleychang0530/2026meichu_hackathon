@@ -1,7 +1,9 @@
 import type {
   CaptureViewModel,
   LessonImageUpload,
+  LessonReviewPatch,
   ObserverSessionViewModel,
+  ObserverAction,
   SetupViewModel,
   StudentAction,
   StudentSessionViewModel,
@@ -45,4 +47,6 @@ export interface FrontendAdapter {
   ): Promise<StudentSessionViewModel>;
   subscribeStudentSession(sessionId: string, options: StudentSessionStreamOptions): () => void;
   getObserverSession(sessionId: string): Promise<ObserverSessionViewModel>;
+  reviewLesson(lessonId: string, patch: LessonReviewPatch): Promise<ObserverSessionViewModel['lesson']>;
+  submitObserverAction(sessionId: string, action: ObserverAction): Promise<ObserverSessionViewModel>;
 }

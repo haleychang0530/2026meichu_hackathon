@@ -327,4 +327,31 @@ describe('RealAdapter', () => {
     expect(calls[0].url).toBe('http://127.0.0.1:8000/api/sessions/session_demo_001/events');
     expect(calls[0].headers.get('Last-Event-ID')).toBe('2');
   });
+
+  it('uses the teacher-only merge patch endpoint for pending Lesson review', async () => {
+    let request: RequestInit | undefined;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/lessons/lesson_market_001')) {
+        request = init;
+        return jsonResponse({ ...lessonPayload, topic: '修訂後主題', review_status: 'approved' });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const lesson = await new RealAdapter().reviewLesson('lesson_market_001', {
+      topic: '修訂後主題',
+      accessibleActivity: '聽線索回答。',
+      reviewStatus: 'approved',
+    });
+
+    expect(new Headers(request?.headers).get('content-type')).toBe('application/merge-patch+json');
+    expect(JSON.parse(String(request?.body))).toEqual({
+      topic: '修訂後主題',
+      accessible_activity: '聽線索回答。',
+      review_status: 'approved',
+    });
+    expect(lesson.topic).toBe('修訂後主題');
+    expect(lesson.reviewStatus).toBe('approved');
+  });
 });

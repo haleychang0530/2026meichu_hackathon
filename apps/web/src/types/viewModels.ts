@@ -5,6 +5,7 @@ export interface ServiceHealthView {
   readonly status: HealthStatus;
   readonly device: string;
   readonly modelRevision?: string;
+  readonly queueDepth?: number;
   readonly lastError?: string;
 }
 
@@ -131,8 +132,103 @@ export interface StudentSessionViewModel {
   readonly fallbacks: readonly string[];
 }
 
+export type LessonReviewStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ObserverVocabularyView {
+  readonly hanji: string;
+  readonly tailo: string;
+  readonly meaning: string;
+  readonly audioKey: string | null;
+}
+
+export interface ObserverEvidenceView {
+  readonly sourceId: string;
+  readonly title: string;
+  readonly excerpt: string;
+  readonly locator: string;
+}
+
+export interface ObserverLessonViewModel {
+  readonly lessonId: string;
+  readonly topic: string;
+  readonly sourceText: string;
+  readonly vocabulary: readonly ObserverVocabularyView[];
+  readonly scene: string;
+  readonly originalActivity: string;
+  readonly learningObjective: string;
+  readonly accessibleActivity: string;
+  readonly evidence: readonly ObserverEvidenceView[];
+  readonly confidence: number;
+  readonly reviewStatus: LessonReviewStatus;
+  readonly answerEvidence: readonly string[];
+  readonly vlmModelRevision: string | null;
+  readonly ragIndexRevision: string | null;
+}
+
+export interface ObserverTurnView {
+  readonly turnId: string;
+  readonly transcriptRaw: string;
+  readonly transcriptNormalized: string;
+  readonly result: 'correct' | 'partial' | 'retry';
+  readonly matchedConcepts: readonly string[];
+  readonly feedback: string;
+  readonly nextPrompt: string;
+  readonly progress: number;
+  readonly latencyMs: Readonly<{
+    readonly asr: number | null;
+    readonly backend: number;
+    readonly vlm: number | null;
+    readonly tts: number | null;
+    readonly total: number;
+  }>;
+  readonly asrDevice: 'npu' | 'cpu';
+  readonly fallbacks: readonly string[];
+  readonly phase: TeachingPhase;
+  readonly revision: number;
+  readonly lastEventId: number;
+}
+
+export interface ObserverHintView {
+  readonly turnId: string;
+  readonly prompt: string;
+  readonly feedback: string;
+}
+
+export interface ObserverFamiliarityView {
+  readonly concept: string;
+  readonly status: 'new' | 'developing' | 'familiar';
+}
+
+export interface LessonReviewPatch {
+  readonly topic?: string;
+  readonly sourceText?: string;
+  readonly accessibleActivity?: string;
+  readonly reviewStatus?: LessonReviewStatus;
+}
+
+export type ObserverAction = 'skip' | 'redo' | 'end' | 'reset';
+
 export interface ObserverSessionViewModel {
   readonly sessionId: string;
+  readonly lessonId: string;
+  readonly state: SessionState;
+  readonly phase: TeachingPhase;
+  readonly progress: number;
+  readonly completedTurns: number;
+  readonly lesson: ObserverLessonViewModel;
+  readonly turns: readonly ObserverTurnView[];
+  readonly conceptsToReview: readonly string[];
+  readonly hintHistory: readonly ObserverHintView[];
+  readonly familiarity: readonly ObserverFamiliarityView[];
+  readonly evidence: readonly ObserverEvidenceView[];
+  readonly answerEvidence: readonly string[];
+  readonly vlmModelRevision: string | null;
+  readonly ragIndexRevision: string | null;
+  readonly reviewStatus: LessonReviewStatus | null;
+  readonly revision: number;
+  readonly lastEventId: number;
+
+  /** Compatibility projection retained for the original Stage 02 observer UI. */
   readonly lessonTitle: string;
   readonly transcript: string;
   readonly evaluation: 'correct' | 'partial' | 'retry' | 'not_started';

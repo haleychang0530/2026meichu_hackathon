@@ -7,6 +7,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { ObserverPage } from './pages/ObserverPage';
 import { SetupPage } from './pages/SetupPage';
 import { StudentPage } from './pages/StudentPage';
+import { NarrationProvider } from './accessibility/NarrationProvider';
 
 export function App() {
   const adapter = useMemo(createAdapter, []);
@@ -20,7 +21,8 @@ export function App() {
 
   useEffect(() => {
     const main = document.querySelector<HTMLElement>('#main-content');
-    main?.focus();
+    const pageTitle = main?.querySelector<HTMLElement>('[data-page-title]');
+    (pageTitle || main)?.focus();
   }, [route]);
 
   let content;
@@ -30,7 +32,7 @@ export function App() {
   else if (route.kind === 'observer') content = <ObserverPage adapter={adapter} sessionId={route.sessionId} />;
   else content = <NotFoundPage path={route.path} />;
 
-  return <ErrorBoundary>{content}</ErrorBoundary>;
+  return <ErrorBoundary><NarrationProvider>{content}</NarrationProvider></ErrorBoundary>;
 }
 
 export { navigateTo };

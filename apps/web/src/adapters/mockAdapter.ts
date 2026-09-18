@@ -10,8 +10,15 @@ import type {
   CaptureViewModel,
   HealthStatus,
   HealthSummaryView,
+  LessonReviewPatch,
   LessonImageUpload,
+  ObserverAction,
+  ObserverEvidenceView,
+  ObserverFamiliarityView,
+  ObserverHintView,
+  ObserverLessonViewModel,
   ObserverSessionViewModel,
+  ObserverTurnView,
   ServiceHealthView,
   SessionState,
   SetupViewModel,
@@ -34,11 +41,43 @@ function requestedHealthStatus(): HealthStatus {
 function createHealth(status: HealthStatus): HealthSummaryView {
   const lastError = status === 'ready' ? undefined : 'Mock health override：後端或語音服務尚未完全可用。';
   const services: readonly ServiceHealthView[] = [
-    { service: 'Core Backend', status, device: 'laptop', modelRevision: 'mock-core-v0.1', lastError },
-    { service: 'Speech Gateway', status: status === 'offline' ? 'offline' : status, device: 'laptop', modelRevision: 'mock-speech-v0.1', lastError },
-    { service: 'Local RAG', status: status === 'ready' ? 'ready' : 'degraded', device: 'laptop', modelRevision: 'mock-rag-v0.1', lastError },
+    { service: 'Core Backend', status, device: 'Ryzen AI 9 laptop', modelRevision: 'mock-core-v0.1', queueDepth: 0, lastError },
+    { service: 'Local RAG', status: status === 'ready' ? 'ready' : 'degraded', device: 'laptop CPU', modelRevision: 'mock-rag-v0.1', queueDepth: 0, lastError },
+    { service: 'MI300 VLM', status: status === 'offline' ? 'offline' : status === 'ready' ? 'ready' : 'degraded', device: 'MI300 96GB', modelRevision: 'mock-vlm-v0.1', queueDepth: 0, lastError },
+    { service: 'ASR', status: status === 'offline' ? 'offline' : status, device: 'laptop CPU', modelRevision: 'mock-breeze-cpu-v0.1', queueDepth: 0, lastError },
+    { service: 'TTS', status: status === 'offline' ? 'offline' : status, device: 'laptop CPU', modelRevision: 'mock-mms-v0.1', queueDepth: 0, lastError },
   ];
   return { status, checkedAt: new Date().toISOString(), services };
+}
+
+function createDemoLesson(): ObserverLessonViewModel {
+  return {
+    lessonId: DEMO_LESSON_ID,
+    topic: '水果攤：聽聲音認識水果',
+    sourceText: '阿媽欲去市場買菜。',
+    vocabulary: [
+      { hanji: '市場', tailo: 'tshī-tiûnn', meaning: '市場', audioKey: 'nan-market-001' },
+      { hanji: '欲', tailo: 'beh', meaning: '要', audioKey: 'nan-want-001' },
+      { hanji: '水果', tailo: 'tsuí-kó', meaning: '水果', audioKey: 'nan-fruit-001' },
+    ],
+    scene: '市場裡有阿媽、菜販與囡仔。',
+    originalActivity: '看圖片，說說看誰正在買菜。',
+    learningObjective: '辨識人物與買菜動作，練習市場與水果詞彙。',
+    accessibleActivity: '聽三個角色與動作線索，判斷哪一位角色正在買菜，不直接描述圖中答案。',
+    evidence: [
+      {
+        sourceId: 'mock-dictionary-market',
+        title: '教育部臺灣台語常用詞辭典（Mock）',
+        excerpt: '市場：tshī-tiûnn；水果：tsuí-kó。',
+        locator: 'demo/market',
+      },
+    ],
+    confidence: 0.91,
+    reviewStatus: 'pending',
+    answerEvidence: ['教師檢視依據：活動以角色與動作線索引導回答，未將視覺答案放入學生提示。'],
+    vlmModelRevision: 'mock-vlm-v0.1',
+    ragIndexRevision: 'mock-rag-2026-09',
+  };
 }
 
 function createEvent(
@@ -61,6 +100,14 @@ function createEvent(
 
 export class MockAdapter implements FrontendAdapter {
   private readonly health = createHealth(requestedHealthStatus());
+  private lesson: ObserverLessonViewModel = createDemoLesson();
+  private turns: ObserverTurnView[] = [];
+  private conceptsToReview: string[] = ['水果'];
+  private hintHistory: ObserverHintView[] = [];
+  private familiarity: ObserverFamiliarityView[] = [
+    { concept: '市場', status: 'developing' },
+    { concept: '水果', status: 'new' },
+  ];
   private answered = false;
   private answerCount = 0;
   private lastFeedback = '尚未開始回答。你可以先播放提示，再按下開始回答。';
@@ -148,6 +195,14 @@ export class MockAdapter implements FrontendAdapter {
       this.phase = 'hint';
       this.state = 'SPEAKING';
       this.lastFeedback = '提示：想想水果的顏色、形狀或味道。';
+      this.hintHistory = [
+        ...this.hintHistory,
+        {
+          turnId: this.turns.at(-1)?.turnId || `turn_mock_${Math.max(1, this.answerCount)}`,
+          prompt: '想想水果的顏色、形狀或味道。',
+          feedback: '提示只提供思考方向，不直接揭露教材答案。',
+        },
+      ];
     } else if (action === 'pause') {
       this.state = 'IDLE';
       this.lastFeedback = '流程已暫停，可以稍後繼續。';
@@ -203,6 +258,25 @@ export class MockAdapter implements FrontendAdapter {
       : '已收到你的回答，接下來可以繼續下一個活動。';
     this.revision += 1;
     const view = this.studentView(sessionId);
+    this.turns = [
+      ...this.turns,
+      {
+        turnId: `turn_mock_${this.answerCount}`,
+        transcriptRaw: this.transcript,
+        transcriptNormalized: this.transcript,
+        result: 'partial',
+        matchedConcepts: [],
+        feedback: this.lastFeedback,
+        nextPrompt: view.prompt,
+        progress: this.progress,
+        latencyMs: { asr: 20, backend: 5, vlm: null, tts: null, total: 25 },
+        asrDevice: submission.asr_device || 'cpu',
+        fallbacks: ['fixture_mode'],
+        phase: this.phase,
+        revision: this.revision,
+        lastEventId: this.lastEventId + 1,
+      },
+    ];
     this.emit(sessionId, 'turn.completed', {
       schema_version: '0.1.0',
       turn_id: `mock-turn-${this.answerCount}`,
@@ -231,17 +305,83 @@ export class MockAdapter implements FrontendAdapter {
   }
 
   async getObserverSession(sessionId: string): Promise<ObserverSessionViewModel> {
+    const latestTurn = this.turns.at(-1);
     return {
       sessionId,
-      lessonTitle: '水果攤：聽聲音認識水果',
+      lessonId: this.lesson.lessonId,
+      state: this.state,
+      phase: this.phase,
+      progress: this.progress,
+      completedTurns: this.turns.length,
+      lesson: this.lesson,
+      turns: this.turns,
+      conceptsToReview: this.conceptsToReview,
+      hintHistory: this.hintHistory,
+      familiarity: this.familiarity,
+      evidence: this.lesson.evidence,
+      answerEvidence: this.lesson.answerEvidence,
+      vlmModelRevision: this.lesson.vlmModelRevision,
+      ragIndexRevision: this.lesson.ragIndexRevision,
+      reviewStatus: this.lesson.reviewStatus,
+      revision: this.revision,
+      lastEventId: this.lastEventId,
+      lessonTitle: this.lesson.topic,
       transcript: this.answered ? this.transcript : '尚未收到學生回答。',
       evaluation: this.answered ? 'partial' : 'not_started',
       feedback: this.answered ? '可在下一回合用聲音提示引導學生補充。' : '等待學生開始回答。',
-      progressLabel: this.answered ? `第 ${this.answerCount + 1} / 3 步` : '第 1 / 3 步',
-      latencyMs: this.answered ? { asr: 320, backend: 80, total: 610 } : { asr: null, backend: null, total: null },
-      fallbacks: this.health.status === 'ready' ? [] : ['mock-health-override'],
+      progressLabel: `${this.turns.length} 回合 · ${Math.round(this.progress * 100)}%`,
+      latencyMs: latestTurn
+        ? { asr: latestTurn.latencyMs.asr, backend: latestTurn.latencyMs.backend, total: latestTurn.latencyMs.total }
+        : { asr: null, backend: null, total: null },
+      fallbacks: latestTurn?.fallbacks ?? (this.health.status === 'ready' ? [] : ['mock-health-override']),
       health: this.health,
     };
+  }
+
+  async reviewLesson(lessonId: string, patch: LessonReviewPatch): Promise<ObserverLessonViewModel> {
+    if (lessonId !== this.lesson.lessonId) throw new Error('Mock lesson 不存在。');
+    this.lesson = {
+      ...this.lesson,
+      ...(patch.topic === undefined ? {} : { topic: patch.topic }),
+      ...(patch.sourceText === undefined ? {} : { sourceText: patch.sourceText }),
+      ...(patch.accessibleActivity === undefined ? {} : { accessibleActivity: patch.accessibleActivity }),
+      ...(patch.reviewStatus === undefined ? {} : { reviewStatus: patch.reviewStatus }),
+    };
+    return this.lesson;
+  }
+
+  async submitObserverAction(sessionId: string, action: ObserverAction): Promise<ObserverSessionViewModel> {
+    if (action === 'skip') {
+      this.state = 'SPEAKING';
+      this.phase = this.phase === 'complete' ? 'complete' : 'review';
+      this.progress = Math.min(1, this.progress + 0.1);
+      this.lastFeedback = '教師／家長已跳過目前活動。';
+    } else if (action === 'redo') {
+      this.state = 'LISTENING';
+      this.phase = 'comprehension';
+      this.lastFeedback = '已回到目前活動，學生可以重新作答。';
+    } else if (action === 'end') {
+      this.state = 'COMPLETE';
+      this.phase = 'complete';
+      this.progress = 1;
+      this.lastFeedback = '教學回合已由教師／家長結束。';
+    } else if (action === 'reset') {
+      this.answered = false;
+      this.answerCount = 0;
+      this.lastFeedback = '示範 session 已重設，可以重新開始。';
+      this.transcript = '';
+      this.state = 'SPEAKING';
+      this.phase = 'introduction';
+      this.progress = 0;
+      this.revision = 0;
+      this.lastEventId = 0;
+      this.turns = [];
+      this.hintHistory = [];
+      this.conceptsToReview = ['水果'];
+      this.lesson = { ...this.lesson, reviewStatus: 'pending' };
+    }
+    if (action !== 'reset') this.revision += 1;
+    return this.getObserverSession(sessionId);
   }
 
   private studentView(sessionId: string): StudentSessionViewModel {
