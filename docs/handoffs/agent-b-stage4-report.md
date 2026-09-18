@@ -19,6 +19,14 @@ Checked: 2026-09-18 (Asia/Taipei)
 - `services/speech-local/test_gateway.py`: seven core/HTTP integration tests.
 - `services/speech-local/README.md`: runbook, boundary, privacy and scheduling
   notes.
+- `apps/web/src/generated/speech.ts`: generated TypeScript from the canonical
+  Speech OpenAPI.
+- `apps/web/src/speech/gateway.ts`: browser Speech Gateway client, Mock client,
+  MediaRecorder/Audio ownership and half-duplex state subscription.
+- `apps/web/src/speech/gateway.test.ts`: Mock flow and HTTP request-shape tests.
+- `apps/web/src/pages/StudentPage.tsx`, `apps/web/src/styles.css`: student UI
+  controls and accessible speech-state feedback.
+- `apps/web/README.md`: Mock/real speech mode runbook.
 
 No Agent A canonical schema or OpenAPI file was modified.
 
@@ -37,6 +45,12 @@ documented localhost Vite origins.
 
 - `python -m py_compile services/speech-local/workers.py services/speech-local/gateway.py`: pass.
 - `python -m unittest discover -s services/speech-local -p "test_*.py" -v`: pass, 7 tests.
+- `npm --prefix apps/web run typecheck`: pass.
+- `npm --prefix apps/web test -- --run`: pass, 5 files / 11 tests.
+- `npm --prefix apps/web run build`: pass; Vite production bundle generated.
+- Browser smoke on `http://127.0.0.1:5173/session/demo-session/student`: pass;
+  Mock UI completed start recording → stop/transcribe → submit → idle and
+  prompt playback, with the speech state visible in the accessibility tree.
 - HTTP integration covers `/local/health`, `/v1/audio/speech`,
   `/v1/audio/transcriptions`, request IDs, runtime-memory headers and CORS
   rejection.
@@ -74,11 +88,12 @@ stable error.
 
 ## Accessibility checks
 
-This Stage adds no visual component or DOM. The existing Stage 02 frontend
-remains responsible for keyboard/focus/ARIA behavior. The gateway's browser
-boundary uses explicit CORS and request IDs; microphone/playback ownership is
-represented by the half-duplex coordinator and is ready for the Stage 08/09
-frontend controls.
+The student controls remain native buttons with visible focus styles. Speech
+state is exposed through a polite live status (`待機`／`播放提示中`／`聆聽中`／
+`辨識中`／`等待回饋`), and errors use the existing alert component with stable
+fallback text. The browser smoke verified the state changes in the
+accessibility tree. Full Narrator/NVDA and App narration matrix remains Stage
+09.
 
 ## Known limits
 
@@ -93,6 +108,11 @@ frontend controls.
 - The mock worker is in-process behind a worker protocol. A real model adapter
   may move heavy inference to a child process without changing the gateway
   routes or cancellation contract.
+- The default frontend mode is Mock and does not request microphone permission.
+  Set `VITE_SPEECH_MODE=real` and run the local Gateway to exercise browser
+  `MediaRecorder` and real HTTP routes. The current prompt adapter creates a
+  generated zh-TW demo utterance; Agent A/Core utterance orchestration will
+  provide verified lesson speech in Stage 08.
 
 ## Agent A can rely on
 
@@ -107,6 +127,9 @@ frontend controls.
 - A successful transcription leaves the gateway in `EVALUATING`; the next
   speech request enters `SPEAKING`. Cancellation and failures return to
   `IDLE`.
+- `StudentPage` can complete the Mock recording → transcription → evaluation →
+  playback flow without a microphone and can be switched to the localhost
+  client through `VITE_SPEECH_MODE=real`.
 
 ## Next action
 
