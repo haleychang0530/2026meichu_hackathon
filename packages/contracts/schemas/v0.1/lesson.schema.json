@@ -34,6 +34,11 @@
     "original_activity": { "type": "string", "minLength": 1 },
     "learning_objective": { "type": "string", "minLength": 1 },
     "accessible_activity": { "type": "string", "minLength": 1 },
+    "answer_evidence": {
+      "type": "array",
+      "description": "Teacher/parent-only evidence for the answer or visual reasoning. Never expose to student routes.",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "evidence": {
       "type": "array",
       "items": { "$ref": "#/$defs/evidence_item" }

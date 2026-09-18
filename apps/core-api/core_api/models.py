@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 SCHEMA_VERSION = "0.1.0"
@@ -76,11 +76,27 @@ class Lesson(StrictModel):
     original_activity: str = Field(min_length=1)
     learning_objective: str = Field(min_length=1)
     accessible_activity: str = Field(min_length=1)
+    # Teacher/parent-only visual answer basis. This is additive in v0.1 so
+    # older lessons remain readable while Stage 07 always populates it.
+    answer_evidence: list[str] = Field(default_factory=list)
     evidence: list[EvidenceItem]
     confidence: float = Field(ge=0, le=1)
     review_status: Literal["pending", "approved", "rejected"]
     vlm_model_revision: str | None
     rag_index_revision: str | None
+
+
+class LessonPatch(StrictModel):
+    topic: str | None = Field(default=None, min_length=1, max_length=200)
+    source_text: str | None = Field(default=None, min_length=1)
+    accessible_activity: str | None = Field(default=None, min_length=1)
+    review_status: Literal["pending", "approved", "rejected"] | None = None
+
+    @model_validator(mode="after")
+    def require_one_value(self) -> "LessonPatch":
+        if not any(value is not None for value in self.model_dump().values()):
+            raise ValueError("at least one lesson field is required")
+        return self
 
 
 class NormalizeUtteranceRequest(StrictModel):

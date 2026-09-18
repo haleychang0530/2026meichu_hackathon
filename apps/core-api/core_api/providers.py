@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import httpx
-from jsonschema import Draft202012Validator, ValidationError
+from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
 from .config import Settings
 from .errors import ProviderError
@@ -72,6 +72,16 @@ class CircuitBreaker:
 
 
 @dataclass(slots=True)
+class StructuredGeneration:
+    candidate: Any
+    model_revision: str
+    raw_output: str
+    latency_ms: int
+    queue_ms: int
+    inference_ms: int
+
+
+@dataclass(slots=True)
 class VlmResponse:
     lesson: Lesson
     model_revision: str
@@ -102,7 +112,22 @@ class Mi300Client:
         )
         self.client = httpx.AsyncClient(base_url=settings.vlm_base_url, timeout=timeout, transport=transport)
 
-    async def analyze(self, image: PreparedImage, request_id: str) -> Lesson:
+    async def generate(
+        self,
+        image: PreparedImage,
+        request_id: str,
+        *,
+        prompt: str,
+        response_schema: dict[str, Any],
+        evidence: list[dict[str, Any]] | None = None,
+    ) -> StructuredGeneration:
+        """Run one bounded, stateless structured inference request.
+
+        Stage 07 composes two calls from this primitive. The client validates
+        the gateway result again so a caller cannot accidentally trust an
+        unvalidated candidate even when a compatible gateway is replaced.
+        """
+
         if not await self.breaker.allow():
             raise ProviderError(
                 ErrorCode.CIRCUIT_OPEN,
@@ -120,13 +145,12 @@ class Mi300Client:
                 "media_type": image.media_type,
                 "content_base64": base64.b64encode(image.path.read_bytes()).decode("ascii"),
             },
-            "prompt": (
-                "分析這一頁臺灣台語教材，依 JSON Schema 回傳可供教師審查的 Lesson。"
-                "不得輸出 Markdown；看圖活動不可直接洩漏答案；尚無 RAG 依據時 evidence 必須是空陣列。"
-            ),
-            "response_schema": self.lesson_schema,
+            "prompt": prompt,
+            "response_schema": response_schema,
             "model_revision": self.settings.vlm_model_revision,
         }
+        if evidence:
+            payload["evidence"] = evidence
 
         last_error: ProviderError | None = None
         for attempt in range(1, self.settings.max_attempts + 1):
@@ -137,11 +161,18 @@ class Mi300Client:
                     headers={"X-Request-ID": request_id},
                 )
                 if response.status_code == 200:
-                    lesson = self._parse_response(response, request_id)
+                    generation = self._parse_structured_response(
+                        response,
+                        request_id,
+                        response_schema,
+                    )
                     await self.breaker.success()
-                    return lesson
+                    return generation
                 last_error = self._map_http_error(response, request_id)
-                if response.status_code not in {429, 500, 502, 503, 504}:
+                if (
+                    response.status_code not in {429, 500, 502, 503, 504}
+                    or not last_error.retryable
+                ):
                     break
             except httpx.TimeoutException as exc:
                 last_error = ProviderError(
@@ -176,27 +207,94 @@ class Mi300Client:
             fallback="fixture_mode",
         )
 
-    def _parse_response(self, response: httpx.Response, request_id: str) -> Lesson:
+    async def analyze(self, image: PreparedImage, request_id: str) -> Lesson:
+        """Backward-compatible one-step Lesson provider.
+
+        Stage 07 uses ``generate`` through the laptop orchestration pipeline;
+        this method keeps the Stage 04 provider contract useful for callers
+        and existing offline/provider tests.
+        """
+
+        generation = await self.generate(
+            image,
+            request_id,
+            prompt=(
+                "分析這一頁臺灣台語教材，依 JSON Schema 回傳可供教師審查的 Lesson。"
+                "不得輸出 Markdown；看圖活動不可直接洩漏答案；尚無 RAG 依據時 evidence 必須是空陣列。"
+            ),
+            response_schema=self.lesson_schema,
+        )
+        try:
+            normalized = dict(generation.candidate)
+            # Gateway metadata is authoritative. Local RAG binding happens in
+            # the laptop pipeline, never in the MI300 service.
+            normalized["vlm_model_revision"] = generation.model_revision
+            normalized["rag_index_revision"] = None
+            normalized["evidence"] = []
+            normalized["review_status"] = "pending"
+            return Lesson.model_validate(normalized)
+        except (TypeError, ValueError) as exc:
+            raise ProviderError(
+                ErrorCode.VLM_INVALID_OUTPUT,
+                "MI300 returned an invalid Lesson candidate",
+                status_code=503,
+                retryable=False,
+                fallback="manual_review",
+            ) from exc
+
+    def _parse_structured_response(
+        self,
+        response: httpx.Response,
+        request_id: str,
+        response_schema: dict[str, Any],
+    ) -> StructuredGeneration:
         try:
             body = response.json()
+            if not isinstance(body, dict):
+                raise ValueError("response body must be an object")
             if body.get("request_id") != request_id:
                 raise ValueError("request_id mismatch")
             if body.get("model_revision") != self.settings.vlm_model_revision:
                 raise ValueError("model revision mismatch")
             candidate = body["output"]["parsed_candidate"]
-            self.validator.validate(candidate)
-            # Gateway metadata is authoritative. Stage 04 has no Local RAG yet,
-            # so model-authored citations/revisions must not cross that boundary.
-            normalized = dict(candidate)
-            normalized["vlm_model_revision"] = body["model_revision"]
-            normalized["rag_index_revision"] = None
-            normalized["evidence"] = []
-            normalized["review_status"] = "pending"
-            return Lesson.model_validate(normalized)
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError, ValidationError) as exc:
+            Draft202012Validator.check_schema(response_schema)
+            validator = Draft202012Validator(response_schema)
+            errors = sorted(validator.iter_errors(candidate), key=lambda error: list(error.path))
+            if errors:
+                details = {
+                    "validation_errors": [
+                        {
+                            "path": ".".join(str(part) for part in error.path)[:200],
+                            "validator": str(error.validator)[:100],
+                        }
+                        for error in errors[:10]
+                    ]
+                }
+                raise ProviderError(
+                    ErrorCode.VLM_INVALID_OUTPUT,
+                    "MI300 returned JSON that does not match the requested schema",
+                    status_code=503,
+                    retryable=False,
+                    fallback="manual_review",
+                    details=details,
+                )
+            output = body["output"]
+            if not isinstance(output, dict):
+                raise ValueError("output must be an object")
+            return StructuredGeneration(
+                candidate=candidate,
+                model_revision=str(body["model_revision"]),
+                raw_output=str(output.get("raw_output") or ""),
+                latency_ms=int(body.get("latency_ms", 0)),
+                queue_ms=int(body.get("queue_ms", 0)),
+                inference_ms=int(body.get("inference_ms", 0)),
+            )
+        except ProviderError:
+            raise
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError, SchemaError, ValidationError) as exc:
             raise ProviderError(
                 ErrorCode.VLM_INVALID_OUTPUT,
-                "MI300 returned an invalid Lesson candidate",
+                "MI300 returned an invalid structured candidate",
                 status_code=503,
                 retryable=False,
                 fallback="manual_review",
@@ -208,6 +306,8 @@ class Mi300Client:
         default_status = 504 if default_code == ErrorCode.VLM_TIMEOUT else 503
         try:
             body = response.json()
+            if not isinstance(body, dict):
+                raise ValueError("error body must be an object")
             code = ErrorCode(body.get("code", default_code))
             message = str(body.get("message") or "MI300 request failed")
             retryable = bool(body.get("retryable", response.status_code >= 500 or response.status_code == 429))
