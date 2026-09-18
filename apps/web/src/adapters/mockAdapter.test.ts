@@ -14,6 +14,11 @@ describe('MockAdapter', () => {
   it('keeps state across student and observer adapters calls', async () => {
     const adapter = new MockAdapter();
     await adapter.submitStudentAction('demo-session', 'answer');
+    await adapter.submitStudentAnswer('demo-session', {
+      schema_version: '0.1.0',
+      transcript: '這是一段 Mock 學生回答。',
+      input_mode: 'keyboard',
+    });
     const observer = await adapter.getObserverSession('demo-session');
     expect(observer.evaluation).toBe('partial');
     expect(observer.transcript).toContain('Mock 學生回答');

@@ -1,5 +1,11 @@
 import { adapterErrorFromResponse } from './errors';
-import type { FrontendAdapter } from './adapter';
+import { consumeSessionEventFrames } from './sessionEvents';
+import type {
+  FrontendAdapter,
+  StudentRequestOptions,
+  StudentSessionEvent,
+  StudentSessionStreamOptions,
+} from './adapter';
 import type { components, operations } from '../generated/api';
 import type {
   CaptureProviderMode,
@@ -9,8 +15,10 @@ import type {
   ObserverSessionViewModel,
   ServiceHealthView,
   SetupViewModel,
+  SessionState,
   StudentAction,
   StudentSessionViewModel,
+  TeachingPhase,
 } from '../types/viewModels';
 
 type CoreHealthResponse = operations['getHealth']['responses'][200]['content']['application/json'];
@@ -34,7 +42,23 @@ const actionMap: Record<StudentAction, CoreStudentAction> = {
   answer: 'start_answer',
   hint: 'request_hint',
   pause: 'pause',
+  resume: 'resume',
+  next: 'next',
 };
+
+function createIdempotencyKey(prefix: string): string {
+  const suffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${suffix}`;
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    (typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError')
+    || (error instanceof Error && error.name === 'AbortError')
+  );
+}
 
 function serviceLabel(service: CoreServiceHealth['service']): string {
   const labels: Record<CoreServiceHealth['service'], string> = {
@@ -66,6 +90,22 @@ function toHealthSummary(payload: CoreHealthResponse): HealthSummaryView {
   };
 }
 
+function degradedHealth(message: string): HealthSummaryView {
+  const checkedAt = new Date().toISOString();
+  return {
+    status: 'degraded',
+    checkedAt,
+    services: [
+      {
+        service: 'Core Backend',
+        status: 'degraded',
+        device: 'laptop',
+        lastError: message,
+      },
+    ],
+  };
+}
+
 function toCaptureView(lesson: CoreLesson, health: HealthSummaryView): CaptureViewModel {
   return {
     lessonId: lesson.lesson_id,
@@ -77,9 +117,7 @@ function toCaptureView(lesson: CoreLesson, health: HealthSummaryView): CaptureVi
     images: [],
     health,
     providerMode: 'real',
-    // Session creation is an Agent A Stage 08 runtime capability, not part of
-    // the Stage 04 Core API currently available on the laptop.
-    canConfirm: false,
+    canConfirm: true,
   };
 }
 
@@ -135,34 +173,48 @@ function toStudentView(
   session: CoreSession,
   health: HealthSummaryView,
   feedback = '尚未收到回饋。',
+  transcript = '',
 ): StudentSessionViewModel {
   const progress = toProgress(session.progress);
   return {
     sessionId: session.session_id,
     lessonTitle: '目前教材',
+    state: session.state as SessionState,
+    phase: session.phase as TeachingPhase,
     prompt: session.current_prompt ?? '目前沒有可播放的提示。',
     feedback,
     progressLabel: progress.label,
     progressValue: progress.value,
+    revision: session.revision,
+    lastEventId: session.last_event_id,
     health,
-    canAnswer: health.status !== 'offline' && session.state !== 'COMPLETE',
+    canAnswer: health.status !== 'offline' && session.can_answer && session.state !== 'COMPLETE',
+    transcript,
+    fallbacks: [],
   };
 }
 
 function toStudentActionView(
   actionResult: CoreStudentActionResult,
   health: HealthSummaryView,
+  transcript = '',
 ): StudentSessionViewModel {
   const progress = toProgress(actionResult.progress);
   return {
     sessionId: actionResult.session_id,
     lessonTitle: '目前教材',
+    state: actionResult.state as SessionState,
+    phase: actionResult.phase as TeachingPhase,
     prompt: actionResult.current_prompt ?? actionResult.next_prompt ?? '目前沒有可播放的提示。',
     feedback: actionResult.feedback ?? '操作已完成。',
     progressLabel: progress.label,
     progressValue: progress.value,
+    revision: actionResult.revision,
+    lastEventId: actionResult.last_event_id,
     health,
     canAnswer: actionResult.can_answer && health.status !== 'offline',
+    transcript,
+    fallbacks: [],
   };
 }
 
@@ -174,12 +226,18 @@ function toTurnStudentView(
   return {
     sessionId: turn.session_id,
     lessonTitle: '目前教材',
+    state: turn.phase === 'complete' ? 'COMPLETE' : 'SPEAKING',
+    phase: turn.phase as TeachingPhase,
     prompt: turn.next_prompt,
     feedback: turn.feedback,
     progressLabel: progress.label,
     progressValue: progress.value,
+    revision: turn.revision,
+    lastEventId: turn.last_event_id,
     health,
-    canAnswer: health.status !== 'offline',
+    canAnswer: health.status !== 'offline' && turn.phase !== 'complete',
+    transcript: turn.transcript_raw,
+    fallbacks: turn.fallbacks,
   };
 }
 
@@ -195,14 +253,19 @@ export class RealAdapter implements FrontendAdapter {
     return `${normalizedBase}${path}`;
   }
 
-  private async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const result = await this.requestWithResponse<T>(path, init);
+  private async request<T>(
+    path: string,
+    init?: RequestInit,
+    options: StudentRequestOptions = {},
+  ): Promise<T> {
+    const result = await this.requestWithResponse<T>(path, init, options);
     return result.payload;
   }
 
   private async requestWithResponse<T>(
     path: string,
     init?: RequestInit,
+    options: StudentRequestOptions = {},
   ): Promise<{ readonly payload: T; readonly response: Response }> {
     const headers = new Headers(init?.headers);
     headers.set('Accept', 'application/json');
@@ -210,7 +273,15 @@ export class RealAdapter implements FrontendAdapter {
     if (init?.body && !headers.has('Content-Type') && !isMultipart) {
       headers.set('Content-Type', 'application/json');
     }
-    const response = await fetch(this.url(path), { ...init, headers });
+    if (options.idempotencyKey) headers.set('Idempotency-Key', options.idempotencyKey);
+    if (options.expectedRevision !== undefined) {
+      headers.set('X-Session-Revision', String(options.expectedRevision));
+    }
+    const response = await fetch(this.url(path), {
+      ...init,
+      signal: options.signal ?? init?.signal,
+      headers,
+    });
     if (!response.ok) throw await adapterErrorFromResponse(response);
     return { payload: (await response.json()) as T, response };
   }
@@ -235,8 +306,7 @@ export class RealAdapter implements FrontendAdapter {
   }
 
   async getCapture(): Promise<CaptureViewModel> {
-    // Stage 04 runtime exposes health and analyze only. Do not probe the
-    // future Stage 08 lesson/session routes just to render the capture page.
+    // The capture landing page has no lesson id yet, so it only needs health.
     return pendingCaptureView(await this.getHealth());
   }
 
@@ -267,46 +337,149 @@ export class RealAdapter implements FrontendAdapter {
     const session = await this.request<CoreSession>('/api/sessions', {
       method: 'POST',
       body: JSON.stringify({ schema_version: SCHEMA_VERSION, lesson_id: lessonId }),
-    });
+    }, { idempotencyKey: createIdempotencyKey('create-session') });
     return { sessionId: session.session_id };
   }
 
-  async getStudentSession(sessionId: string): Promise<StudentSessionViewModel> {
-    const [session, health] = await Promise.all([
-      this.request<CoreSession>(`/api/sessions/${encodeURIComponent(sessionId)}`),
-      this.getHealth(),
+  async getStudentSession(
+    sessionId: string,
+    options: { readonly snapshot?: boolean; readonly signal?: AbortSignal } = {},
+  ): Promise<StudentSessionViewModel> {
+    const sessionPath = options.snapshot
+      ? `/api/sessions/${encodeURIComponent(sessionId)}/snapshot`
+      : `/api/sessions/${encodeURIComponent(sessionId)}`;
+    const [sessionResult, healthResult] = await Promise.allSettled([
+      this.request<CoreSession>(sessionPath, options.signal ? { signal: options.signal } : undefined),
+      this.getHealth(options.signal),
     ]);
-    return toStudentView(session, health);
+    if (sessionResult.status === 'rejected') throw sessionResult.reason;
+    const health = healthResult.status === 'fulfilled'
+      ? healthResult.value
+      : degradedHealth('健康檢查暫時失敗；目前顯示的 session 仍以 Core Backend 為準。');
+    return toStudentView(sessionResult.value, health);
   }
 
-  async submitStudentAction(sessionId: string, action: StudentAction): Promise<StudentSessionViewModel> {
+  async submitStudentAction(
+    sessionId: string,
+    action: StudentAction,
+    options: StudentRequestOptions = {},
+  ): Promise<StudentSessionViewModel> {
     const body: CoreStudentActionRequest = {
       schema_version: SCHEMA_VERSION,
       action: actionMap[action],
       input_mode: 'keyboard',
     };
-    const [actionResult, health] = await Promise.all([
-      this.request<CoreStudentActionResult>(`/api/sessions/${encodeURIComponent(sessionId)}/actions`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-      this.getHealth(),
+    const requestOptions: StudentRequestOptions = {
+      ...options,
+      idempotencyKey: options.idempotencyKey || createIdempotencyKey(`action-${action}`),
+    };
+    const [actionResult, healthResult] = await Promise.allSettled([
+      this.request<CoreStudentActionResult>(
+        `/api/sessions/${encodeURIComponent(sessionId)}/actions`,
+        { method: 'POST', body: JSON.stringify(body) },
+        requestOptions,
+      ),
+      this.getHealth(options.signal),
     ]);
-    return toStudentActionView(actionResult, health);
+    if (actionResult.status === 'rejected') throw actionResult.reason;
+    const health = healthResult.status === 'fulfilled'
+      ? healthResult.value
+      : degradedHealth('健康檢查暫時失敗；控制結果已由 Core Backend 接受。');
+    return toStudentActionView(actionResult.value, health);
   }
 
   async submitStudentAnswer(
     sessionId: string,
     submission: CoreTurnSubmission,
+    options: StudentRequestOptions = {},
   ): Promise<StudentSessionViewModel> {
-    const [turn, health] = await Promise.all([
-      this.request<CoreTurnResult>(`/api/sessions/${encodeURIComponent(sessionId)}/turns`, {
-        method: 'POST',
-        body: JSON.stringify(submission),
-      }),
-      this.getHealth(),
+    const requestOptions: StudentRequestOptions = {
+      ...options,
+      idempotencyKey: options.idempotencyKey || createIdempotencyKey('turn'),
+    };
+    const [turnResult, healthResult] = await Promise.allSettled([
+      this.request<CoreTurnResult>(
+        `/api/sessions/${encodeURIComponent(sessionId)}/turns`,
+        { method: 'POST', body: JSON.stringify(submission) },
+        requestOptions,
+      ),
+      this.getHealth(options.signal),
     ]);
-    return toTurnStudentView(turn, health);
+    if (turnResult.status === 'rejected') throw turnResult.reason;
+    const health = healthResult.status === 'fulfilled'
+      ? healthResult.value
+      : degradedHealth('健康檢查暫時失敗；回饋結果已由 Core Backend 接受。');
+    return toTurnStudentView(turnResult.value, health);
+  }
+
+  subscribeStudentSession(sessionId: string, options: StudentSessionStreamOptions): () => void {
+    const controller = new AbortController();
+    let closed = false;
+    let cursor = Math.max(0, options.afterEventId);
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconnectDelay = 500;
+
+    const waitBeforeReconnect = (milliseconds: number): Promise<void> => new Promise((resolve) => {
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        resolve();
+      }, milliseconds);
+    });
+
+    const connect = async (): Promise<void> => {
+      while (!closed) {
+        try {
+          const response = await fetch(this.url(`/api/sessions/${encodeURIComponent(sessionId)}/events`), {
+            headers: {
+              Accept: 'text/event-stream',
+              'Last-Event-ID': String(cursor),
+            },
+            signal: controller.signal,
+          });
+          if (!response.ok) throw await adapterErrorFromResponse(response);
+          if (!response.body) throw new Error('SSE response body is unavailable');
+          options.onStatus?.('connected');
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          const handleEvent = (event: StudentSessionEvent): void => {
+            if (event.event_id <= cursor) return;
+            cursor = event.event_id;
+            reconnectDelay = 500;
+            options.onEvent(event);
+          };
+          while (!closed) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            buffer += decoder.decode(chunk.value, { stream: true });
+            buffer = consumeSessionEventFrames(buffer, handleEvent);
+          }
+          buffer += decoder.decode();
+          if (buffer.trim()) consumeSessionEventFrames(`${buffer}\n\n`, handleEvent);
+          if (!closed) {
+            options.onStatus?.('reconnecting');
+            const delay = reconnectDelay;
+            reconnectDelay = Math.min(10_000, reconnectDelay * 2);
+            await waitBeforeReconnect(delay);
+          }
+        } catch (error) {
+          if (closed || isAbortError(error)) return;
+          options.onError(error);
+          options.onStatus?.('reconnecting');
+          const delay = Math.max(1000, reconnectDelay);
+          reconnectDelay = Math.min(10_000, delay * 2);
+          await waitBeforeReconnect(delay);
+        }
+      }
+    };
+
+    void connect();
+    return () => {
+      closed = true;
+      controller.abort();
+      if (retryTimer !== null) clearTimeout(retryTimer);
+      retryTimer = null;
+    };
   }
 
   async getObserverSession(sessionId: string): Promise<ObserverSessionViewModel> {

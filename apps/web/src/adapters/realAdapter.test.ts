@@ -34,8 +34,12 @@ const sessionPayload = {
   session_id: 'session_demo_001',
   lesson_id: 'lesson_market_001',
   state: 'SPEAKING',
+  phase: 'introduction',
   progress: 0.4,
   current_prompt: '請說：阿媽欲去市場。',
+  can_answer: false,
+  revision: 0,
+  last_event_id: 0,
 };
 
 const lessonPayload = {
@@ -66,6 +70,9 @@ const actionPayload = {
   feedback: '提示已準備完成。',
   next_prompt: '請再說一次：阿媽欲去市場。',
   can_answer: false,
+  phase: 'hint',
+  revision: 1,
+  last_event_id: 1,
 };
 
 const turnPayload = {
@@ -82,6 +89,9 @@ const turnPayload = {
   latency_ms: { asr: 820, backend: 95, vlm: null, tts: 310, total: 1225 },
   asr_device: 'cpu',
   fallbacks: ['asr_cpu'],
+  phase: 'comprehension',
+  revision: 2,
+  last_event_id: 2,
 };
 
 const summaryPayload = {
@@ -151,7 +161,7 @@ describe('RealAdapter', () => {
     expect(view.lessonId).toBe('lesson_market_001');
     expect(view.title).toBe('去市場');
     expect(view.providerMode).toBe('fixture-fallback');
-    expect(view.canConfirm).toBe(false);
+    expect(view.canConfirm).toBe(true);
   });
 
   it('uses the Stage 04 health route as the capture entrypoint before Stage 08 routes exist', async () => {
@@ -244,5 +254,77 @@ describe('RealAdapter', () => {
     expect(view.latencyMs.total).toBe(1225);
     expect(view).not.toHaveProperty('confidence');
     expect(view).not.toHaveProperty('answer');
+  });
+
+  it('sends the current revision and a stable idempotency key for student mutations', async () => {
+    const calls: Array<{ readonly url: string; readonly headers: Headers }> = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      calls.push({ url, headers: new Headers(init?.headers) });
+      if (url.endsWith('/api/health')) return jsonResponse(healthPayload);
+      if (url.endsWith('/api/sessions/session_demo_001/actions')) return jsonResponse(actionPayload);
+      if (url.endsWith('/api/sessions/session_demo_001/turns')) return jsonResponse(turnPayload);
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const adapter = new RealAdapter('http://127.0.0.1:8000');
+    await adapter.submitStudentAction('session_demo_001', 'hint', {
+      expectedRevision: 4,
+      idempotencyKey: 'action-hint-fixed',
+    });
+    await adapter.submitStudentAnswer('session_demo_001', {
+      schema_version: '0.1.0',
+      transcript: '市場',
+      input_mode: 'keyboard',
+    }, {
+      expectedRevision: 5,
+      idempotencyKey: 'turn-fixed',
+    });
+
+    const actionCall = calls.find((call) => call.url.endsWith('/actions'));
+    const turnCall = calls.find((call) => call.url.endsWith('/turns'));
+    expect(actionCall?.headers.get('Idempotency-Key')).toBe('action-hint-fixed');
+    expect(actionCall?.headers.get('X-Session-Revision')).toBe('4');
+    expect(turnCall?.headers.get('Idempotency-Key')).toBe('turn-fixed');
+    expect(turnCall?.headers.get('X-Session-Revision')).toBe('5');
+  });
+
+  it('replays student-safe SSE events from the durable cursor', async () => {
+    const calls: Array<{ readonly url: string; readonly headers: Headers }> = [];
+    const frame = `id: 3\nevent: session.action\ndata: ${JSON.stringify({
+      schema_version: '0.1.0',
+      event_id: 3,
+      session_id: 'session_demo_001',
+      event: 'session.action',
+      request_id: 'request-3',
+      revision: 4,
+      payload: { feedback: 'student-safe' },
+    })}\n\n`;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      calls.push({ url: String(input), headers: new Headers(init?.headers) });
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(frame));
+          controller.close();
+        },
+      });
+      return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+    });
+
+    const received = new Promise<number>((resolve) => {
+      let unsubscribe: () => void = () => undefined;
+      unsubscribe = new RealAdapter('http://127.0.0.1:8000').subscribeStudentSession('session_demo_001', {
+        afterEventId: 2,
+        onEvent: (event) => {
+          resolve(event.event_id);
+          unsubscribe();
+        },
+        onError: () => undefined,
+      });
+    });
+
+    await expect(received).resolves.toBe(3);
+    expect(calls[0].url).toBe('http://127.0.0.1:8000/api/sessions/session_demo_001/events');
+    expect(calls[0].headers.get('Last-Event-ID')).toBe('2');
   });
 });

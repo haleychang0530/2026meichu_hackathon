@@ -93,17 +93,42 @@ export interface CaptureViewModel {
   readonly canConfirm: boolean;
 }
 
-export type StudentAction = 'listen' | 'answer' | 'hint' | 'pause';
+export type SessionState =
+  | 'IDLE'
+  | 'SPEAKING'
+  | 'LISTENING'
+  | 'TRANSCRIBING'
+  | 'EVALUATING'
+  | 'RECOVERABLE_ERROR'
+  | 'COMPLETE';
+
+export type TeachingPhase =
+  | 'introduction'
+  | 'demonstration'
+  | 'read_aloud'
+  | 'comprehension'
+  | 'hint'
+  | 'review'
+  | 'complete';
+
+export type StudentAction = 'listen' | 'answer' | 'hint' | 'pause' | 'resume' | 'next';
 
 export interface StudentSessionViewModel {
   readonly sessionId: string;
   readonly lessonTitle: string;
+  readonly state: SessionState;
+  readonly phase: TeachingPhase;
   readonly prompt: string;
   readonly feedback: string;
   readonly progressLabel: string;
   readonly progressValue: number;
+  readonly revision: number;
+  readonly lastEventId: number;
   readonly health: HealthSummaryView;
   readonly canAnswer: boolean;
+  /** Only the student's own transcript is allowed in this view model. */
+  readonly transcript: string;
+  readonly fallbacks: readonly string[];
 }
 
 export interface ObserverSessionViewModel {
