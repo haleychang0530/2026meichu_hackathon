@@ -40,6 +40,9 @@ export function SetupPage({ adapter }: { readonly adapter: FrontendAdapter }) {
             <section className="card" aria-labelledby="state-heading">
               <h2 id="state-heading">狀態展示</h2>
               <p>可在網址加上 <code>?health=degraded</code>、<code>?health=offline</code> 或 <code>?health=recoverable_error</code> 驗證降級畫面。</p>
+              <div className="button-row">
+                <button className="button secondary" type="button" onClick={() => navigateTo('/health')}>開啟 Stage 10 健康檢查</button>
+              </div>
             </section>
           </>
         ) : null}

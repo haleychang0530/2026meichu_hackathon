@@ -1,0 +1,64 @@
+{
+  "schema_version": "stage10-release-gate-report.v1",
+  "stage": "agentB_stage10",
+  "profile": "mock-speech-and-fixture-core",
+  "rounds_requested": 50,
+  "success_count": 50,
+  "failure_count": 0,
+  "warmup": "ready",
+  "judge_results": {
+    "retry": 50
+  },
+  "latency_ms": {
+    "mean": 396.06,
+    "p50": 419.63,
+    "p95": 518.61,
+    "max": 618.99,
+    "wall_clock": 19861.05
+  },
+  "memory": {
+    "sample_count": 50,
+    "peak_total_bytes": 60231680,
+    "delta_total_bytes": 344064,
+    "roles": {
+      "core": {
+        "start_bytes": 11313152,
+        "end_bytes": 11268096,
+        "peak_bytes": 11313152,
+        "delta_bytes": -45056
+      },
+      "speech": {
+        "start_bytes": 39276544,
+        "end_bytes": 39710720,
+        "peak_bytes": 39882752,
+        "delta_bytes": 434176
+      },
+      "web": {
+        "start_bytes": 9035776,
+        "end_bytes": 8990720,
+        "peak_bytes": 9035776,
+        "delta_bytes": -45056
+      }
+    }
+  },
+  "mode_switches": {
+    "requested": 20,
+    "completed": 20,
+    "final_route": "/session/demo-session/observer",
+    "session_id_visible": "demo-session",
+    "student_turn_preserved": true,
+    "observer_turn_count": 1,
+    "observer_revision": 2,
+    "observer_progress_percent": 53
+  },
+  "privacy": {
+    "audio_persisted": false,
+    "transcripts_persisted": false,
+    "microphone_requested": false
+  },
+  "known_limits": [
+    "Live MI300 dual-machine run was not available on this workstation.",
+    "Canonical contract remains v0.1.0 pending Agent A v1.0 freeze.",
+    "Camera/microphone permission result remains an operator check."
+  ]
+}

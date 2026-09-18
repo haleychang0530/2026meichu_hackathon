@@ -1,5 +1,6 @@
 export type AppRoute =
   | { readonly kind: 'setup' }
+  | { readonly kind: 'health' }
   | { readonly kind: 'capture' }
   | { readonly kind: 'student'; readonly sessionId: string }
   | { readonly kind: 'observer'; readonly sessionId: string }
@@ -8,6 +9,7 @@ export type AppRoute =
 export function parseRoute(pathname: string): AppRoute {
   const path = pathname.replace(/\/+$/, '') || '/';
   if (path === '/' || path === '/setup') return { kind: 'setup' };
+  if (path === '/health') return { kind: 'health' };
   if (path === '/capture') return { kind: 'capture' };
   const match = path.match(/^\/session\/([^/]+)\/(student|observer)$/);
   if (match) {
