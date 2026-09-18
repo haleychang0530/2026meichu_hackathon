@@ -8,6 +8,12 @@ localhost-only, half-duplex, CPU-first scheduler. The mock workers remain the
 default for contract tests; Stage 05 adds an explicit Breeze-ASR-26 CPU path
 using the pinned faster-whisper/CTranslate2 runtime.
 
+The current MVP/release profile is CPU-only. AMD Ryzen AI Software, Conda,
+VitisAI, NPU encoder caches, and `whisper.cpp` NPU binaries are optional
+research dependencies and are not required to start this gateway. The web
+client sends `device_preference=cpu` by default; `auto`/`npu` remain compatible
+API values for a future explicitly enabled NPU profile.
+
 ## Run
 
 From the repository root:

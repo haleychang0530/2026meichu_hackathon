@@ -109,6 +109,7 @@ describe('HttpSpeechGatewayClient', () => {
       }
       if (url.endsWith('/v1/audio/transcriptions')) {
         expect(init?.body).toBeInstanceOf(FormData);
+        expect((init?.body as FormData).get('device_preference')).toBe('cpu');
         return new Response(JSON.stringify({
           schema_version: '0.1.0',
           request_id: 'asr',

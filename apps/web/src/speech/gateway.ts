@@ -9,6 +9,7 @@ export type SpeechState =
   | 'EVALUATING';
 
 export type SpeechLanguage = 'nan-TW' | 'zh-TW';
+export type SpeechDevicePreference = 'npu' | 'cpu' | 'auto';
 // openapi-typescript exposes the external schema's JSON Schema `$defs` as an
 // instance property. `$defs` is schema metadata, not part of an Utterance
 // payload, so remove only that generator artifact at the client boundary.
@@ -31,6 +32,7 @@ export interface SpeechGatewayClient {
 
 export interface SpeechGatewayClientOptions {
   readonly baseUrl?: string;
+  readonly devicePreference?: SpeechDevicePreference;
   readonly fetchImpl?: typeof fetch;
   readonly mediaDevices?: Pick<MediaDevices, 'getUserMedia'>;
   readonly mediaRecorderFactory?: (
@@ -54,6 +56,12 @@ export class SpeechGatewayError extends AdapterError {
 const SCHEMA_VERSION = '0.1.0' as const;
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8200';
 const DEFAULT_TRANSCRIPT = '這是一段測試語音。';
+const DEFAULT_DEVICE_PREFERENCE: SpeechDevicePreference = 'cpu';
+
+function resolveDevicePreference(value: string | undefined): SpeechDevicePreference {
+  if (value === 'npu' || value === 'cpu' || value === 'auto') return value;
+  return DEFAULT_DEVICE_PREFERENCE;
+}
 
 function randomRequestId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -107,6 +115,7 @@ function stopTracks(stream: MediaStream): void {
 
 export class HttpSpeechGatewayClient implements SpeechGatewayClient {
   private readonly baseUrl: string;
+  private readonly devicePreference: SpeechDevicePreference;
   private readonly fetchImpl: typeof fetch;
   private readonly mediaDevices?: Pick<MediaDevices, 'getUserMedia'>;
   private readonly mediaRecorderFactory: (
@@ -129,6 +138,8 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
 
   constructor(options: SpeechGatewayClientOptions = {}) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl || DEFAULT_BASE_URL);
+    this.devicePreference = options.devicePreference
+      || resolveDevicePreference(import.meta.env.VITE_SPEECH_ASR_DEVICE);
     this.fetchImpl = options.fetchImpl || fetch.bind(globalThis);
     this.mediaDevices = options.mediaDevices || (
       typeof navigator !== 'undefined' ? navigator.mediaDevices : undefined
@@ -269,7 +280,7 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
       const form = new FormData();
       form.append('file', blob, 'student-answer.webm');
       form.append('language', recording.language);
-      form.append('device_preference', 'auto');
+      form.append('device_preference', this.devicePreference);
       const controller = new AbortController();
       this.activeRequest = controller;
       const response = await this.request('/v1/audio/transcriptions', {
