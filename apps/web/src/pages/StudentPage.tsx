@@ -1,9 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FrontendAdapter } from '../adapters/adapter';
+import { asAdapterError } from '../adapters/errors';
 import { AppShell } from '../components/AppShell';
 import { StatusBanner } from '../components/StatusBanner';
 import { ErrorState, LoadingState } from '../components/States';
-import type { StudentAction, StudentSessionViewModel } from '../types/viewModels';
+import type {
+  SessionState,
+  StudentAction,
+  StudentSessionViewModel,
+  TeachingPhase,
+} from '../types/viewModels';
 import { navigateTo } from '../app/routing';
 import {
   createSpeechGatewayClient,
@@ -17,7 +23,35 @@ const speechStateLabels: Record<SpeechState, string> = {
   SPEAKING: '播放提示中',
   LISTENING: '聆聽中，請開始回答',
   TRANSCRIBING: '辨識中',
-  EVALUATING: '等待回饋',
+  EVALUATING: '準備送出回饋',
+};
+
+const sessionStateLabels: Record<SessionState, string> = {
+  IDLE: '已暫停',
+  SPEAKING: '等待播放或重播提示',
+  LISTENING: '等待學生回答',
+  TRANSCRIBING: '辨識學生回答',
+  EVALUATING: '判定回答並準備回饋',
+  RECOVERABLE_ERROR: '可恢復錯誤',
+  COMPLETE: '本課完成',
+};
+
+const phaseLabels: Record<TeachingPhase, string> = {
+  introduction: '介紹',
+  demonstration: '示範',
+  read_aloud: '跟讀',
+  comprehension: '理解活動',
+  hint: '提示',
+  review: '複習',
+  complete: '完成',
+};
+
+type TranscriptMode = 'voice' | 'keyboard';
+type PendingTurn = {
+  readonly key: string;
+  readonly transcript: string;
+  readonly inputMode: TranscriptMode;
+  readonly asrDevice?: 'cpu' | 'npu';
 };
 
 function promptToUtterance(prompt: string): SpeechUtterance {
@@ -40,6 +74,39 @@ function promptToUtterance(prompt: string): SpeechUtterance {
   };
 }
 
+function createOperationKey(prefix: string): string {
+  const suffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${suffix}`;
+}
+
+function isRevisionConflict(error: unknown): boolean {
+  return asAdapterError(error).code === 'SESSION_REVISION_CONFLICT';
+}
+
+function withPreservedTranscript(
+  next: StudentSessionViewModel,
+  previous: StudentSessionViewModel | null,
+): StudentSessionViewModel {
+  return next.transcript || !previous?.transcript
+    ? next
+    : { ...next, transcript: previous.transcript };
+}
+
+function fallbackMessage(fallbacks: readonly string[]): string | null {
+  if (fallbacks.includes('mi300_offline')) {
+    return 'MI300 暫時離線；目前使用筆電本機規則完成回饋，你可以繼續回答。';
+  }
+  if (fallbacks.includes('asr_cpu')) {
+    return '目前使用筆電 CPU 語音辨識；若辨識不準，可以修改逐字稿或改用鍵盤。';
+  }
+  if (fallbacks.includes('tts_prerecorded')) {
+    return '目前使用核可的預錄語音備援；你仍可重播提示或用鍵盤回答。';
+  }
+  return fallbacks.length ? '目前使用明確標示的降級路徑；你可以繼續或重試。' : null;
+}
+
 export function StudentPage({
   adapter,
   sessionId,
@@ -50,135 +117,406 @@ export function StudentPage({
   readonly speechClient?: SpeechGatewayClient;
 }) {
   const [view, setView] = useState<StudentSessionViewModel | null>(null);
+  const viewRef = useRef<StudentSessionViewModel | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [speechError, setSpeechError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyLabel, setBusyLabel] = useState<string | null>(null);
+  const [sessionMessage, setSessionMessage] = useState('');
+  const [streamStatus, setStreamStatus] = useState<'connecting' | 'connected' | 'reconnecting'>('connecting');
+  const [draftTranscript, setDraftTranscriptState] = useState('');
+  const draftTranscriptRef = useRef('');
+  const [transcriptMode, setTranscriptMode] = useState<TranscriptMode | null>(null);
+  const [asrDevice, setAsrDevice] = useState<'cpu' | 'npu' | undefined>(undefined);
+  const [inputError, setInputError] = useState('');
+  const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
+  const actionKeysRef = useRef(new Map<StudentAction, string>());
+  const pendingTurnRef = useRef<PendingTurn | null>(null);
+  const snapshotRequestRef = useRef<Promise<StudentSessionViewModel> | null>(null);
   const speechClient = useMemo(
     () => providedSpeechClient || createSpeechGatewayClient(),
     [providedSpeechClient],
   );
   const [speechState, setSpeechState] = useState<SpeechState>(speechClient.state);
 
+  function commitView(next: StudentSessionViewModel): void {
+    viewRef.current = next;
+    setView(next);
+  }
+
+  function setDraftTranscript(value: string): void {
+    draftTranscriptRef.current = value;
+    setDraftTranscriptState(value);
+    setInputError('');
+    if (pendingTurnRef.current && pendingTurnRef.current.transcript !== value) {
+      pendingTurnRef.current = null;
+    }
+  }
+
+  async function refreshSnapshot(showError = true): Promise<StudentSessionViewModel> {
+    if (snapshotRequestRef.current) return snapshotRequestRef.current;
+    const request = adapter.getStudentSession(sessionId, { snapshot: true })
+      .then((next) => {
+        const merged = withPreservedTranscript(next, viewRef.current);
+        commitView(merged);
+        setSessionMessage('已從 Core Backend snapshot 恢復目前進度。');
+        setError(null);
+        return merged;
+      })
+      .catch((nextError) => {
+        if (showError) setError(nextError);
+        throw nextError;
+      })
+      .finally(() => {
+        snapshotRequestRef.current = null;
+      });
+    snapshotRequestRef.current = request;
+    return request;
+  }
+
   useEffect(() => {
     const unsubscribe = speechClient.subscribe(setSpeechState);
     return () => {
       unsubscribe();
+      void speechClient.cancel();
       speechClient.dispose();
     };
   }, [speechClient]);
 
-  function load() {
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: () => void = () => undefined;
     setError(null);
     setView(null);
-    void adapter.getStudentSession(sessionId).then(setView).catch(setError);
+    viewRef.current = null;
+    setStreamStatus('connecting');
+
+    void adapter.getStudentSession(sessionId)
+      .then((initial) => {
+        if (!active) return;
+        commitView(initial);
+        unsubscribe = adapter.subscribeStudentSession(sessionId, {
+          afterEventId: initial.lastEventId,
+          onStatus: (status) => {
+            if (active) setStreamStatus(status);
+          },
+          onError: (streamError) => {
+            if (!active) return;
+            setStreamStatus('reconnecting');
+            const normalized = asAdapterError(streamError);
+            if (normalized.code === 'SESSION_NOT_FOUND') setError(streamError);
+            else setSessionMessage('即時進度連線中斷，正在以 snapshot 自動恢復。');
+            void refreshSnapshot(false).catch(() => undefined);
+          },
+          onEvent: (event) => {
+            if (!active || event.event_id <= (viewRef.current?.lastEventId ?? 0)) return;
+            setStreamStatus('connected');
+            void refreshSnapshot(false).catch(() => undefined);
+          },
+        });
+      })
+      .catch((nextError) => {
+        if (active) setError(nextError);
+      });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [adapter, sessionId]);
+
+  useEffect(() => {
+    if (transcriptMode === 'keyboard') transcriptRef.current?.focus();
+  }, [transcriptMode]);
+
+  function actionKey(action: StudentAction): string {
+    const existing = actionKeysRef.current.get(action);
+    if (existing) return existing;
+    const created = createOperationKey(`student-${action}`);
+    actionKeysRef.current.set(action, created);
+    return created;
   }
 
-  useEffect(load, [adapter, sessionId]);
+  function resolveActionError(nextError: unknown): void {
+    if (isRevisionConflict(nextError)) {
+      setSessionMessage('其他控制已更新教學進度，正在重新整理後再試。');
+      void refreshSnapshot().catch(() => undefined);
+    } else {
+      setError(nextError);
+    }
+  }
 
-  async function playPrompt() {
-    setBusy(true);
+  async function runControl(action: StudentAction): Promise<StudentSessionViewModel | null> {
+    const current = viewRef.current;
+    if (!current) return null;
+    const key = actionKey(action);
+    setBusyLabel(action === 'hint' ? '準備提示……' : action === 'next' ? '進入下一步……' : '更新教學狀態……');
     setError(null);
     setSpeechError(null);
     try {
-      const nextView = await adapter.submitStudentAction(sessionId, 'listen');
-      setView(nextView);
-      // Keep the controls available during playback so starting a recording
-      // can cancel TTS, as required by the half-duplex boundary.
-      setBusy(false);
-      await speechClient.play(promptToUtterance(nextView.prompt));
+      // Every control boundary first stops TTS, browser speech and recording.
+      await speechClient.cancel();
+      const next = await adapter.submitStudentAction(sessionId, action, {
+        expectedRevision: current.revision,
+        idempotencyKey: key,
+      });
+      actionKeysRef.current.delete(action);
+      commitView(withPreservedTranscript(next, current));
+      setSessionMessage(next.feedback);
+      return next;
     } catch (nextError) {
-      setSpeechError(nextError);
+      if (isRevisionConflict(nextError)) actionKeysRef.current.delete(action);
+      resolveActionError(nextError);
+      return null;
     } finally {
-      setBusy(false);
+      setBusyLabel(null);
     }
   }
 
-  async function toggleAnswer() {
-    setSpeechError(null);
-    if (speechState === 'LISTENING') {
-      setBusy(true);
-      try {
-        const transcript = await speechClient.stopRecording();
-        const nextView = await adapter.submitStudentAnswer(sessionId, {
-          schema_version: '0.1.0',
-          transcript: transcript.text,
-          input_mode: 'voice',
-          asr_device: transcript.device,
-        });
-        setView(nextView);
-        speechClient.markEvaluationComplete();
-      } catch (nextError) {
-        await speechClient.cancel();
-        setSpeechError(nextError);
-      } finally {
-        setBusy(false);
-      }
-      return;
+  async function playPrompt(): Promise<void> {
+    const next = await runControl('listen');
+    if (!next) return;
+    try {
+      setSessionMessage('提示播放中；播放結束後才會開啟麥克風。');
+      await speechClient.play(promptToUtterance(next.prompt));
+      setSessionMessage('提示播放完成；你可以開始語音或鍵盤回答。');
+    } catch (nextError) {
+      setSpeechError(nextError);
     }
+  }
 
-    setBusy(true);
+  async function recoverAfterMicrophoneFailure(): Promise<void> {
+    const current = viewRef.current;
+    if (!current || current.state !== 'LISTENING') return;
+    try {
+      const next = await adapter.submitStudentAction(sessionId, 'pause', {
+        expectedRevision: current.revision,
+        idempotencyKey: actionKey('pause'),
+      });
+      actionKeysRef.current.delete('pause');
+      commitView(withPreservedTranscript(next, current));
+    } catch {
+      void refreshSnapshot(false).catch(() => undefined);
+    }
+  }
+
+  async function beginVoiceAnswer(): Promise<void> {
+    if (!viewRef.current || viewRef.current.state === 'COMPLETE') return;
+    const next = await runControl('answer');
+    if (!next || !next.canAnswer) return;
+    setDraftTranscript('');
+    setTranscriptMode('voice');
+    setAsrDevice(undefined);
+    setBusyLabel('啟用麥克風……');
     try {
       await speechClient.startRecording('nan-TW');
+      setSessionMessage('正在聆聽；按停止錄音後會先顯示你的逐字稿。');
     } catch (nextError) {
       setSpeechError(nextError);
+      setTranscriptMode(null);
+      await recoverAfterMicrophoneFailure();
     } finally {
-      setBusy(false);
+      setBusyLabel(null);
     }
   }
 
-  async function control(action: Exclude<StudentAction, 'listen' | 'answer'>) {
-    setBusy(true);
+  async function stopVoiceAnswer(): Promise<void> {
+    setBusyLabel('辨識回答……');
+    setSpeechError(null);
+    try {
+      const transcript = await speechClient.stopRecording();
+      speechClient.markEvaluationComplete();
+      setDraftTranscript(transcript.text);
+      setTranscriptMode('voice');
+      setAsrDevice(transcript.device === 'npu' ? 'npu' : 'cpu');
+      setSessionMessage('這是辨識到的你的回答；請確認、修改後再送出。');
+    } catch (nextError) {
+      speechClient.markEvaluationComplete();
+      setSpeechError(nextError);
+      setSessionMessage('辨識失敗；可以重錄或改用鍵盤輸入。');
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
+  async function beginKeyboardAnswer(): Promise<void> {
+    if (!viewRef.current || viewRef.current.state === 'COMPLETE') return;
+    const next = await runControl('answer');
+    if (!next || !next.canAnswer) return;
+    setDraftTranscript('');
+    setTranscriptMode('keyboard');
+    setAsrDevice(undefined);
+    setSessionMessage('請輸入你自己的回答；畫面不會提供標準答案。');
+  }
+
+  async function submitDraft(): Promise<void> {
+    const transcript = draftTranscriptRef.current.trim();
+    const current = viewRef.current;
+    if (!current) return;
+    if (!transcript) {
+      setInputError('請先輸入或錄下一段回答。');
+      transcriptRef.current?.focus();
+      return;
+    }
+    const mode = transcriptMode || 'keyboard';
+    const previous = pendingTurnRef.current;
+    const pending = previous && previous.transcript === transcript && previous.inputMode === mode
+      ? previous
+      : {
+          key: createOperationKey('student-turn'),
+          transcript,
+          inputMode: mode,
+          asrDevice: mode === 'voice' ? asrDevice : undefined,
+        };
+    pendingTurnRef.current = pending;
+    setBusyLabel('送出回答並等待回饋……');
     setError(null);
     setSpeechError(null);
     try {
       await speechClient.cancel();
-      setView(await adapter.submitStudentAction(sessionId, action));
+      const next = await adapter.submitStudentAnswer(sessionId, {
+        schema_version: '0.1.0',
+        transcript,
+        input_mode: mode,
+        ...(pending.asrDevice ? { asr_device: pending.asrDevice } : {}),
+      }, {
+        expectedRevision: current.revision,
+        idempotencyKey: pending.key,
+      });
+      pendingTurnRef.current = null;
+      commitView(withPreservedTranscript(next, current));
+      setDraftTranscript(next.transcript || transcript);
+      setSessionMessage(next.feedback);
+      setTranscriptMode(null);
     } catch (nextError) {
-      setError(nextError);
+      if (isRevisionConflict(nextError)) pendingTurnRef.current = null;
+      resolveActionError(nextError);
     } finally {
-      setBusy(false);
+      setBusyLabel(null);
     }
   }
 
+  async function rerecord(): Promise<void> {
+    pendingTurnRef.current = null;
+    setDraftTranscript('');
+    setTranscriptMode(null);
+    setSpeechError(null);
+    await beginVoiceAnswer();
+  }
+
+  async function switchToObserver(): Promise<void> {
+    await speechClient.cancel();
+    navigateTo(`/session/${encodeURIComponent(sessionId)}/observer`);
+  }
+
+  const currentView = view;
+  const canBeginAnswer = Boolean(
+    currentView
+      && currentView.state !== 'COMPLETE'
+      && currentView.health.status !== 'offline'
+      && speechState !== 'TRANSCRIBING'
+      && speechState !== 'EVALUATING'
+      && !busyLabel,
+  );
+  const streamLabel = streamStatus === 'connected'
+    ? '即時進度已連線'
+    : streamStatus === 'reconnecting'
+      ? '即時進度斷線，正在重連並以 snapshot 恢復'
+      : '正在連接即時進度';
+
   return (
     <AppShell currentLabel="學生模式">
-      <main id="main-content" className="page" tabIndex={-1} aria-busy={busy}>
+      <main id="main-content" className="page" tabIndex={-1} aria-busy={Boolean(busyLabel)}>
         <p className="eyebrow">學生模式 · {sessionId}</p>
-        {!view && !error ? <LoadingState label="載入學生活動……" /> : null}
-        {error ? <ErrorState error={error} onRetry={load} /> : null}
-        {speechError ? <ErrorState error={speechError} /> : null}
-        {view ? (
+        {!currentView && !error ? <LoadingState label="載入學生活動……" /> : null}
+        {error ? <ErrorState error={error} onRetry={() => void refreshSnapshot()} /> : null}
+        {speechError ? (
+          <ErrorState
+            error={speechError}
+            onRetry={() => {
+              setSpeechError(null);
+              setSessionMessage('可以重錄，或改用下方鍵盤輸入。');
+            }}
+          />
+        ) : null}
+        {currentView ? (
           <>
-            <StatusBanner health={view.health} />
+            <StatusBanner health={currentView.health} />
             <section className="card student-card" aria-labelledby="student-heading">
-              <div className="progress-line"><span>{view.progressLabel}</span><span>{view.progressValue}%</span></div>
-              <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={view.progressValue} aria-label="教學進度">
-                <span style={{ width: `${view.progressValue}%` }} />
+              <div className="progress-line"><span>{currentView.progressLabel}</span><span>{currentView.progressValue}%</span></div>
+              <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={currentView.progressValue} aria-label="教學進度">
+                <span style={{ width: `${currentView.progressValue}%` }} />
               </div>
-              <h1 id="student-heading">{view.lessonTitle}</h1>
-              <p className="prompt">{view.prompt}</p>
-              <p className="live-message" role="status" aria-live="polite">{view.feedback}</p>
+              <div className="student-status-grid" aria-label="目前教學狀態">
+                <span>教學階段：{phaseLabels[currentView.phase]}</span>
+                <span>Core：{sessionStateLabels[currentView.state]}</span>
+                <span>同步：{streamLabel}</span>
+              </div>
+              <h1 id="student-heading">{currentView.lessonTitle}</h1>
+              <p className="prompt">{currentView.prompt}</p>
+              <p className="live-message" role="status" aria-live="polite">{sessionMessage || currentView.feedback}</p>
+              {fallbackMessage(currentView.fallbacks) ? (
+                <p className="fallback-message" role="status" aria-live="polite">{fallbackMessage(currentView.fallbacks)}</p>
+              ) : null}
               <p className="speech-status" role="status" aria-live="polite">
                 語音狀態：{speechStateLabels[speechState]}
               </p>
               <div className="button-grid" aria-label="學生操作">
-                <button className="button" type="button" disabled={busy || speechState === 'SPEAKING'} onClick={() => void playPrompt()}>播放提示</button>
+                <button className="button" type="button" disabled={Boolean(busyLabel) || speechState === 'SPEAKING'} onClick={() => void playPrompt()}>
+                  播放／重播提示
+                </button>
                 <button
                   className="button primary-large"
                   type="button"
-                  disabled={busy || !view.canAnswer || speechState === 'TRANSCRIBING' || speechState === 'EVALUATING'}
-                  onClick={() => void toggleAnswer()}
+                  disabled={!canBeginAnswer && speechState !== 'LISTENING'}
+                  onClick={() => void (speechState === 'LISTENING' ? stopVoiceAnswer() : beginVoiceAnswer())}
                 >
-                  {speechState === 'LISTENING' ? '停止錄音並轉錄' : '開始回答'}
+                  {speechState === 'LISTENING' ? '停止錄音並辨識' : '開始語音回答'}
                 </button>
-                <button className="button secondary" type="button" disabled={busy} onClick={() => void control('hint')}>取得提示</button>
-                <button className="button secondary" type="button" disabled={busy || speechState === 'IDLE'} onClick={() => void control('pause')}>停止音訊／暫停</button>
+                <button className="button secondary" type="button" disabled={!canBeginAnswer} onClick={() => void beginKeyboardAnswer()}>
+                  開始鍵盤回答
+                </button>
+                <button className="button secondary" type="button" disabled={Boolean(busyLabel)} onClick={() => void runControl('hint')}>
+                  取得提示
+                </button>
+                <button className="button secondary" type="button" disabled={Boolean(busyLabel) || currentView.state === 'COMPLETE'} onClick={() => void runControl(currentView.state === 'IDLE' ? 'resume' : 'pause')}>
+                  {currentView.state === 'IDLE' ? '繼續活動' : '停止音訊／暫停'}
+                </button>
+                <button className="button secondary" type="button" disabled={Boolean(busyLabel) || currentView.state === 'COMPLETE'} onClick={() => void runControl('next')}>
+                  下一步
+                </button>
+              </div>
+              {busyLabel ? <p className="live-message" role="status" aria-live="polite">{busyLabel}</p> : null}
+            </section>
+
+            <section className="card transcript-card" aria-labelledby="transcript-heading">
+              <p className="eyebrow">只顯示學生自己的內容</p>
+              <h2 id="transcript-heading">你的回答</h2>
+              <p>你可以確認語音辨識結果、修改文字，或完全使用鍵盤回答。這裡不會顯示標準答案、信心或教師欄位。</p>
+              <label htmlFor="student-transcript">你的逐字稿／回答</label>
+              <textarea
+                id="student-transcript"
+                ref={transcriptRef}
+                rows={4}
+                value={draftTranscript}
+                onChange={(event) => setDraftTranscript(event.target.value)}
+                placeholder="請輸入你自己的回答"
+                disabled={Boolean(busyLabel) || currentView.state === 'COMPLETE'}
+              />
+              {inputError ? <p className="field-error" role="alert">{inputError}</p> : null}
+              <div className="button-row">
+                <button className="button primary-large" type="button" disabled={Boolean(busyLabel) || !draftTranscript.trim() || currentView.state === 'COMPLETE'} onClick={() => void submitDraft()}>
+                  送出這個回答
+                </button>
+                <button className="button secondary" type="button" disabled={Boolean(busyLabel) || currentView.state === 'COMPLETE'} onClick={() => void rerecord()}>
+                  清除並重錄
+                </button>
               </div>
             </section>
+
             <section className="card mode-switch" aria-labelledby="switch-heading">
               <h2 id="switch-heading">切換檢視</h2>
-              <p>切換模式前會停止播放與錄音；目前語音預設使用 Mock，設定 <code>VITE_SPEECH_MODE=real</code> 可改接 localhost Speech Gateway。</p>
-              <button className="button secondary" type="button" onClick={() => navigateTo(`/session/${encodeURIComponent(sessionId)}/observer`)}>開啟教師／家長模式</button>
+              <p>切換模式前會停止播放與錄音；教師／家長模式讀取同一個 server-side session 的觀察摘要。</p>
+              <button className="button secondary" type="button" onClick={() => void switchToObserver()}>開啟教師／家長模式</button>
             </section>
           </>
         ) : null}

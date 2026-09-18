@@ -222,7 +222,7 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
               ) : (
                 <EmptyState message={view.canConfirm
                   ? '目前沒有可預覽的圖片，仍可使用這份教材建立 session。'
-                  : '目前沒有可預覽的圖片；Core session 建立會在 Agent A Stage 08 接上。'} />
+                  : '目前沒有可預覽的圖片；請先完成教材分析，再建立 session。'} />
               )}
               <p className="analysis-provider" role="status">
                 分析來源：{view.providerMode === 'real'
