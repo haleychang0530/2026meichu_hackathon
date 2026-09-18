@@ -1,10 +1,12 @@
-"""Localhost Speech Gateway for Agent B Stage 05.
+"""Localhost Speech Gateway for Agent B Stage 07.
 
 The HTTP boundary follows
 ``packages/contracts/openapi/v0.1/speech-gateway.openapi.json``.  The worker
 interfaces are injectable: the default mock path keeps contract tests light,
 while the explicit ``breeze`` backend loads the pinned CPU Breeze-ASR-26
-adapter only when requested.
+adapter only when requested.  Stage 07 adds an explicit ``mms`` TTS backend;
+the default remains Mock so importing or testing the gateway never downloads
+model weights implicitly.
 
 The gateway is a scheduler, not a product-session owner.  It provides one
 bounded inference queue, one CPU semaphore shared by ASR/TTS, cooperative
@@ -47,6 +49,12 @@ from workers import (
     TTSWorker,
     WorkerCancelled,
     create_asr_worker,
+    create_tts_worker,
+)
+from tts import (
+    MMS_TTS_DEFAULT_SPEED,
+    MMS_TTS_MODEL_ID,
+    MMS_TTS_MODEL_REVISION,
 )
 
 
@@ -760,6 +768,15 @@ class SpeechGatewayService:
                 request_id=request_id,
                 message="TTS work was cancelled.",
             ) from exc
+        except SpeechWorkerError as exc:
+            self._finish_operation(request_id, kind="tts", success=False)
+            self._record_failure(service="tts", request_id=request_id, code="TTS_FAILED")
+            raise self._operation_error(
+                kind="tts",
+                request_id=request_id,
+                message=exc.safe_message,
+                details={"reason": exc.reason},
+            ) from exc
         except Exception as exc:
             self._finish_operation(request_id, kind="tts", success=False)
             self._record_failure(service="tts", request_id=request_id, code="TTS_FAILED")
@@ -1460,6 +1477,48 @@ def main(argv: list[str] | None = None) -> int:
         default=_env_bool("BREEZE_ASR_DISABLE_VAD", False),
         help="Disable the deterministic energy VAD for an explicit benchmark.",
     )
+    parser.add_argument(
+        "--tts-backend",
+        choices=("mock", "mms"),
+        default=os.environ.get("SPEECH_TTS_BACKEND", "mock"),
+        help="TTS worker to use; mms enables the pinned CPU MMS-TTS path.",
+    )
+    parser.add_argument(
+        "--tts-model-path",
+        default=os.environ.get("MMS_TTS_MODEL_PATH"),
+        help="Optional local MMS model directory; otherwise use the pinned Hub model.",
+    )
+    parser.add_argument(
+        "--tts-model-id",
+        default=os.environ.get("MMS_TTS_MODEL_ID", MMS_TTS_MODEL_ID),
+    )
+    parser.add_argument(
+        "--tts-model-revision",
+        default=os.environ.get("MMS_TTS_MODEL_REVISION", MMS_TTS_MODEL_REVISION),
+        help="Pinned MMS-TTS Hub revision; defaults to the reviewed checkpoint commit.",
+    )
+    parser.add_argument(
+        "--tts-speed",
+        default=_env_float("MMS_TTS_SPEED", MMS_TTS_DEFAULT_SPEED),
+        type=float,
+        help="MMS speaking rate; included in the audio cache key.",
+    )
+    parser.add_argument(
+        "--tts-cache-dir",
+        default=os.environ.get("MMS_TTS_CACHE_DIR"),
+        help="Ignored local WAV cache directory; defaults below the speech runtime.",
+    )
+    parser.add_argument(
+        "--tts-fallback-manifest",
+        default=os.environ.get("MMS_TTS_FALLBACK_MANIFEST"),
+        help="Owner-approved prerecorded fallback manifest.",
+    )
+    parser.add_argument(
+        "--tts-local-files-only",
+        action="store_true",
+        default=_env_bool("MMS_TTS_LOCAL_FILES_ONLY", False),
+        help="Do not contact the Hub; use a pre-cached MMS model only.",
+    )
     args = parser.parse_args(argv)
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
         parser.error("Speech Gateway must bind to localhost")
@@ -1474,9 +1533,23 @@ def main(argv: list[str] | None = None) -> int:
             vad_enabled=not args.asr_no_vad,
             local_files_only=args.asr_local_files_only,
         )
+        tts_worker = create_tts_worker(
+            args.tts_backend,
+            model_path=args.tts_model_path,
+            model_id=args.tts_model_id,
+            revision=args.tts_model_revision,
+            speed=args.tts_speed,
+            local_files_only=args.tts_local_files_only,
+            cache_dir=args.tts_cache_dir,
+            fallback_manifest=args.tts_fallback_manifest,
+        )
     except ValueError as exc:
         parser.error(str(exc))
-    service = SpeechGatewayService(asr_worker=asr_worker, timeout_s=args.timeout)
+    service = SpeechGatewayService(
+        asr_worker=asr_worker,
+        tts_worker=tts_worker,
+        timeout_s=args.timeout,
+    )
     server = build_server(service, host=args.host, port=args.port)
     try:
         server.serve_forever()
@@ -1495,6 +1568,16 @@ def _env_int(name: str, default: int) -> int:
         return default
     try:
         return int(value)
+    except ValueError:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
     except ValueError:
         return default
 

@@ -109,6 +109,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sessions/{session_id}/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        /** @description Returns the current student-safe snapshot after a reconnect or revision conflict. */
+        get: operations["getSessionSnapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sessions/{session_id}/turns": {
         parameters: {
             query?: never;
@@ -155,6 +174,7 @@ export interface paths {
             };
             cookie?: never;
         };
+        /** @description Replayable SSE stream. Send Last-Event-ID or after to receive only events after the last applied event. Event ids are monotonic and payloads are safe for the student client. */
         get: operations["streamSessionEvents"];
         put?: never;
         post?: never;
@@ -211,16 +231,8 @@ export interface components {
         TurnSubmission: components["schemas"]["answer_submission"];
         ServiceHealth: components["schemas"]["service-health.schema"];
         Error: components["schemas"]["error.schema"];
-        Session: {
-            /** @constant */
-            schema_version: "0.1.0";
-            session_id: string;
-            lesson_id: string;
-            /** @enum {string} */
-            state: "IDLE" | "SPEAKING" | "LISTENING" | "TRANSCRIBING" | "EVALUATING" | "RECOVERABLE_ERROR" | "COMPLETE";
-            progress: number;
-            current_prompt: string | null;
-        };
+        Session: components["schemas"]["session.schema"];
+        SessionEvent: components["schemas"]["session-event.schema"];
         /**
          * Error
          * @description Stable error envelope returned by every service boundary.
@@ -229,7 +241,7 @@ export interface components {
             /** @constant */
             schema_version: "0.1.0";
             /** @enum {string} */
-            code: "VALIDATION_ERROR" | "IMAGE_QUALITY_LOW" | "LESSON_NOT_FOUND" | "SESSION_NOT_FOUND" | "VLM_TIMEOUT" | "VLM_OFFLINE" | "VLM_INVALID_OUTPUT" | "RAG_NO_RESULT" | "ASR_UNAVAILABLE" | "ASR_FAILED" | "TTS_UNAVAILABLE" | "TTS_FAILED" | "CIRCUIT_OPEN" | "INTERNAL_ERROR";
+            code: "VALIDATION_ERROR" | "IMAGE_QUALITY_LOW" | "LESSON_NOT_FOUND" | "SESSION_NOT_FOUND" | "SESSION_REVISION_CONFLICT" | "IDEMPOTENCY_CONFLICT" | "VLM_TIMEOUT" | "VLM_OFFLINE" | "VLM_INVALID_OUTPUT" | "RAG_NO_RESULT" | "ASR_UNAVAILABLE" | "ASR_FAILED" | "TTS_UNAVAILABLE" | "TTS_FAILED" | "CIRCUIT_OPEN" | "INTERNAL_ERROR";
             message: string;
             retryable: boolean;
             /** @enum {string|null} */
@@ -285,6 +297,8 @@ export interface components {
             original_activity: string;
             learning_objective: string;
             accessible_activity: string;
+            /** @description Teacher/parent-only evidence for the answer or visual reasoning. Never expose to student routes. */
+            answer_evidence?: string[];
             evidence: components["schemas"]["evidence_item"][];
             confidence: number;
             /** @enum {string} */
@@ -347,6 +361,25 @@ export interface components {
                 };
             };
         };
+        /**
+         * SessionView
+         * @description Student-safe teaching session snapshot. Teacher evidence and answer controls are intentionally absent.
+         */
+        "session.schema": {
+            /** @constant */
+            schema_version: "0.1.0";
+            session_id: string;
+            lesson_id: string;
+            /** @enum {string} */
+            state: "IDLE" | "SPEAKING" | "LISTENING" | "TRANSCRIBING" | "EVALUATING" | "RECOVERABLE_ERROR" | "COMPLETE";
+            /** @enum {string} */
+            phase: "introduction" | "demonstration" | "read_aloud" | "comprehension" | "hint" | "review" | "complete";
+            progress: number;
+            current_prompt: string | null;
+            can_answer: boolean;
+            revision: number;
+            last_event_id: number;
+        };
         /** @enum {string} */
         input_mode: "voice" | "keyboard" | "pointer";
         answer_submission: {
@@ -356,6 +389,7 @@ export interface components {
             input_mode?: components["schemas"]["input_mode"];
             /** @enum {string} */
             asr_device?: "npu" | "cpu";
+            expected_revision?: number | null;
         };
         latency: {
             asr: number | null;
@@ -385,6 +419,10 @@ export interface components {
             /** @enum {string} */
             asr_device: "npu" | "cpu";
             fallbacks: ("mi300_offline" | "rag_no_result" | "asr_cpu" | "tts_prerecorded" | "cached_lesson" | "fixture_mode")[];
+            /** @enum {string} */
+            phase: "introduction" | "demonstration" | "read_aloud" | "comprehension" | "hint" | "review" | "complete";
+            revision: number;
+            last_event_id: number;
             $defs: {
                 latency: {
                     asr: number | null;
@@ -402,9 +440,12 @@ export interface components {
             schema_version: "0.1.0";
             action: components["schemas"]["action"];
             input_mode?: components["schemas"]["input_mode"];
+            expected_revision?: number | null;
         };
         /** @enum {string} */
         session_state: "IDLE" | "SPEAKING" | "LISTENING" | "TRANSCRIBING" | "EVALUATING" | "RECOVERABLE_ERROR" | "COMPLETE";
+        /** @enum {string} */
+        teaching_phase: "introduction" | "demonstration" | "read_aloud" | "comprehension" | "hint" | "review" | "complete";
         /**
          * StudentActionResult
          * @description Student-safe response after a session control action. Answer submission uses $defs/answer_submission and the turns endpoint.
@@ -421,6 +462,9 @@ export interface components {
             feedback: string | null;
             next_prompt: string | null;
             can_answer: boolean;
+            phase: components["schemas"]["teaching_phase"];
+            revision: number;
+            last_event_id: number;
             $defs: {
                 /** @enum {string} */
                 action: "replay_prompt" | "start_answer" | "pause" | "resume" | "request_hint" | "next";
@@ -433,6 +477,7 @@ export interface components {
                     schema_version: "0.1.0";
                     action: components["schemas"]["action"];
                     input_mode?: components["schemas"]["input_mode"];
+                    expected_revision?: number | null;
                 };
                 answer_submission: {
                     /** @constant */
@@ -441,7 +486,10 @@ export interface components {
                     input_mode?: components["schemas"]["input_mode"];
                     /** @enum {string} */
                     asr_device?: "npu" | "cpu";
+                    expected_revision?: number | null;
                 };
+                /** @enum {string} */
+                teaching_phase: "introduction" | "demonstration" | "read_aloud" | "comprehension" | "hint" | "review" | "complete";
             };
         };
         hint: {
@@ -471,6 +519,18 @@ export interface components {
             concepts_to_review: string[];
             hint_history: components["schemas"]["hint"][];
             familiarity: components["schemas"]["familiarity"][];
+            evidence: components["schemas"]["evidence_item"][];
+            health: components["schemas"]["service-health.schema"][];
+            /** @enum {string|null} */
+            review_status: "pending" | "approved" | "rejected" | null;
+            confidence: number | null;
+            answer_evidence: string[];
+            vlm_model_revision: string | null;
+            rag_index_revision: string | null;
+            /** @enum {string} */
+            phase: "introduction" | "demonstration" | "read_aloud" | "comprehension" | "hint" | "review" | "complete";
+            revision: number;
+            last_event_id: number;
             $defs: {
                 hint: {
                     turn_id: string;
@@ -484,9 +544,26 @@ export interface components {
                 };
             };
         };
+        /**
+         * SessionEvent
+         * @description Replayable, student-safe event envelope used by the session SSE stream.
+         */
+        "session-event.schema": {
+            /** @constant */
+            schema_version: "0.1.0";
+            event_id: number;
+            session_id: string;
+            /** @enum {string} */
+            event: "session.created" | "session.action" | "turn.completed";
+            request_id: string;
+            revision: number;
+            payload: {
+                [key: string]: unknown;
+            };
+        };
     };
     responses: {
-        /** @description Canonical teacher-reviewable lesson. */
+        /** @description Canonical teacher-reviewable lesson. `answer_evidence` is teacher/parent-only and must never be returned by student routes. */
         Lesson: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
@@ -543,7 +620,7 @@ export interface components {
                 [name: string]: unknown;
             };
             content: {
-                "application/json": components["schemas"]["Session"];
+                "application/json": components["schemas"]["session.schema"];
             };
         };
         /** @description Stable error envelope. */
@@ -561,6 +638,12 @@ export interface components {
         RequestId: string;
         LessonId: string;
         SessionId: string;
+        /** @description Stable key for safe retry. Reusing a key replays the original result; using it for another operation returns a conflict. If omitted, X-Request-ID is used as the key. */
+        IdempotencyKey: string;
+        /** @description Optional optimistic-concurrency revision. A stale value returns SESSION_REVISION_CONFLICT with the current revision. */
+        SessionRevision: number;
+        /** @description Last durable SSE event applied by the client. */
+        LastEventId: number;
     };
     requestBodies: never;
     headers: {
@@ -701,6 +784,8 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Request-ID"?: components["parameters"]["RequestId"];
+                /** @description Stable key for safe retry. Reusing a key replays the original result; using it for another operation returns a conflict. If omitted, X-Request-ID is used as the key. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -734,11 +819,30 @@ export interface operations {
             404: components["responses"]["Error"];
         };
     };
+    getSessionSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: components["parameters"]["SessionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Session"];
+            404: components["responses"]["Error"];
+        };
+    };
     submitTurn: {
         parameters: {
             query?: never;
             header?: {
                 "X-Request-ID"?: components["parameters"]["RequestId"];
+                /** @description Stable key for safe retry. Reusing a key replays the original result; using it for another operation returns a conflict. If omitted, X-Request-ID is used as the key. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                /** @description Optional optimistic-concurrency revision. A stale value returns SESSION_REVISION_CONFLICT with the current revision. */
+                "X-Session-Revision"?: components["parameters"]["SessionRevision"];
             };
             path: {
                 session_id: components["parameters"]["SessionId"];
@@ -754,6 +858,7 @@ export interface operations {
             200: components["responses"]["TurnResult"];
             400: components["responses"]["Error"];
             404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     submitStudentAction: {
@@ -761,6 +866,10 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Request-ID"?: components["parameters"]["RequestId"];
+                /** @description Stable key for safe retry. Reusing a key replays the original result; using it for another operation returns a conflict. If omitted, X-Request-ID is used as the key. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                /** @description Optional optimistic-concurrency revision. A stale value returns SESSION_REVISION_CONFLICT with the current revision. */
+                "X-Session-Revision"?: components["parameters"]["SessionRevision"];
             };
             path: {
                 session_id: components["parameters"]["SessionId"];
@@ -782,7 +891,10 @@ export interface operations {
     streamSessionEvents: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Last durable SSE event applied by the client. */
+                "Last-Event-ID"?: components["parameters"]["LastEventId"];
+            };
             path: {
                 session_id: components["parameters"]["SessionId"];
             };
@@ -790,7 +902,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Server-sent events. Each data field is a JSON object with schema_version, event, request_id, and payload. */
+            /** @description Server-sent events. Each event id is a durable event_id and each data field is a JSON SessionEvent envelope. Empty backlogs produce a heartbeat comment. */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];

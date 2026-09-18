@@ -99,7 +99,7 @@ export interface components {
             /** @constant */
             schema_version: "0.1.0";
             /** @enum {string} */
-            code: "VALIDATION_ERROR" | "IMAGE_QUALITY_LOW" | "LESSON_NOT_FOUND" | "SESSION_NOT_FOUND" | "VLM_TIMEOUT" | "VLM_OFFLINE" | "VLM_INVALID_OUTPUT" | "RAG_NO_RESULT" | "ASR_UNAVAILABLE" | "ASR_FAILED" | "TTS_UNAVAILABLE" | "TTS_FAILED" | "CIRCUIT_OPEN" | "INTERNAL_ERROR";
+            code: "VALIDATION_ERROR" | "IMAGE_QUALITY_LOW" | "LESSON_NOT_FOUND" | "SESSION_NOT_FOUND" | "SESSION_REVISION_CONFLICT" | "IDEMPOTENCY_CONFLICT" | "VLM_TIMEOUT" | "VLM_OFFLINE" | "VLM_INVALID_OUTPUT" | "RAG_NO_RESULT" | "ASR_UNAVAILABLE" | "ASR_FAILED" | "TTS_UNAVAILABLE" | "TTS_FAILED" | "CIRCUIT_OPEN" | "INTERNAL_ERROR";
             message: string;
             retryable: boolean;
             /** @enum {string|null} */

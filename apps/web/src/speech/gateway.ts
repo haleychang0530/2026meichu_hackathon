@@ -113,6 +113,30 @@ function stopTracks(stream: MediaStream): void {
   stream.getTracks().forEach((track) => track.stop());
 }
 
+function browserSpeechSynthesis(): SpeechSynthesis | undefined {
+  if (typeof window === 'undefined' || typeof window.speechSynthesis === 'undefined') {
+    return undefined;
+  }
+  if (typeof SpeechSynthesisUtterance === 'undefined') return undefined;
+  return window.speechSynthesis;
+}
+
+function segmentUtterance(
+  utterance: SpeechUtterance,
+  segment: SpeechUtterance['segments'][number],
+  index: number,
+): SpeechUtterance {
+  return {
+    ...utterance,
+    id: `${utterance.id}_segment_${index}`,
+    segments: [segment],
+    // The server computes a revision-aware key.  Never trust a stale key
+    // supplied by a caller when routing one segment from a paragraph.
+    audio_url: null,
+    audio_cache_key: null,
+  };
+}
+
 export class HttpSpeechGatewayClient implements SpeechGatewayClient {
   private readonly baseUrl: string;
   private readonly devicePreference: SpeechDevicePreference;
@@ -135,6 +159,7 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
   private activeAudio: HTMLAudioElement | null = null;
   private activeObjectUrl: string | null = null;
   private activeRequest: AbortController | null = null;
+  private activeBrowserCancel: (() => void) | null = null;
 
   constructor(options: SpeechGatewayClientOptions = {}) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl || DEFAULT_BASE_URL);
@@ -164,6 +189,45 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
   async play(utterance: SpeechUtterance): Promise<void> {
     await this.cancel();
     this.setState('SPEAKING');
+    try {
+      if (!utterance.segments.length) {
+        await this.playViaGateway(utterance);
+      } else if (utterance.segments.length === 1 && utterance.segments[0].lang === 'zh-TW' && browserSpeechSynthesis()) {
+        await this.playInBrowser(utterance.segments[0]);
+      } else if (utterance.segments.length === 1) {
+        // Preserve the canonical request for the common single-segment path;
+        // it also keeps existing Gateway clients/cache keys stable.
+        await this.playViaGateway(utterance);
+      } else {
+        // Keep each segment in source order.  Chinese UI/scaffolding uses the
+        // browser's Windows/Web Speech voice; nan-TW segments go through the
+        // localhost gateway and its MMS/cache/fallback router.  Each await is
+        // intentional: no two speech sources can overlap.
+        for (const [index, segment] of utterance.segments.entries()) {
+          if (segment.lang === 'zh-TW' && browserSpeechSynthesis()) {
+            await this.playInBrowser(segment);
+          } else {
+            await this.playViaGateway(segmentUtterance(utterance, segment, index));
+          }
+        }
+      }
+    } catch (error) {
+      if (!isAbortError(error)) {
+        this.setState('IDLE');
+        if (error instanceof AdapterError) throw error;
+        throw speechClientError(
+          'TTS_FAILED',
+          '語音播放失敗，請稍後再試。',
+          'prerecorded_audio',
+          error,
+        );
+      }
+    } finally {
+      if (this.currentState === 'SPEAKING') this.setState('IDLE');
+    }
+  }
+
+  private async playViaGateway(utterance: SpeechUtterance): Promise<void> {
     const controller = new AbortController();
     this.activeRequest = controller;
     try {
@@ -188,17 +252,6 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
         audio.onerror = () => reject(new Error('audio playback failed'));
         void Promise.resolve(audio.play()).catch(reject);
       });
-    } catch (error) {
-      if (!isAbortError(error)) {
-        this.setState('IDLE');
-        if (error instanceof AdapterError) throw error;
-        throw speechClientError(
-          'TTS_FAILED',
-          '語音播放失敗，請稍後再試。',
-          'prerecorded_audio',
-          error,
-        );
-      }
     } finally {
       if (this.activeAudio) {
         this.activeAudio.pause();
@@ -209,8 +262,37 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
       this.activeAudio = null;
       this.activeObjectUrl = null;
       if (this.activeRequest === controller) this.activeRequest = null;
-      if (this.currentState === 'SPEAKING') this.setState('IDLE');
     }
+  }
+
+  private async playInBrowser(segment: SpeechUtterance['segments'][number]): Promise<void> {
+    const synthesis = browserSpeechSynthesis();
+    if (!synthesis) throw new Error('browser speech synthesis is unavailable');
+    const spoken = new SpeechSynthesisUtterance(segment.hanji);
+    spoken.lang = 'zh-TW';
+    spoken.rate = 1;
+    const voice = synthesis.getVoices().find((candidate) => candidate.lang.toLowerCase() === 'zh-tw');
+    if (voice) spoken.voice = voice;
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        this.activeBrowserCancel = null;
+        spoken.onend = null;
+        spoken.onerror = null;
+        if (error) reject(error);
+        else resolve();
+      };
+      this.activeBrowserCancel = () => finish();
+      spoken.onend = () => finish();
+      spoken.onerror = (event) => {
+        if (event.error === 'canceled' || event.error === 'interrupted') finish();
+        else finish(new Error('browser speech playback failed'));
+      };
+      synthesis.speak(spoken);
+    });
   }
 
   async startRecording(language: SpeechLanguage = 'nan-TW'): Promise<void> {
@@ -317,9 +399,16 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
     const hadActivity = this.currentState !== 'IDLE'
       || this.recording !== null
       || this.activeAudio !== null
+      || this.activeBrowserCancel !== null
       || this.activeRequest !== null;
     this.activeRequest?.abort();
     this.activeRequest = null;
+    const synthesis = browserSpeechSynthesis();
+    const cancelBrowserSpeech = this.activeBrowserCancel;
+    if (cancelBrowserSpeech) {
+      synthesis?.cancel();
+      cancelBrowserSpeech();
+    }
     if (this.recording) {
       const recording = this.recording;
       this.recording = null;
@@ -350,6 +439,8 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
 
   dispose(): void {
     this.activeRequest?.abort();
+    browserSpeechSynthesis()?.cancel();
+    this.activeBrowserCancel?.();
     if (this.recording) {
       const recording = this.recording;
       this.recording = null;
