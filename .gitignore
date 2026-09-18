@@ -11,6 +11,9 @@ apps/web/.env.*.local
 apps/core-api/.venv/
 apps/core-api/.runtime/
 apps/core-api/.env
+services/speech-local/.venv/
+services/speech-local/.runtime/
+services/speech-local/models/
 data/rag/indexes/
 data/rag/.runtime/
 __pycache__/

@@ -1,0 +1,27 @@
+{
+  "dataset": "operator-supplied-authorized-cpu-baseline",
+  "license": "replace-with-audio-dataset-license",
+  "authorization": "replace-with-owner-approved-test-set-note",
+  "cases": [
+    { "id": "mandarin-01", "category": "mandarin", "audio_path": "audio/mandarin-01.wav", "language": "zh-TW" },
+    { "id": "mandarin-02", "category": "mandarin", "audio_path": "audio/mandarin-02.wav", "language": "zh-TW" },
+    { "id": "mandarin-03", "category": "mandarin", "audio_path": "audio/mandarin-03.wav", "language": "zh-TW" },
+    { "id": "mandarin-04", "category": "mandarin", "audio_path": "audio/mandarin-04.wav", "language": "zh-TW" },
+    { "id": "mixed-01", "category": "mixed", "audio_path": "audio/mixed-01.wav", "language": "nan-TW" },
+    { "id": "mixed-02", "category": "mixed", "audio_path": "audio/mixed-02.wav", "language": "nan-TW" },
+    { "id": "mixed-03", "category": "mixed", "audio_path": "audio/mixed-03.wav", "language": "nan-TW" },
+    { "id": "mixed-04", "category": "mixed", "audio_path": "audio/mixed-04.wav", "language": "nan-TW" },
+    { "id": "child-slow-01", "category": "child_slow", "audio_path": "audio/child-slow-01.wav", "language": "nan-TW" },
+    { "id": "child-slow-02", "category": "child_slow", "audio_path": "audio/child-slow-02.wav", "language": "nan-TW" },
+    { "id": "child-slow-03", "category": "child_slow", "audio_path": "audio/child-slow-03.wav", "language": "nan-TW" },
+    { "id": "child-slow-04", "category": "child_slow", "audio_path": "audio/child-slow-04.wav", "language": "nan-TW" },
+    { "id": "noise-01", "category": "noise", "audio_path": "audio/noise-01.wav", "language": "nan-TW" },
+    { "id": "noise-02", "category": "noise", "audio_path": "audio/noise-02.wav", "language": "nan-TW" },
+    { "id": "noise-03", "category": "noise", "audio_path": "audio/noise-03.wav", "language": "nan-TW" },
+    { "id": "silence-01", "category": "silence", "audio_path": "audio/silence-01.wav", "language": "nan-TW", "expected": "rejection" },
+    { "id": "silence-02", "category": "silence", "audio_path": "audio/silence-02.wav", "language": "nan-TW", "expected": "rejection" },
+    { "id": "silence-03", "category": "silence", "audio_path": "audio/silence-03.wav", "language": "nan-TW", "expected": "rejection" },
+    { "id": "too-short-01", "category": "too_short", "audio_path": "audio/too-short-01.wav", "language": "nan-TW", "expected": "rejection" },
+    { "id": "too-short-02", "category": "too_short", "audio_path": "audio/too-short-02.wav", "language": "nan-TW", "expected": "rejection" }
+  ]
+}
