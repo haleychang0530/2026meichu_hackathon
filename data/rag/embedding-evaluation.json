@@ -1,0 +1,43 @@
+{
+  "schema_version": "rag-embedding-evaluation.v1",
+  "evaluated_at": "2026-09-18T03:36:50.843153+00:00",
+  "method": "20-query retrieval smoke; no external model download",
+  "selected_backend": "hashing-char-ngram-v1",
+  "candidates": [
+    {
+      "backend": "hashing-char-ngram-v1:256d",
+      "status": "selected",
+      "device": "CPU",
+      "dimension": 256,
+      "query_count": 20,
+      "passed_queries": 20,
+      "accuracy": 1.0,
+      "mean_query_ms": 0.884,
+      "p95_query_ms": 1.244,
+      "index_revision": "rag-1c2efe6e5ba3089c",
+      "cold_start_ms": 1,
+      "build": {
+        "revision": "rag-1c2efe6e5ba3089c",
+        "mode": "full",
+        "switched": true,
+        "changed": true,
+        "chunk_count": 9,
+        "source_count": 1,
+        "skipped_sources": [],
+        "dropped_short": 0,
+        "dropped_duplicate": 0,
+        "reused_chunks": 0,
+        "new_embeddings": 9,
+        "build_duration_ms": 49,
+        "peak_working_set_mib": 56.97,
+        "cold_start_ms": 18
+      }
+    },
+    {
+      "backend": "onnx-local",
+      "status": "not_evaluated",
+      "device": "CPUExecutionProvider",
+      "reason": "onnx-local requires RAG_ONNX_MODEL_PATH and RAG_ONNX_TOKENIZER_PATH"
+    }
+  ]
+}
