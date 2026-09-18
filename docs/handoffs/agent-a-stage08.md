@@ -3,9 +3,9 @@
 ```text
 Stage: Agent A Stage 08 — Teaching Agent, SQLite sessions, and SSE
 Status: done
-Base: main @ dd5bc35e3ddefab9da125b668cbd1bd43ecc33b3
+Base at branch creation: main @ dd5bc35e3ddefab9da125b668cbd1bd43ecc33b3
 Branch: codex/agentA-stage08-session-sse
-Pull request: pending
+Pull request: #14 — https://github.com/haleychang0530/2026meichu_hackathon/pull/14 (open, not merged)
 Schema/OpenAPI version: JSON Schema Draft 2020-12 / 0.1.0; OpenAPI 3.1.0 / 0.1.0
 Runtime host: Ryzen AI 9 laptop only
 MI300 role: bounded stateless semantic judgement only for difficult unmatched answers
@@ -184,6 +184,14 @@ weight, cache, database, or runtime RAG index is committed.
 ## Git state
 
 - Local implementation: complete after final regression and diff review.
-- Commits: pending final commit creation.
-- Remote branch: pending push to `origin/codex/agentA-stage08-session-sse`.
-- Pull request: pending creation against `main`; merge not performed.
+- Commits: `0431159` core implementation, `01d028f` contracts/fixtures,
+  `5423711` tests/docs, followed by the handoff metadata update.
+- Remote branch: pushed to `origin/codex/agentA-stage08-session-sse`.
+- Pull request: #14 is open against `main`; merge not performed and requires
+  explicit repository-owner authorization.
+- After branch creation, `main` advanced to `2009d91622c2909abbe870391a06d92445631fd8`
+  through Agent B PR #13. The four upstream files are under `apps/web` and
+  `services/speech-local`; they do not overlap this Stage 08 diff. A final
+  `git fetch --prune` confirmed the branch is four commits ahead of the
+  recorded branch base after this metadata update, with no working-tree or
+  whitespace conflicts.
