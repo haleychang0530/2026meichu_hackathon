@@ -137,6 +137,7 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
         <nav aria-label="主要導覽">
           <a href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>設定</a>
           <a href="/capture" onClick={(event) => handleInternalLink(event, '/capture')}>教材</a>
+          <a href="/health" onClick={(event) => handleInternalLink(event, '/health')}>健康檢查</a>
           <span aria-current="page">{currentLabel}</span>
         </nav>
       </header>

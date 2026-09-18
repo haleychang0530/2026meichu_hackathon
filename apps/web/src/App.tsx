@@ -3,6 +3,7 @@ import { createAdapter } from './adapters';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { navigateTo, parseRoute, type AppRoute } from './app/routing';
 import { CapturePage } from './pages/CapturePage';
+import { HealthPage } from './pages/HealthPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ObserverPage } from './pages/ObserverPage';
 import { SetupPage } from './pages/SetupPage';
@@ -27,6 +28,7 @@ export function App() {
 
   let content;
   if (route.kind === 'setup') content = <SetupPage adapter={adapter} />;
+  else if (route.kind === 'health') content = <HealthPage adapter={adapter} />;
   else if (route.kind === 'capture') content = <CapturePage adapter={adapter} />;
   else if (route.kind === 'student') content = <StudentPage adapter={adapter} sessionId={route.sessionId} />;
   else if (route.kind === 'observer') content = <ObserverPage adapter={adapter} sessionId={route.sessionId} />;

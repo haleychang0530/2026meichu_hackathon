@@ -1,0 +1,40 @@
+{
+  "schema_version": "stage10-health-report.v1",
+  "profile": "mock",
+  "overall_status": "degraded",
+  "degraded_reason": "fixture provider is active; MI300 was intentionally not called",
+  "services": {
+    "core-api": "ready",
+    "rag": "ready",
+    "vlm-mi300": "degraded",
+    "asr": "ready",
+    "tts": "ready"
+  },
+  "cpu_only_profile": {
+    "status": "ready",
+    "npu": "disabled"
+  },
+  "resources": {
+    "memory": {
+      "physical_total_bytes": 33413771264,
+      "available_bytes": 12822437888,
+      "reserve_target_bytes": 8353442816,
+      "available_after_reserve_bytes": 4468995072
+    },
+    "storage": {
+      "drive": "C:",
+      "total_bytes": 1022371368960,
+      "free_bytes": 612089188352,
+      "status": "ready"
+    },
+    "temperature": {
+      "status": "not_available",
+      "reason": "Windows thermal zone data was not exposed by firmware"
+    }
+  },
+  "browser_media": "operator_check",
+  "privacy": {
+    "status": "ready",
+    "raw_audio_or_photos_persisted": false
+  }
+}

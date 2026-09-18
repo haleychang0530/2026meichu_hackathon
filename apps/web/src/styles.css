@@ -50,6 +50,15 @@ p { line-height: 1.65; }
 .service-list { margin: 0; padding-left: 1.3rem; }
 .service-list li { margin: .5rem 0; line-height: 1.5; }
 .service-error { color: #7b341e; }
+.health-check-list { display: grid; gap: .7rem; padding: 0; margin: 1rem 0 0; list-style: none; }
+.health-check { display: grid; grid-template-columns: minmax(8rem, .35fr) minmax(6rem, .25fr) 1fr; gap: .75rem; align-items: baseline; padding: .75rem; border-left: .35rem solid #829ab1; background: #f8fafc; }
+.health-check-label { font-weight: 800; }
+.health-check-ready { border-color: #2f855a; background: #f0fff4; }
+.health-check-degraded { border-color: #d69e2e; background: #fffaf0; }
+.health-check-offline { border-color: #c53030; background: #fff5f5; }
+.health-check-unknown { border-color: #829ab1; background: #f8fafc; }
+.runtime-note { padding: .8rem 1rem; border-left: .35rem solid #805ad5; background: #faf5ff; }
+.release-actions { margin-top: 0; }
 .button-row, .button-grid { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; }
 .button-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .button { display: inline-flex; min-height: 3rem; align-items: center; justify-content: center; padding: .75rem 1.1rem; border: 2px solid #145da0; border-radius: .5rem; color: #fff; background: #145da0; font-weight: 750; cursor: pointer; text-decoration: none; }
@@ -153,6 +162,7 @@ code { padding: .1rem .3rem; border-radius: .3rem; background: #edf2f7; font-fam
   .narration-controls { margin-top: .75rem; }
   .service-list { margin-top: 1rem; }
   .button-grid, .two-column { grid-template-columns: 1fr; }
+  .health-check { grid-template-columns: 1fr; gap: .25rem; }
   .student-status-grid { grid-template-columns: 1fr; }
   .detail-list > div { grid-template-columns: 1fr; gap: .25rem; }
   .photo-review-grid { grid-template-columns: 1fr; }
