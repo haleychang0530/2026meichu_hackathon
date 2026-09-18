@@ -2,6 +2,7 @@ import { adapterErrorFromResponse } from './errors';
 import type { FrontendAdapter } from './adapter';
 import type { components, operations } from '../generated/api';
 import type {
+  CaptureProviderMode,
   CaptureViewModel,
   HealthSummaryView,
   LessonImageUpload,
@@ -25,6 +26,7 @@ type CoreTurnSubmission = components['schemas']['TurnSubmission'];
 type CoreServiceHealth = components['schemas']['ServiceHealth'];
 
 const DEMO_LESSON_ID = 'lesson_market_001';
+const PENDING_CAPTURE_ID = 'pending-capture';
 const SCHEMA_VERSION = '0.1.0' as const;
 
 const actionMap: Record<StudentAction, CoreStudentAction> = {
@@ -74,6 +76,23 @@ function toCaptureView(lesson: CoreLesson, health: HealthSummaryView): CaptureVi
     // the short-lived local preview and Core Backend owns the uploaded bytes.
     images: [],
     health,
+    providerMode: 'real',
+    // Session creation is an Agent A Stage 08 runtime capability, not part of
+    // the Stage 04 Core API currently available on the laptop.
+    canConfirm: false,
+  };
+}
+
+function pendingCaptureView(health: HealthSummaryView): CaptureViewModel {
+  return {
+    lessonId: PENDING_CAPTURE_ID,
+    title: '等待教材分析',
+    description: 'Core Backend 已就緒；請先拍攝或選擇一頁教材，再送出分析。',
+    reviewStatus: 'pending',
+    images: [],
+    health,
+    providerMode: 'real',
+    canConfirm: false,
   };
 }
 
@@ -97,7 +116,14 @@ function fixtureCaptureView(): CaptureViewModel {
         { service: 'Local RAG', status: 'degraded', device: 'laptop', lastError: 'fixture 模式不使用 RAG。' },
       ],
     },
+    providerMode: 'fixture',
+    canConfirm: false,
   };
+}
+
+function providerModeFromHeader(value: string | null): CaptureProviderMode {
+  if (value === 'fixture' || value === 'fixture-fallback' || value === 'mock') return value;
+  return 'real';
 }
 
 function toProgress(progress: number): { readonly label: string; readonly value: number } {
@@ -170,6 +196,14 @@ export class RealAdapter implements FrontendAdapter {
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
+    const result = await this.requestWithResponse<T>(path, init);
+    return result.payload;
+  }
+
+  private async requestWithResponse<T>(
+    path: string,
+    init?: RequestInit,
+  ): Promise<{ readonly payload: T; readonly response: Response }> {
     const headers = new Headers(init?.headers);
     headers.set('Accept', 'application/json');
     const isMultipart = typeof FormData !== 'undefined' && init?.body instanceof FormData;
@@ -178,7 +212,7 @@ export class RealAdapter implements FrontendAdapter {
     }
     const response = await fetch(this.url(path), { ...init, headers });
     if (!response.ok) throw await adapterErrorFromResponse(response);
-    return (await response.json()) as T;
+    return { payload: (await response.json()) as T, response };
   }
 
   private async getHealth(signal?: AbortSignal): Promise<HealthSummaryView> {
@@ -201,11 +235,9 @@ export class RealAdapter implements FrontendAdapter {
   }
 
   async getCapture(): Promise<CaptureViewModel> {
-    const [lesson, health] = await Promise.all([
-      this.getLesson(DEMO_LESSON_ID),
-      this.getHealth(),
-    ]);
-    return toCaptureView(lesson, health);
+    // Stage 04 runtime exposes health and analyze only. Do not probe the
+    // future Stage 08 lesson/session routes just to render the capture page.
+    return pendingCaptureView(await this.getHealth());
   }
 
   async getCaptureFallback(): Promise<CaptureViewModel> {
@@ -217,15 +249,18 @@ export class RealAdapter implements FrontendAdapter {
     formData.append('image', image.blob, image.fileName);
     formData.append('language', 'nan-TW');
     formData.append('use_fixture_on_failure', 'true');
-    const [lesson, health] = await Promise.all([
-      this.request<CoreAnalyzeLessonResponse>('/api/lessons/analyze', {
+    const [analysis, health] = await Promise.all([
+      this.requestWithResponse<CoreAnalyzeLessonResponse>('/api/lessons/analyze', {
         method: 'POST',
         body: formData,
         signal,
       }),
       this.getHealth(signal),
     ]);
-    return toCaptureView(lesson, health);
+    return {
+      ...toCaptureView(analysis.payload, health),
+      providerMode: providerModeFromHeader(analysis.response.headers.get('X-Provider-Mode')),
+    };
   }
 
   async confirmLesson(lessonId: string): Promise<{ readonly sessionId: string }> {

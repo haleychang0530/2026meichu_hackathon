@@ -79,6 +79,8 @@ export interface CaptureImageView {
   readonly label: string;
 }
 
+export type CaptureProviderMode = 'mock' | 'real' | 'fixture' | 'fixture-fallback';
+
 export interface CaptureViewModel {
   readonly lessonId: string;
   readonly title: string;
@@ -86,6 +88,9 @@ export interface CaptureViewModel {
   readonly reviewStatus: 'pending' | 'approved' | 'rejected';
   readonly images: readonly CaptureImageView[];
   readonly health: HealthSummaryView;
+  readonly providerMode: CaptureProviderMode;
+  /** Stage 08 owns the runtime session-confirmation endpoint. */
+  readonly canConfirm: boolean;
 }
 
 export type StudentAction = 'listen' | 'answer' | 'hint' | 'pause';

@@ -13,6 +13,10 @@ function handleInternalLink(event: MouseEvent<HTMLAnchorElement>, path: string):
 }
 
 export function AppShell({ children, currentLabel }: AppShellProps) {
+  const runtimeLabel = import.meta.env.VITE_DATA_MODE === 'real'
+    ? 'Real adapter · Core Backend is the source of truth'
+    : 'Mock mode · server-side session remains the future source of truth';
+
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -26,7 +30,7 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
         </nav>
       </header>
       {children}
-      <footer className="site-footer">Mock mode · server-side session remains the future source of truth</footer>
+      <footer className="site-footer">{runtimeLabel}</footer>
     </div>
   );
 }

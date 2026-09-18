@@ -4,16 +4,18 @@
 
 ```text
 Stage: Agent B Stage 03
-Status: partial
+Status: done
 Branch: codex/agentB_stage03
-Base: origin/main (2026-09-18)
+Base: origin/main @ c9d5106 (Agent A 01–04 and Agent B Stage 04 merged)
 Contract: Core API v0.1.0
 ```
 
 前端 Camera／檔案備援、影像品質提示、方向校正、EXIF 清理、有界壓縮、
-multipart adapter 與 Capture page 流程已完成。Agent A Stage 04 的 Core
-Backend runtime handler 尚未在目前 base 提供，因此真實 HTTP upload 與 MI300
-端到端結果仍待接上後補測；前端沒有猜測或另造 API schema。
+multipart adapter 與 Capture page 流程已完成，並已接上 Agent A Stage 04 的
+`POST /api/lessons/analyze` runtime handler。Real adapter 會先以
+`GET /api/health` 建立 capture 入口，保留 `X-Provider-Mode`，並在 Agent A
+Stage 08 session API 尚未提供前停用建立 session 按鈕；前端沒有猜測或另造
+API schema。
 
 ## Changed files
 
@@ -21,9 +23,9 @@ Backend runtime handler 尚未在目前 base 提供，因此真實 HTTP upload �
 - `apps/web/src/capture/imageProcessing.ts`：orientation-aware decode、canvas crop、EXIF 清理、有界 JPEG 壓縮、quality metrics、video frame capture 與 object URL cleanup。
 - `apps/web/src/capture/CameraCapture.tsx`：Camera 權限、預覽、切換裝置、拍照、檔案上傳、品質覆寫、重拍與鍵盤操作。
 - `apps/web/src/pages/CapturePage.tsx`：送至 Core Backend、取消、30 秒逾時、重試與明確離線 fixture。
-- `apps/web/src/adapters/adapter.ts`、`mockAdapter.ts`、`realAdapter.ts`：共用 analyze/fallback 介面與 v0.1 multipart request。
-- `apps/web/src/types/viewModels.ts`、`apps/web/src/styles.css`、`apps/web/README.md`。
-- `apps/web/src/capture/*.test.ts`：幾何與品質單元測試。
+- `apps/web/src/adapters/adapter.ts`、`mockAdapter.ts`、`realAdapter.ts`：共用 analyze/fallback 介面、v0.1 multipart request、provider mode 與 Stage 04 capture entrypoint。
+- `apps/web/src/types/viewModels.ts`、`apps/web/src/styles.css`、`apps/web/src/components/AppShell.tsx`、`apps/web/index.html`、`apps/web/README.md`。
+- `apps/web/src/adapters/realAdapter.test.ts`、`apps/web/src/capture/*.test.ts`：API mapping、provider header、幾何與品質單元測試。
 
 Canonical OpenAPI／JSON Schema 與 generated types 沒有修改；`analyzeLesson`
 已由現有 `packages/contracts/openapi/v0.1/core-api.openapi.json` 產生的
@@ -39,9 +41,23 @@ npm run build
 npm run dev
 ```
 
-Mock mode 是預設值。要測試 multipart adapter，使用 `VITE_DATA_MODE=real`
-啟動前端，並把 `VITE_CORE_API_BASE_URL` 指到筆電 Core Backend；Stage 04
-handler 完成後，在 `/capture` 按「開始預覽」或使用檔案上傳即可進行實機 smoke。
+Mock mode 是預設值。要測試 Stage 03 real multipart adapter，先啟動 Core
+demo，再以 `VITE_DATA_MODE=real` 與 `VITE_CORE_API_BASE_URL` 啟動前端：
+
+```powershell
+$env:CORE_PROFILE = 'demo'
+$env:CORE_DATA_DIR = (Resolve-Path 'apps/core-api').Path + '\.runtime\demo'
+Set-Location apps/core-api
+& .\.venv\Scripts\python.exe -m core_api
+
+$env:VITE_DATA_MODE = 'real'
+$env:VITE_CORE_API_BASE_URL = 'http://127.0.0.1:8000'
+npm --prefix apps/web run dev -- --host 127.0.0.1 --port 5173
+```
+
+在 `/capture` 使用相機或檔案備援即可送出 multipart；Stage 04 demo 會以
+fixture 回傳並在頁面標示來源。Lesson confirmation/session creation 仍由
+Agent A Stage 08 提供。
 
 ## Image limits and privacy
 
@@ -59,13 +75,18 @@ handler 完成後，在 `/capture` 按「開始預覽」或使用檔案上傳即
 
 Results on the pinned Node/npm toolchain:
 
-- `npm run test`：pass，6 test files／14 tests。
+- `npm run test`：pass，7 test files／18 tests。
 - `npm run typecheck`：pass，TypeScript strict check。
 - `npm run build`：pass，Vite production build。
 - `npm run contracts:generate`：pass，generated Core API output unchanged。
 - pinned `jsonschema[format]==4.17.3` contract suite：pass，7 schemas、3
   OpenAPI documents／45 responses、18 schema fixtures、10 student-safe
   fixtures。
+- Core API `python -m unittest discover -s tests -v`：pass，14 tests。
+- Synthetic JPEG HTTP smoke：`GET /api/health` 200、`POST /api/lessons/analyze` 200、
+  `X-Provider-Mode: fixture`、request ID echoed，upload directory empty after request。
+- Browser smoke on `http://127.0.0.1:5173/capture` with real adapter：Core health
+  and Stage 04 pending-capture entry rendered; CORS passed on the contract port.
 - `git diff --check`：pass；Git only reports the repository's normal LF／CRLF
   conversion warnings on Windows。
 
@@ -73,8 +94,9 @@ The global Python environment currently has `jsonschema 4.26.0`; running the
 contract suite without the repository-pinned dependency fails on the existing
 `$defs/familiarity` resolver compatibility issue. The pinned temporary test
 environment passes. These automated tests do not claim real device permission
-or backend latency. Camera permission/stream smoke should be repeated in the
-actual demo browser after the runtime handler is available.
+or backend latency. Camera permission/stream and actual file-picker smoke still
+require the demo laptop's user gesture; synthetic HTTP and real-adapter
+capture-entry checks are complete.
 
 ## Accessibility checks
 
@@ -101,11 +123,10 @@ actual demo browser after the runtime handler is available.
 
 ## Known limits and next action
 
-- Agent A Stage 04 runtime handler is not on this branch, so real multipart HTTP
-  smoke, backend request-id behavior, temporary upload deletion, and MI300
-  offline responses remain pending.
 - The default crop is the full page; the processing API accepts a normalized
   crop rectangle, while a mouse-drawn crop editor is intentionally deferred so
   the default path does not hide small text.
-- Actual Edge/Chrome permission and camera-device switching should be manually
-  verified on the demo laptop, followed by a backend end-to-end upload check.
+- The demo Core provider intentionally returns `fixture`; a live MI300 provider
+  smoke remains dependent on the trusted VLM endpoint and is not claimed here.
+- Agent A Stage 08 must add lesson/session runtime routes before the real-mode
+  capture page can enable `確認教材並開始`.

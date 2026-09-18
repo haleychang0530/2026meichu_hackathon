@@ -60,6 +60,8 @@ export class MockAdapter implements FrontendAdapter {
         { src: '/lesson-images/lesson-weather.svg', alt: '太陽、雲朵與雨滴的合成教材圖', label: '天氣觀察' },
       ],
       health: this.health,
+      providerMode: 'mock',
+      canConfirm: true,
     };
   }
 

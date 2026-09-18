@@ -12,6 +12,13 @@ import { navigateTo } from '../app/routing';
 const ANALYSIS_TIMEOUT_MS = 30_000;
 type AnalysisStatus = 'idle' | 'uploading' | 'complete' | 'cancelled' | 'timed_out';
 
+function providerModeMessage(mode: CaptureViewModel['providerMode']): string {
+  if (mode === 'real') return '教材分析完成；Core Backend 已回傳即時分析結果。';
+  if (mode === 'fixture-fallback') return 'MI300 暫時不可用；Core Backend 已回傳明確標示的 fixture fallback。';
+  if (mode === 'fixture') return '目前使用明確標示的離線合成教材；這不是即時 VLM 分析結果。';
+  return '目前使用前端 Mock 教材流程。';
+}
+
 export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) {
   const [view, setView] = useState<CaptureViewModel | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -79,7 +86,7 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
       if (controller.signal.aborted) return;
       setView(result);
       setAnalysisStatus('complete');
-      setAnalysisMessage('教材分析完成，請在下方檢查待確認內容。');
+      setAnalysisMessage(providerModeMessage(result.providerMode));
     } catch (nextError) {
       if (controller.signal.aborted) {
         if (timedOutRef.current) {
@@ -213,11 +220,22 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
                   ))}
                 </div>
               ) : (
-                <EmptyState message="目前沒有可預覽的圖片，仍可使用這份教材建立 session。" />
+                <EmptyState message={view.canConfirm
+                  ? '目前沒有可預覽的圖片，仍可使用這份教材建立 session。'
+                  : '目前沒有可預覽的圖片；Core session 建立會在 Agent A Stage 08 接上。'} />
               )}
+              <p className="analysis-provider" role="status">
+                分析來源：{view.providerMode === 'real'
+                  ? 'Core Backend real'
+                  : view.providerMode === 'fixture-fallback'
+                    ? 'Core Backend fixture fallback'
+                    : view.providerMode === 'fixture'
+                      ? 'Core Backend fixture'
+                      : '前端 Mock'}
+              </p>
               <div className="button-row">
-                <button className="button" type="button" disabled={busy} onClick={confirmLesson}>
-                  {busy ? '建立 session……' : '確認教材並開始'}
+                <button className="button" type="button" disabled={busy || !view.canConfirm} onClick={confirmLesson}>
+                  {busy ? '建立 session……' : view.canConfirm ? '確認教材並開始' : '等待 Core session API'}
                 </button>
                 <button className="button secondary" type="button" onClick={() => navigateTo('/setup')}>返回設定</button>
               </div>

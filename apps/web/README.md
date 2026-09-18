@@ -24,8 +24,10 @@ Blur and exposure are warnings that require an explicit user override. Invalid
 type, low resolution, and over-size output are blocking checks; Core Backend
 must repeat validation. The current v0.1 multipart contract is
 `POST /api/lessons/analyze` with `image`, `language=nan-TW`, and
-`use_fixture_on_failure=true`. The runtime handler is still Agent A Stage 04
-work, so Mock mode and the clearly-labelled frontend fixture remain available.
+`use_fixture_on_failure=true`. Agent A Stage 04 now provides the runtime
+handler. The real adapter uses the Stage 04 health endpoint as its capture
+entrypoint, reports `X-Provider-Mode`, and keeps the Stage 08 session button
+disabled until the session API exists.
 
 Run the Stage 03 checks from the repository root:
 
@@ -35,6 +37,18 @@ npm run test
 npm run typecheck
 npm run build
 ```
+
+To run the real Stage 03 upload path against the laptop Core Backend:
+
+```powershell
+$env:VITE_DATA_MODE = 'real'
+$env:VITE_CORE_API_BASE_URL = 'http://127.0.0.1:8000'
+npm run dev
+```
+
+Start Core in `demo` profile first. The capture page can upload and analyze a
+prepared image now; lesson confirmation and session creation remain Agent A
+Stage 08 runtime work.
 
 ## Stage 04 speech wiring
 

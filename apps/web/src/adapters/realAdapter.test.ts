@@ -97,10 +97,14 @@ const summaryPayload = {
   familiarity: [{ concept: '市場', status: 'developing' }],
 };
 
-function jsonResponse(payload: unknown, status = 200): Response {
+function jsonResponse(
+  payload: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
   });
 }
 
@@ -122,7 +126,7 @@ describe('RealAdapter', () => {
         expect(image).toBeInstanceOf(Blob);
         expect((image as File).name).toBe('lesson.jpg');
         expect((image as Blob).type).toBe('image/jpeg');
-        return jsonResponse(lessonPayload);
+        return jsonResponse(lessonPayload, 200, { 'X-Provider-Mode': 'fixture-fallback' });
       }
       throw new Error(`Unexpected URL: ${url}`);
     });
@@ -146,6 +150,25 @@ describe('RealAdapter', () => {
 
     expect(view.lessonId).toBe('lesson_market_001');
     expect(view.title).toBe('去市場');
+    expect(view.providerMode).toBe('fixture-fallback');
+    expect(view.canConfirm).toBe(false);
+  });
+
+  it('uses the Stage 04 health route as the capture entrypoint before Stage 08 routes exist', async () => {
+    const calls: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith('/api/health')) return jsonResponse(healthPayload);
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const view = await new RealAdapter('http://127.0.0.1:8000').getCapture();
+
+    expect(view.lessonId).toBe('pending-capture');
+    expect(view.canConfirm).toBe(false);
+    expect(view.providerMode).toBe('real');
+    expect(calls).toEqual(['http://127.0.0.1:8000/api/health']);
   });
 
   it('maps the canonical control action and sends no query-string action', async () => {

@@ -91,6 +91,7 @@ p { line-height: 1.65; }
 .student-card { max-width: 58rem; }
 .prompt { padding: 1.25rem; border-radius: .6rem; color: #102a43; background: #eaf3ff; font-size: clamp(1.25rem, 3vw, 1.8rem); font-weight: 700; }
 .live-message { min-height: 3rem; padding: .8rem; border-left: .35rem solid #68b984; background: #f0fff4; }
+.analysis-provider { padding: .7rem .8rem; border-left: .35rem solid #2f80ed; background: #edf6ff; font-weight: 700; }
 .speech-status { min-height: 2.6rem; padding: .7rem .8rem; border-left: .35rem solid #805ad5; background: #faf5ff; font-weight: 700; }
 .mode-switch { max-width: 58rem; }
 .two-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
