@@ -54,6 +54,37 @@ p { line-height: 1.65; }
 .lesson-card { margin: 0; border: 1px solid #cbd5e1; border-radius: .6rem; overflow: hidden; background: #f8fafc; }
 .lesson-card img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
 .lesson-card figcaption { padding: .75rem; font-weight: 750; }
+.camera-card { border-top: .45rem solid #2f80ed; }
+.camera-status { min-height: 2.8rem; padding: .75rem 1rem; border-left: .35rem solid #2f80ed; background: #edf6ff; }
+.camera-preview-wrap { display: grid; min-height: 16rem; place-items: center; margin: 1rem 0; border: 2px dashed #90cdf4; border-radius: .6rem; background: #102a43; overflow: hidden; }
+.camera-preview { display: block; width: 100%; max-height: 32rem; object-fit: contain; background: #102a43; }
+.camera-placeholder { display: grid; gap: .5rem; max-width: 28rem; padding: 2rem; color: #fff; text-align: center; }
+.camera-placeholder span { line-height: 1.5; }
+.camera-controls { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+.camera-device-row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-top: 1rem; }
+.camera-device-row label { font-weight: 750; }
+.camera-device-row select { min-height: 3rem; min-width: min(100%, 24rem); padding: .5rem .7rem; border: 2px solid #829ab1; border-radius: .45rem; background: #fff; }
+.file-button { position: relative; overflow: hidden; }
+.file-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.camera-fallback { padding: .75rem 1rem; border-left: .35rem solid #d69e2e; color: #744210; background: #fffaf0; }
+.photo-review { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #cbd5e1; }
+.photo-review h3 { color: #102a43; }
+.photo-review-grid { display: grid; grid-template-columns: minmax(12rem, .9fr) minmax(16rem, 1.1fr); gap: 1.25rem; align-items: start; }
+.photo-preview { display: block; width: 100%; max-height: 24rem; object-fit: contain; border: 1px solid #cbd5e1; border-radius: .5rem; background: #102a43; }
+.quality-summary { padding: .75rem 1rem; border-left: .35rem solid #68b984; background: #f0fff4; }
+.quality-warning { border-color: #d69e2e; background: #fffaf0; }
+.quality-rejected { border-color: #c53030; background: #fff5f5; }
+.quality-issues { padding-left: 1.4rem; }
+.quality-issues li { margin: .7rem 0; line-height: 1.5; }
+.quality-override { display: flex; gap: .6rem; align-items: flex-start; margin: 1rem 0; font-weight: 650; }
+.quality-override input { width: 1.2rem; height: 1.2rem; margin-top: .15rem; }
+.crop-control { display: grid; gap: .4rem; margin: 1rem 0; }
+.crop-control label { font-weight: 750; }
+.crop-control select { width: min(100%, 28rem); min-height: 2.8rem; padding: .5rem .7rem; border: 2px solid #829ab1; border-radius: .45rem; background: #fff; }
+.crop-control span { color: #486581; font-size: .92rem; }
+.selected-upload { padding: .75rem 1rem; border: 1px solid #90cdf4; border-radius: .5rem; background: #f0f8ff; }
+.analysis-progress { display: block; width: 100%; height: .9rem; margin: 1rem 0; accent-color: #145da0; }
+.camera-note { margin-bottom: 0; color: #486581; font-size: .92rem; }
 .progress-line { display: flex; justify-content: space-between; gap: 1rem; font-weight: 750; }
 .progress-track { height: .8rem; margin: .7rem 0 1.5rem; border-radius: 999px; background: #dbeafe; overflow: hidden; }
 .progress-track span { display: block; height: 100%; border-radius: inherit; background: #145da0; }
@@ -76,4 +107,5 @@ code { padding: .1rem .3rem; border-radius: .3rem; background: #edf2f7; font-fam
   .service-list { margin-top: 1rem; }
   .button-grid, .two-column { grid-template-columns: 1fr; }
   .detail-list > div { grid-template-columns: 1fr; gap: .25rem; }
+  .photo-review-grid { grid-template-columns: 1fr; }
 }

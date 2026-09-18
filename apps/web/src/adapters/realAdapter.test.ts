@@ -107,6 +107,47 @@ function jsonResponse(payload: unknown, status = 200): Response {
 describe('RealAdapter', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('sends the prepared image as multipart data to Core Backend without a JSON content type', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/health')) return jsonResponse(healthPayload);
+      if (url.endsWith('/api/lessons/analyze')) {
+        expect(init?.method).toBe('POST');
+        expect(new Headers(init?.headers).get('content-type')).toBeNull();
+        expect(init?.body).toBeInstanceOf(FormData);
+        const form = init?.body as FormData;
+        expect(form.get('language')).toBe('nan-TW');
+        expect(form.get('use_fixture_on_failure')).toBe('true');
+        const image = form.get('image');
+        expect(image).toBeInstanceOf(Blob);
+        expect((image as File).name).toBe('lesson.jpg');
+        expect((image as Blob).type).toBe('image/jpeg');
+        return jsonResponse(lessonPayload);
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const view = await new RealAdapter('http://127.0.0.1:8000').analyzeLesson({
+      blob: new Blob(['synthetic image bytes'], { type: 'image/jpeg' }),
+      fileName: 'lesson.jpg',
+      mimeType: 'image/jpeg',
+      width: 1280,
+      height: 720,
+      sourceBytes: 22,
+      quality: {
+        status: 'good',
+        width: 1280,
+        height: 720,
+        bytes: 22,
+        mimeType: 'image/jpeg',
+        issues: [],
+      },
+    });
+
+    expect(view.lessonId).toBe('lesson_market_001');
+    expect(view.title).toBe('去市場');
+  });
+
   it('maps the canonical control action and sends no query-string action', async () => {
     const calls: Array<{ readonly url: string; readonly init?: RequestInit }> = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {

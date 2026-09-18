@@ -5,6 +5,7 @@ import type {
   CaptureViewModel,
   HealthStatus,
   HealthSummaryView,
+  LessonImageUpload,
   ObserverSessionViewModel,
   ServiceHealthView,
   SetupViewModel,
@@ -59,6 +60,29 @@ export class MockAdapter implements FrontendAdapter {
         { src: '/lesson-images/lesson-weather.svg', alt: '太陽、雲朵與雨滴的合成教材圖', label: '天氣觀察' },
       ],
       health: this.health,
+    };
+  }
+
+  async getCaptureFallback(): Promise<CaptureViewModel> {
+    return this.getCapture();
+  }
+
+  async analyzeLesson(image: LessonImageUpload, signal?: AbortSignal): Promise<CaptureViewModel> {
+    if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+    if (image.quality.status === 'rejected') {
+      throw new AdapterError({
+        code: 'IMAGE_QUALITY_LOW',
+        message: '照片品質未達到教材分析的最低要求。',
+        retryable: false,
+        fallback: 'manual_review',
+        request_id: null,
+      });
+    }
+    return {
+      ...(await this.getCapture()),
+      description: image.quality.status === 'warning'
+        ? 'Mock 已收到照片；這張照片有可覆寫的品質提醒。'
+        : 'Mock 已收到照片；目前使用離線合成教材回應。',
     };
   }
 

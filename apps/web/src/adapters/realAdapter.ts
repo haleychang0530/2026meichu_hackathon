@@ -4,6 +4,7 @@ import type { components, operations } from '../generated/api';
 import type {
   CaptureViewModel,
   HealthSummaryView,
+  LessonImageUpload,
   ObserverSessionViewModel,
   ServiceHealthView,
   SetupViewModel,
@@ -12,6 +13,7 @@ import type {
 } from '../types/viewModels';
 
 type CoreHealthResponse = operations['getHealth']['responses'][200]['content']['application/json'];
+type CoreAnalyzeLessonResponse = operations['analyzeLesson']['responses'][200]['content']['application/json'];
 type CoreLesson = components['schemas']['Lesson'];
 type CoreSession = components['schemas']['Session'];
 type CoreTurnResult = components['schemas']['TurnResult'];
@@ -59,6 +61,42 @@ function toHealthSummary(payload: CoreHealthResponse): HealthSummaryView {
     status: payload.status,
     checkedAt,
     services,
+  };
+}
+
+function toCaptureView(lesson: CoreLesson, health: HealthSummaryView): CaptureViewModel {
+  return {
+    lessonId: lesson.lesson_id,
+    title: lesson.topic,
+    description: lesson.scene,
+    reviewStatus: lesson.review_status,
+    // v0.1 Lesson intentionally has no image URL. The Camera component owns
+    // the short-lived local preview and Core Backend owns the uploaded bytes.
+    images: [],
+    health,
+  };
+}
+
+function fixtureCaptureView(): CaptureViewModel {
+  const checkedAt = new Date().toISOString();
+  return {
+    lessonId: 'fixture-lesson',
+    title: '離線教材示範：水果攤',
+    description: 'Core Backend 或 MI300 暫時離線；這是明確標示的合成教材，不代表即時分析結果。',
+    reviewStatus: 'pending',
+    images: [
+      { src: '/lesson-images/lesson-market.svg', alt: '沒有角色的水果攤合成教材圖', label: '水果攤合成圖' },
+      { src: '/lesson-images/lesson-shapes.svg', alt: '圓形、三角形與方形的合成教材圖', label: '形狀合成圖' },
+    ],
+    health: {
+      status: 'degraded',
+      checkedAt,
+      services: [
+        { service: 'Core Backend', status: 'offline', device: 'laptop', lastError: '目前使用前端離線 fixture。' },
+        { service: 'MI300 VLM', status: 'offline', device: 'mi300', lastError: '尚未取得即時分析結果。' },
+        { service: 'Local RAG', status: 'degraded', device: 'laptop', lastError: 'fixture 模式不使用 RAG。' },
+      ],
+    },
   };
 }
 
@@ -134,7 +172,8 @@ export class RealAdapter implements FrontendAdapter {
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     const headers = new Headers(init?.headers);
     headers.set('Accept', 'application/json');
-    if (init?.body && !headers.has('Content-Type')) {
+    const isMultipart = typeof FormData !== 'undefined' && init?.body instanceof FormData;
+    if (init?.body && !headers.has('Content-Type') && !isMultipart) {
       headers.set('Content-Type', 'application/json');
     }
     const response = await fetch(this.url(path), { ...init, headers });
@@ -142,8 +181,8 @@ export class RealAdapter implements FrontendAdapter {
     return (await response.json()) as T;
   }
 
-  private async getHealth(): Promise<HealthSummaryView> {
-    const payload = await this.request<CoreHealthResponse>('/api/health');
+  private async getHealth(signal?: AbortSignal): Promise<HealthSummaryView> {
+    const payload = await this.request<CoreHealthResponse>('/api/health', signal ? { signal } : undefined);
     return toHealthSummary(payload);
   }
 
@@ -166,14 +205,27 @@ export class RealAdapter implements FrontendAdapter {
       this.getLesson(DEMO_LESSON_ID),
       this.getHealth(),
     ]);
-    return {
-      lessonId: lesson.lesson_id,
-      title: lesson.topic,
-      description: lesson.scene,
-      reviewStatus: lesson.review_status,
-      images: [],
-      health,
-    };
+    return toCaptureView(lesson, health);
+  }
+
+  async getCaptureFallback(): Promise<CaptureViewModel> {
+    return fixtureCaptureView();
+  }
+
+  async analyzeLesson(image: LessonImageUpload, signal?: AbortSignal): Promise<CaptureViewModel> {
+    const formData = new FormData();
+    formData.append('image', image.blob, image.fileName);
+    formData.append('language', 'nan-TW');
+    formData.append('use_fixture_on_failure', 'true');
+    const [lesson, health] = await Promise.all([
+      this.request<CoreAnalyzeLessonResponse>('/api/lessons/analyze', {
+        method: 'POST',
+        body: formData,
+        signal,
+      }),
+      this.getHealth(signal),
+    ]);
+    return toCaptureView(lesson, health);
   }
 
   async confirmLesson(lessonId: string): Promise<{ readonly sessionId: string }> {

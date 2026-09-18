@@ -1,5 +1,6 @@
 import type {
   CaptureViewModel,
+  LessonImageUpload,
   ObserverSessionViewModel,
   SetupViewModel,
   StudentAction,
@@ -10,6 +11,8 @@ import type { components } from '../generated/api';
 export interface FrontendAdapter {
   getSetup(): Promise<SetupViewModel>;
   getCapture(): Promise<CaptureViewModel>;
+  getCaptureFallback(): Promise<CaptureViewModel>;
+  analyzeLesson(image: LessonImageUpload, signal?: AbortSignal): Promise<CaptureViewModel>;
   confirmLesson(lessonId: string): Promise<{ readonly sessionId: string }>;
   getStudentSession(sessionId: string): Promise<StudentSessionViewModel>;
   submitStudentAction(

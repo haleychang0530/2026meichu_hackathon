@@ -14,6 +14,58 @@ export interface HealthSummaryView {
   readonly services: readonly ServiceHealthView[];
 }
 
+export type ImageQualityStatus = 'good' | 'warning' | 'rejected';
+
+export type ImageQualityIssueCode =
+  | 'unsupported_type'
+  | 'file_too_large'
+  | 'resolution_too_low'
+  | 'too_blurry'
+  | 'too_dark'
+  | 'too_bright';
+
+export interface ImageQualityMetrics {
+  readonly meanLuminance: number;
+  readonly darkPixelRatio: number;
+  readonly brightPixelRatio: number;
+  readonly sharpness: number;
+}
+
+export interface ImageQualityIssue {
+  readonly code: ImageQualityIssueCode;
+  readonly severity: 'blocking' | 'warning';
+  readonly message: string;
+  readonly suggestion: string;
+}
+
+export interface ImageQualityReport {
+  readonly status: ImageQualityStatus;
+  readonly width: number;
+  readonly height: number;
+  readonly bytes: number;
+  readonly mimeType: string;
+  readonly issues: readonly ImageQualityIssue[];
+  readonly metrics?: ImageQualityMetrics;
+}
+
+/**
+ * A browser-prepared image. The Core Backend receives only `blob`; previewUrl
+ * is a short-lived object URL owned by the Camera component.
+ */
+export interface LessonImageUpload {
+  readonly blob: Blob;
+  readonly fileName: string;
+  readonly mimeType: string;
+  readonly width: number;
+  readonly height: number;
+  readonly sourceBytes: number;
+  readonly quality: ImageQualityReport;
+}
+
+export interface CaptureAsset extends LessonImageUpload {
+  readonly previewUrl: string;
+}
+
 export interface SetupViewModel {
   readonly title: string;
   readonly description: string;
