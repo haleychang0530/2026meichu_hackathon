@@ -191,8 +191,9 @@ weight, cache, database, or runtime RAG index is committed.
   explicit repository-owner authorization.
 - After branch creation, `main` advanced to `2009d91622c2909abbe870391a06d92445631fd8`
   through Agent B PR #13. The four upstream files are under `apps/web` and
-  `services/speech-local`; they do not overlap this Stage 08 diff. A final
-  `git fetch --prune` confirmed the branch is four commits ahead of the
-  recorded branch base at the time of the audit, with no working-tree or
-  whitespace conflicts; the later handoff-only metadata commits do not change
-  the implementation or contract files.
+  `services/speech-local`; they do not overlap this Stage 08 diff. The final
+  audit has `origin/main=2009d91`, `HEAD=538816e`, and `git rev-list
+  --left-right --count HEAD...origin/main = 5 2`. A read-only
+  `git merge-tree --write-tree origin/main HEAD` completed successfully, and
+  `git diff --check` is clean; the later handoff-only metadata commits do not
+  change the implementation or contract files.
