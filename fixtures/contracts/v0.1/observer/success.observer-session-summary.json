@@ -19,7 +19,10 @@
       "progress": 0.4,
       "latency_ms": { "asr": 820, "backend": 95, "vlm": null, "tts": 310, "total": 1225 },
       "asr_device": "cpu",
-      "fallbacks": ["asr_cpu"]
+      "fallbacks": ["asr_cpu"],
+      "phase": "comprehension",
+      "revision": 2,
+      "last_event_id": 2
     }
   ],
   "concepts_to_review": ["欲去"],
@@ -27,5 +30,35 @@
   "familiarity": [
     { "concept": "市場", "status": "developing" },
     { "concept": "欲去", "status": "new" }
-  ]
+  ],
+  "evidence": [
+    {
+      "source_id": "moe-dict-market",
+      "title": "教育部臺灣台語常用詞辭典",
+      "excerpt": "市場：tshī-tiûnn",
+      "locator": "entry/市場"
+    }
+  ],
+  "health": [
+    {
+      "schema_version": "0.1.0",
+      "service": "core-api",
+      "status": "ready",
+      "device": "Ryzen AI 9 laptop",
+      "model_revision": null,
+      "queue_depth": 0,
+      "last_error": null,
+      "checked_at": "2026-09-17T10:00:00+08:00"
+    }
+  ],
+  "review_status": "pending",
+  "confidence": 0.91,
+  "answer_evidence": [
+    "教師檢視依據：畫面中的阿媽與菜販互動，題目要辨識正在買菜的人。"
+  ],
+  "vlm_model_revision": "qwen3-vl-32b-instruct-fp8@candidate-1",
+  "rag_index_revision": "rag-demo-2026-09-17",
+  "phase": "comprehension",
+  "revision": 2,
+  "last_event_id": 2
 }

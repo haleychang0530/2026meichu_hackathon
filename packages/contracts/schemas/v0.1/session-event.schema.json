@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hear-our-language.local/contracts/v0.1/session-event.schema.json",
+  "title": "SessionEvent",
+  "description": "Replayable, student-safe event envelope used by the session SSE stream.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "session_id", "event", "request_id", "revision", "payload"],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "event_id": { "type": "integer", "minimum": 1 },
+    "session_id": { "type": "string", "pattern": "^session_[A-Za-z0-9_-]+$" },
+    "event": { "type": "string", "enum": ["session.created", "session.action", "turn.completed"] },
+    "request_id": { "type": "string", "minLength": 1 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "payload": { "type": "object", "additionalProperties": true }
+  }
+}

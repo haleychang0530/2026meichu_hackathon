@@ -1,0 +1,20 @@
+{
+  "fixture_id": "stage08-retry-recovery",
+  "description": "An unmatched answer uses the retry fallback, then the learner recovers through all activities.",
+  "lesson_id": "lesson_market_001",
+  "expected_final_phase": "complete",
+  "expected_final_progress": 1.0,
+  "steps": [
+    { "kind": "action", "action": "next" },
+    { "kind": "action", "action": "next" },
+    { "kind": "action", "action": "start_answer" },
+    { "kind": "turn", "transcript": "我不確定。", "expected_result": "retry" },
+    { "kind": "action", "action": "next" },
+    { "kind": "action", "action": "start_answer" },
+    { "kind": "turn", "transcript": "阿媽欲去市場買菜。", "expected_result": "correct" },
+    { "kind": "action", "action": "start_answer" },
+    { "kind": "turn", "transcript": "市場", "expected_result": "correct" },
+    { "kind": "action", "action": "start_answer" },
+    { "kind": "turn", "transcript": "欲", "expected_result": "correct" }
+  ]
+}

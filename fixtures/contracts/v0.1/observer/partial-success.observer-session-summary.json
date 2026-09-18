@@ -19,7 +19,10 @@
       "progress": 0.5,
       "latency_ms": { "asr": 910, "backend": 105, "vlm": null, "tts": 300, "total": 1315 },
       "asr_device": "cpu",
-      "fallbacks": ["asr_cpu"]
+      "fallbacks": ["asr_cpu"],
+      "phase": "hint",
+      "revision": 3,
+      "last_event_id": 3
     }
   ],
   "concepts_to_review": ["欲去"],
@@ -30,5 +33,24 @@
     { "concept": "阿媽", "status": "familiar" },
     { "concept": "市場", "status": "developing" },
     { "concept": "欲去", "status": "new" }
-  ]
+  ],
+  "evidence": [
+    {
+      "source_id": "moe-dict-market",
+      "title": "教育部臺灣台語常用詞辭典",
+      "excerpt": "市場：tshī-tiûnn",
+      "locator": "entry/市場"
+    }
+  ],
+  "health": [],
+  "review_status": "pending",
+  "confidence": 0.91,
+  "answer_evidence": [
+    "教師檢視依據：畫面中的阿媽與菜販互動，題目要辨識正在買菜的人。"
+  ],
+  "vlm_model_revision": "qwen3-vl-32b-instruct-fp8@candidate-1",
+  "rag_index_revision": "rag-demo-2026-09-17",
+  "phase": "hint",
+  "revision": 3,
+  "last_event_id": 3
 }

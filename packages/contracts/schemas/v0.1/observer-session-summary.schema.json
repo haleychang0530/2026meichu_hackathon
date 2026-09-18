@@ -15,7 +15,17 @@
     "turns",
     "concepts_to_review",
     "hint_history",
-    "familiarity"
+    "familiarity",
+    "evidence",
+    "health",
+    "review_status",
+    "confidence",
+    "answer_evidence",
+    "vlm_model_revision",
+    "rag_index_revision",
+    "phase",
+    "revision",
+    "last_event_id"
   ],
   "properties": {
     "schema_version": { "const": "0.1.0" },
@@ -43,7 +53,29 @@
     "familiarity": {
       "type": "array",
       "items": { "$ref": "#/$defs/familiarity" }
-    }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "$ref": "lesson.schema.json#/$defs/evidence_item" }
+    },
+    "health": {
+      "type": "array",
+      "items": { "$ref": "service-health.schema.json" }
+    },
+    "review_status": { "type": ["string", "null"], "enum": ["pending", "approved", "rejected", null] },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "answer_evidence": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "vlm_model_revision": { "type": ["string", "null"], "minLength": 1 },
+    "rag_index_revision": { "type": ["string", "null"], "minLength": 1 },
+    "phase": {
+      "type": "string",
+      "enum": ["introduction", "demonstration", "read_aloud", "comprehension", "hint", "review", "complete"]
+    },
+    "revision": { "type": "integer", "minimum": 0 },
+    "last_event_id": { "type": "integer", "minimum": 0 }
   },
   "$defs": {
     "hint": {

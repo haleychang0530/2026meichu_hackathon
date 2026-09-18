@@ -8,5 +8,8 @@
   "action": "request_hint",
   "feedback": "提示已準備完成。",
   "next_prompt": "請再說一次：阿媽欲去市場。",
-  "can_answer": false
+  "can_answer": false,
+  "phase": "hint",
+  "revision": 3,
+  "last_event_id": 3
 }

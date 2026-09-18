@@ -145,7 +145,10 @@
       "post": {
         "tags": ["sessions"],
         "operationId": "createSession",
-        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "parameters": [
+          { "$ref": "#/components/parameters/RequestId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -179,12 +182,28 @@
         }
       }
     },
+    "/api/sessions/{session_id}/snapshot": {
+      "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+      "get": {
+        "tags": ["sessions"],
+        "operationId": "getSessionSnapshot",
+        "description": "Returns the current student-safe snapshot after a reconnect or revision conflict.",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Session" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/api/sessions/{session_id}/turns": {
       "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
       "post": {
         "tags": ["sessions"],
         "operationId": "submitTurn",
-        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "parameters": [
+          { "$ref": "#/components/parameters/RequestId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/SessionRevision" }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -196,7 +215,8 @@
         "responses": {
           "200": { "$ref": "#/components/responses/TurnResult" },
           "400": { "$ref": "#/components/responses/Error" },
-          "404": { "$ref": "#/components/responses/Error" }
+          "404": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" }
         }
       }
     },
@@ -206,7 +226,11 @@
         "tags": ["sessions"],
         "operationId": "submitStudentAction",
         "description": "Dispatches a student-safe control action. Answer submission is intentionally excluded and must use /turns with a transcript.",
-        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "parameters": [
+          { "$ref": "#/components/parameters/RequestId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/SessionRevision" }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -228,11 +252,25 @@
       "get": {
         "tags": ["sessions"],
         "operationId": "streamSessionEvents",
+        "description": "Replayable SSE stream. Send Last-Event-ID or after to receive only events after the last applied event. Event ids are monotonic and payloads are safe for the student client.",
+        "parameters": [
+          { "$ref": "#/components/parameters/LastEventId" }
+        ],
         "responses": {
           "200": {
-            "description": "Server-sent events. Each data field is a JSON object with schema_version, event, request_id, and payload.",
+            "description": "Server-sent events. Each event id is a durable event_id and each data field is a JSON SessionEvent envelope. Empty backlogs produce a heartbeat comment.",
             "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
-            "content": { "text/event-stream": { "schema": { "type": "string" } } }
+            "content": {
+              "text/event-stream": {
+                "schema": { "type": "string" },
+                "examples": {
+                  "sessionAction": {
+                    "summary": "Durable event with reconnect id",
+                    "value": "id: 2\\nevent: session.action\\ndata: {\\\"schema_version\\\":\\\"0.1.0\\\",\\\"event_id\\\":2,\\\"session_id\\\":\\\"session_demo_001\\\",\\\"event\\\":\\\"session.action\\\",\\\"request_id\\\":\\\"00000000-0000-4000-8000-000000000402\\\",\\\"revision\\\":1,\\\"payload\\\":{}}\\n\\n"
+                  }
+                }
+              }
+            }
           },
           "404": { "$ref": "#/components/responses/Error" }
         }
@@ -285,7 +323,28 @@
     "parameters": {
       "RequestId": { "name": "X-Request-ID", "in": "header", "required": false, "schema": { "type": "string", "format": "uuid" } },
       "LessonId": { "name": "lesson_id", "in": "path", "required": true, "schema": { "type": "string" } },
-      "SessionId": { "name": "session_id", "in": "path", "required": true, "schema": { "type": "string" } }
+      "SessionId": { "name": "session_id", "in": "path", "required": true, "schema": { "type": "string" } },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "Stable key for safe retry. Reusing a key replays the original result; using it for another operation returns a conflict. If omitted, X-Request-ID is used as the key.",
+        "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "SessionRevision": {
+        "name": "X-Session-Revision",
+        "in": "header",
+        "required": false,
+        "description": "Optional optimistic-concurrency revision. A stale value returns SESSION_REVISION_CONFLICT with the current revision.",
+        "schema": { "type": "integer", "minimum": 0 }
+      },
+      "LastEventId": {
+        "name": "Last-Event-ID",
+        "in": "header",
+        "required": false,
+        "description": "Last durable SSE event applied by the client.",
+        "schema": { "type": "integer", "minimum": 0 }
+      }
     },
     "schemas": {
       "Lesson": { "$ref": "../../schemas/v0.1/lesson.schema.json" },
@@ -297,19 +356,8 @@
       "TurnSubmission": { "$ref": "../../schemas/v0.1/student-action.schema.json#/$defs/answer_submission" },
       "ServiceHealth": { "$ref": "../../schemas/v0.1/service-health.schema.json" },
       "Error": { "$ref": "../../schemas/v0.1/error.schema.json" },
-      "Session": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["schema_version", "session_id", "lesson_id", "state", "progress", "current_prompt"],
-        "properties": {
-          "schema_version": { "const": "0.1.0" },
-          "session_id": { "type": "string" },
-          "lesson_id": { "type": "string" },
-          "state": { "type": "string", "enum": ["IDLE", "SPEAKING", "LISTENING", "TRANSCRIBING", "EVALUATING", "RECOVERABLE_ERROR", "COMPLETE"] },
-          "progress": { "type": "number", "minimum": 0, "maximum": 1 },
-          "current_prompt": { "type": ["string", "null"] }
-        }
-      }
+      "Session": { "$ref": "../../schemas/v0.1/session.schema.json" },
+      "SessionEvent": { "$ref": "../../schemas/v0.1/session-event.schema.json" }
     },
     "responses": {
       "Lesson": {

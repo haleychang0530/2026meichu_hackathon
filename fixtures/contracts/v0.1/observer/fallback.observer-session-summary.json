@@ -19,12 +19,43 @@
       "progress": 0.4,
       "latency_ms": { "asr": 4000, "backend": 75, "vlm": null, "tts": null, "total": 4075 },
       "asr_device": "cpu",
-      "fallbacks": ["asr_cpu"]
+      "fallbacks": ["asr_cpu"],
+      "phase": "hint",
+      "revision": 2,
+      "last_event_id": 2
     }
   ],
   "concepts_to_review": ["欲去"],
   "hint_history": [],
   "familiarity": [
     { "concept": "欲去", "status": "new" }
-  ]
+  ],
+  "evidence": [],
+  "health": [
+    {
+      "schema_version": "0.1.0",
+      "service": "vlm-mi300",
+      "status": "offline",
+      "device": "MI300 96GB",
+      "model_revision": null,
+      "queue_depth": 0,
+      "last_error": {
+        "schema_version": "0.1.0",
+        "code": "VLM_OFFLINE",
+        "message": "MI300 VLM 無法連線，改用已快取教材或示範 fixture。",
+        "retryable": true,
+        "fallback": "cached_lesson",
+        "request_id": "00000000-0000-4000-8000-000000000301"
+      },
+      "checked_at": "2026-09-17T10:00:00+08:00"
+    }
+  ],
+  "review_status": "pending",
+  "confidence": 0.4,
+  "answer_evidence": [],
+  "vlm_model_revision": null,
+  "rag_index_revision": null,
+  "phase": "hint",
+  "revision": 2,
+  "last_event_id": 2
 }
