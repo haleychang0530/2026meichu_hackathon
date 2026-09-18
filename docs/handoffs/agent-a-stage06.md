@@ -5,7 +5,7 @@ Stage: Agent A Stage 06 — Hybrid retrieval, citation, and language normalizati
 Status: done
 Base: main @ 1233a43 (Agent A Stage 05 PR #8, Agent B Stage 03 PR #9, and Agent B Stage 05 PR #10 merged)
 Branch: codex/agentA-stage06-retrieval-normalization
-Pull request: pending final push
+Pull request: #11 — https://github.com/haleychang0530/2026meichu_hackathon/pull/11
 Schema/OpenAPI version: 0.1.0 / OpenAPI 3.1.0 (unchanged)
 Runtime host: Ryzen AI 9 laptop only
 ```
@@ -174,3 +174,12 @@ The Core count is recorded as 33 after the final configuration-boundary test.
    authorization.
 3. Add official corpus sources only after license/authorization review, then
    rebuild and rerun retrieval, citation, and resource tests.
+
+## Git state
+
+- Local implementation: complete.
+- Commits: implementation `082b61b`; initial handoff `99dda8c`.
+- Remote branch: pushed to `origin/codex/agentA-stage06-retrieval-normalization`.
+- Pull request: #11 is open against `main`.
+- Merge: not performed; explicit user/repository-owner authorization is still
+  required.
