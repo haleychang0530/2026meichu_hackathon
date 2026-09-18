@@ -63,6 +63,12 @@ $env:VITE_SPEECH_GATEWAY_BASE_URL = 'http://127.0.0.1:8200'
 npm run dev
 ```
 
+The release profile is CPU-only: the web client sends
+`device_preference=cpu` by default, so AMD Ryzen AI Software and Conda are not
+required. A future NPU experiment may explicitly set
+`VITE_SPEECH_ASR_DEVICE` to `auto` or `npu` after its runtime and model gates
+are complete.
+
 Start `services/speech-local/gateway.py` first for real mode. On the student
 page, `開始回答` starts listening; the same control stops recording, sends the
 multipart transcription request, and submits the returned transcript through
