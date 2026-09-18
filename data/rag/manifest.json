@@ -1,0 +1,36 @@
+{
+  "schema_version": "rag-manifest.v1",
+  "manifest_id": "hear-our-language-demo-rag",
+  "version": "0.1.0",
+  "authorization_policy": {
+    "index_only_when": [
+      "license_status is approved",
+      "approved_for_index is true",
+      "content_sha256 matches the source at build time"
+    ],
+    "unknown_license_action": "exclude_from_formal_index",
+    "external_corpus_status": "not_authorized_in_this_stage"
+  },
+  "chunking": {
+    "min_chunk_chars": 2,
+    "max_chunk_chars": 480,
+    "overlap_chars": 40
+  },
+  "sources": [
+    {
+      "source_id": "repository-demo-market-lesson",
+      "title": "Repository demo market lesson fixture",
+      "content_path": "fixtures/contracts/v0.1/observer/success.lesson.json",
+      "source_type": "lesson_fixture",
+      "language": "nan-TW",
+      "license": "internal-demo-fixture",
+      "license_status": "approved",
+      "approved_for_index": true,
+      "authorization_note": "Committed contract fixture; demo-only and not an official textbook corpus.",
+      "acquired_at": "2026-09-18",
+      "source_version": "contracts-v0.1",
+      "content_sha256": "a964336ef2c19e281e5ff0eb88ef452ad56a9e9e0d0e6ebc88ce612f58568252",
+      "url": null
+    }
+  ]
+}

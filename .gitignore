@@ -11,6 +11,8 @@ apps/web/.env.*.local
 apps/core-api/.venv/
 apps/core-api/.runtime/
 apps/core-api/.env
+data/rag/indexes/
+data/rag/.runtime/
 __pycache__/
 *.py[cod]
 *.sqlite3

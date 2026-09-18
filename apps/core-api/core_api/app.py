@@ -21,6 +21,7 @@ from .health import HealthAggregator
 from .image_pipeline import ImagePreparer
 from .models import ErrorCode, ErrorEnvelope, HealthResponse, Lesson, SCHEMA_VERSION
 from .providers import FixtureProvider, LessonProvider, Mi300Client, load_lesson_schema
+from .rag import EmbeddingError, RagIndexManager, create_embedding_backend
 
 
 LOGGER = logging.getLogger("hear_our_language.core_api")
@@ -67,7 +68,22 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
     database = Database(settings.database_path, settings.migration_dir)
     preparer = ImagePreparer(settings)
     analyzer = LessonAnalyzer(preparer, primary, fixture)
-    health = HealthAggregator(settings, database, primary)
+    try:
+        embedding_backend = create_embedding_backend(
+            settings.rag_embedding_backend,
+            dimension=settings.rag_embedding_dimension,
+            onnx_model_path=settings.rag_onnx_model_path,
+            onnx_tokenizer_path=settings.rag_onnx_tokenizer_path,
+        )
+        rag_manager = RagIndexManager(settings.rag_index_root, embedding_backend)
+    except EmbeddingError as exc:
+        # A missing optional ONNX runtime/model must not prevent the laptop
+        # Core API from starting. Health stays degraded until the operator
+        # installs an approved backend or uses the CPU fallback explicitly.
+        fallback_backend = create_embedding_backend("hashing-char-ngram-v1")
+        rag_manager = RagIndexManager(settings.rag_index_root, fallback_backend)
+        rag_manager.last_error = str(exc)
+    health = HealthAggregator(settings, database, primary, rag_manager)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI):
@@ -75,13 +91,16 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         removed = preparer.cleanup_stale()
         if removed:
             LOGGER.info("removed stale uploads", extra={"removed_count": removed})
+        rag_manager.open_active()
         application.state.settings = settings
         application.state.database = database
         application.state.analyzer = analyzer
+        application.state.rag = rag_manager
         application.state.health = health
         try:
             yield
         finally:
+            rag_manager.close()
             await health.close()
             await primary.close()
             if primary is not fixture:

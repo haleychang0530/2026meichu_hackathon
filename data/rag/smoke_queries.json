@@ -1,0 +1,22 @@
+[
+  { "query": "市場", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["市場"] },
+  { "query": "tshī-tiûnn", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["tshī-tiûnn"] },
+  { "query": "市場的台語", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["市場"] },
+  { "query": "欲 beh", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["beh"] },
+  { "query": "beh", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["beh"] },
+  { "query": "阿媽欲去市場買菜", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["阿媽", "市場"] },
+  { "query": "去市場", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["去市場"] },
+  { "query": "菜販", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["菜販"] },
+  { "query": "囡仔", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["囡仔"] },
+  { "query": "買菜", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["買菜"] },
+  { "query": "看圖片", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["看圖片"] },
+  { "query": "誰正在買菜", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["買菜"] },
+  { "query": "辨識人物", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["辨識人物"] },
+  { "query": "買菜動作", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["買菜"] },
+  { "query": "角色與動作線索", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["角色", "動作"] },
+  { "query": "不直接描述圖中答案", "expect": "hit", "source_id": "repository-demo-market-lesson", "contains": ["不直接描述"] },
+  { "query": "火車站 tsia̍h-páu", "expect": "no_result" },
+  { "query": "lunar rocket museum", "expect": "no_result" },
+  { "query": "海邊下雪的故事", "expect": "no_result" },
+  { "query": "unknown-corpus-token-zz", "expect": "no_result" }
+]
