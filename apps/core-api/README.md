@@ -1,11 +1,11 @@
-# Core Backend (Agent A Stage 07)
+# Core Backend (Agent A Stage 08)
 
 The FastAPI Core Backend is the browser's only product API and runs on the
 Ryzen AI 9 laptop. It owns image validation, orchestration, product fallback,
 SQLite readiness, and dependency health. The browser never receives or calls
 the MI300 URL.
 
-The Stage 04/05/06 baseline plus Stage 07 implements:
+The Stage 04/05/06/07 baseline plus Stage 08 implements:
 
 - `GET /api/health`
 - `POST /api/lessons/analyze`
@@ -19,7 +19,8 @@ The Stage 04/05/06 baseline plus Stage 07 implements:
 - JPEG/PNG/WebP validation, metadata-stripping JPEG normalization, and upload
   cleanup on success, error, cancellation, plus startup cleanup after 15 minutes
 - canonical `Lesson` validation for both real and fixture providers
-- SQLite migration tracking without a Stage 08 session domain
+- SQLite migration tracking plus laptop-owned lessons, sessions, turns,
+  mastery, durable events, and settings
 - laptop-only Local RAG manifest validation, UTF-8 cleaning, chunking, and
   persistent vector/keyword index support
 - bounded hybrid retrieval, reproducible evidence citations, and honest empty
@@ -33,6 +34,14 @@ The Stage 04/05/06 baseline plus Stage 07 implements:
   output
 - teacher/parent-only `answer_evidence`, deterministic checks for answer leaks,
   position hints, and sighted-only clues, and SQLite-backed `pending` lessons
+- a laptop-owned Teaching Agent state machine for introduction, demonstration,
+  read-aloud, comprehension, hint, review, and complete phases
+- student-safe session create/get/action/turn/snapshot routes and an
+  observer-only session summary route
+- optimistic session revisions, request IDs, idempotency replay, and durable
+  SSE event IDs with `Last-Event-ID` backfill and heartbeat recovery
+- deterministic local concept matching for simple answers, with bounded MI300
+  semantic judgement only for unmatched difficult responses
 
 The full cross-agent contract remains
 `packages/contracts/openapi/v0.1/core-api.openapi.json`. Student-mode adapters
@@ -78,6 +87,7 @@ Important variables:
 - `RAG_ONNX_MODEL_PATH` and `RAG_ONNX_TOKENIZER_PATH` when using `onnx-local`
 - `LANGUAGE_GOLDEN_PATH` for the reviewed Hanji/臺羅/POJ set
 - `VLM_CONNECT_TIMEOUT_SECONDS`, `VLM_READ_TIMEOUT_SECONDS`,
+  `VLM_SEMANTIC_TIMEOUT_SECONDS`,
   `VLM_MAX_ATTEMPTS`, `VLM_RETRY_BACKOFF_SECONDS`,
   `VLM_CIRCUIT_FAILURE_THRESHOLD`, and `VLM_CIRCUIT_RECOVERY_SECONDS`
 
@@ -165,6 +175,54 @@ curl.exe -X PATCH http://127.0.0.1:8000/api/lessons/lesson_<id> `
   -d '{"review_status":"approved"}'
 ```
 
+## Stage 08 Teaching Agent and sessions
+
+All session state remains on the Ryzen AI 9 laptop. The MI300 gateway is never
+called by the browser and never owns SQLite, RAG, sessions, turns, mastery, or
+business state. The migrations are applied in order:
+
+```text
+0001_runtime_metadata.sql
+0002_lessons.sql
+0003_sessions.sql
+0004_turns.sql
+0005_mastery.sql
+0006_events.sql
+0007_settings.sql
+```
+
+The student flow is:
+
+```text
+introduction → demonstration → read_aloud → comprehension → review → complete
+                                      ↘ hint ↗
+```
+
+`POST /api/sessions/{session_id}/turns` accepts a transcript and returns only
+the student-safe `TurnResult`. Local concept matching handles straightforward
+answers. A difficult unmatched answer may use the laptop `Mi300Client` with
+`VLM_SEMANTIC_TIMEOUT_SECONDS`; timeout, offline, or invalid upstream output
+becomes a retry with `mi300_offline` fallback. `POST
+/api/sessions/{session_id}/actions` is reserved for controls such as
+`start_answer`, `request_hint`, `pause`, `resume`, and `next`.
+
+Every mutating request can carry `Idempotency-Key` and
+`X-Session-Revision`. Reusing a key replays the committed result without a
+second turn/event; a stale revision returns `SESSION_REVISION_CONFLICT` and
+the current state is recoverable from `GET /api/sessions/{session_id}/snapshot`.
+
+`GET /api/sessions/{session_id}/events` is a replayable SSE stream. Each
+durable event has a monotonic `id:` line and a JSON `SessionEvent` data
+envelope. Send `Last-Event-ID` or `?after=` after reconnecting; an empty
+backlog returns a heartbeat comment. Student selectors never include lesson
+evidence, confidence, answer evidence, review status, or teacher controls.
+`GET /api/sessions/{session_id}/summary` is the observer/teacher projection
+and includes evidence, health, review metadata, turn history, hints, and
+mastery familiarity.
+
+The metadata-only end-to-end paths are in
+`fixtures/session/stage08/{all-correct,partial-recovery,retry-recovery}.json`.
+
 ## Local RAG
 
 The manifest at `data/rag/manifest.json` is the only checked-in source list.
@@ -236,6 +294,7 @@ Set-Location ../..
 & apps/core-api/.venv/Scripts/python.exe scripts/language_golden.py
 & apps/core-api/.venv/Scripts/python.exe scripts/retrieval_citation_smoke.py
 & apps/core-api/.venv/Scripts/python.exe scripts/stage07_fixture_review.py
+& apps/core-api/.venv/Scripts/python.exe -m unittest tests.test_stage08_sessions -v
 ```
 
 Tests cover profiles, idempotent migrations, structured lesson persistence,
@@ -248,7 +307,11 @@ Stage 06 adds golden normalization, textbook-priority, OOV/conflict review
 gates, MMS vocabulary validation, hybrid ranking, metadata filtering, context
 budgets, empty-evidence behavior, and citation replay. Stage 07 adds the
 facts/activity two-step pipeline, one-repair boundary, safety checks, citation
-binding, and five metadata-only representative fixture reviews.
+binding, and five metadata-only representative fixture reviews. Stage 08 adds
+SQLite session migrations, the complete teaching state machine, correct/
+partial/retry fixtures, selector privacy checks, optimistic revision and
+idempotency tests, SSE reconnect/backfill tests, restart persistence, and a
+bounded MI300 semantic-timeout fallback test.
 
 ## Data and privacy
 

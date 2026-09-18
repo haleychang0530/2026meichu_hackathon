@@ -202,7 +202,41 @@ If Agent A prefers one discriminated `/actions` endpoint instead, the same
 fields and visibility rules apply; the contract must still distinguish an
 answer submission from a control action and must include fixtures for both.
 
-## 6. Walkthrough and sign-off record
+## 6. Stage 08 session cursor and event replay
+
+Stage 08 keeps the v0.1 version and adds the student-safe `Session` and
+`SessionEvent` schemas. Session/action/turn responses carry `phase`,
+`revision`, and `last_event_id`; action and turn requests may carry an
+`expected_revision` in the body or `X-Session-Revision`/`If-Match` header.
+Every mutating request should use a stable `Idempotency-Key` (the Core API
+falls back to `X-Request-ID` for older clients). A duplicate key replays the
+committed result; a stale revision returns `SESSION_REVISION_CONFLICT` and the
+student adapter should recover with:
+
+```text
+GET /api/sessions/{session_id}/snapshot
+```
+
+The event stream is:
+
+```text
+GET /api/sessions/{session_id}/events
+```
+
+Each SSE record has a durable numeric `id`, an `event` value, and a JSON
+`SessionEvent` data envelope. Reconnect with `Last-Event-ID` or `?after=` and
+deduplicate by `event_id` before applying the payload. Empty backlog responses
+are heartbeat comments. The checked-in session fixtures are metadata-only:
+`fixtures/session/stage08/all-correct.json`, `partial-recovery.json`, and
+`retry-recovery.json`.
+
+The Teaching Agent and all stateful storage remain in the Core API on the
+Ryzen AI 9 laptop. Simple answers are resolved by local concept matching. The
+MI300 remains a private, stateless VLM and is consulted only for difficult
+unmatched semantic judgement with a bounded timeout; the browser never calls
+it directly.
+
+## 7. Walkthrough and sign-off record
 
 Review performed against Agent A branch
 `codex/agentA-stage01-contract-baseline`, then integrated into Agent B branch
@@ -229,7 +263,7 @@ the runtime HTTP smoke remains a follow-up once handlers exist. The repository
 may label the contract walkthrough accepted, while formal main-branch freeze
 waits for user review and merge.
 
-## 7. Ownership and change rule
+## 8. Ownership and change rule
 
 Agent A owns the canonical schema, OpenAPI, and contract fixtures. Agent B owns
 the generated frontend output, adapters, UI projections, and accessibility
@@ -237,7 +271,7 @@ tests. Any breaking change updates the version directory, schema, OpenAPI,
 fixtures, contract tests, and this handoff together. No agent should silently
 rename a field or reinterpret a response without recording the change here.
 
-## 8. Stage 06 utterance normalization profile
+## 9. Stage 06 utterance normalization profile
 
 `POST /api/utterances/normalize` now implements the already-reserved v0.1
 operation. The request and response fields are unchanged. Agent B may pass a
