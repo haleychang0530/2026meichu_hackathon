@@ -185,7 +185,7 @@ weight, cache, database, or runtime RAG index is committed.
 
 - Local implementation: complete after final regression and diff review.
 - Commits: `0431159` core implementation, `01d028f` contracts/fixtures,
-  `5423711` tests/docs, followed by the handoff metadata update.
+  `5423711` tests/docs, followed by handoff metadata commits.
 - Remote branch: pushed to `origin/codex/agentA-stage08-session-sse`.
 - Pull request: #14 is open against `main`; merge not performed and requires
   explicit repository-owner authorization.
@@ -193,5 +193,6 @@ weight, cache, database, or runtime RAG index is committed.
   through Agent B PR #13. The four upstream files are under `apps/web` and
   `services/speech-local`; they do not overlap this Stage 08 diff. A final
   `git fetch --prune` confirmed the branch is four commits ahead of the
-  recorded branch base after this metadata update, with no working-tree or
-  whitespace conflicts.
+  recorded branch base at the time of the audit, with no working-tree or
+  whitespace conflicts; the later handoff-only metadata commits do not change
+  the implementation or contract files.
