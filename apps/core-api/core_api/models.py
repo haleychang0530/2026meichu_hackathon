@@ -19,6 +19,8 @@ class ErrorCode(StrEnum):
     IMAGE_QUALITY_LOW = "IMAGE_QUALITY_LOW"
     LESSON_NOT_FOUND = "LESSON_NOT_FOUND"
     SESSION_NOT_FOUND = "SESSION_NOT_FOUND"
+    SESSION_REVISION_CONFLICT = "SESSION_REVISION_CONFLICT"
+    IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT"
     VLM_TIMEOUT = "VLM_TIMEOUT"
     VLM_OFFLINE = "VLM_OFFLINE"
     VLM_INVALID_OUTPUT = "VLM_INVALID_OUTPUT"
@@ -141,3 +143,181 @@ class HealthResponse(StrictModel):
     request_id: str
     status: Literal["ready", "degraded", "offline"]
     services: list[ServiceHealth]
+
+
+SessionState = Literal[
+    "IDLE",
+    "SPEAKING",
+    "LISTENING",
+    "TRANSCRIBING",
+    "EVALUATING",
+    "RECOVERABLE_ERROR",
+    "COMPLETE",
+]
+TeachingPhase = Literal[
+    "introduction",
+    "demonstration",
+    "read_aloud",
+    "comprehension",
+    "hint",
+    "review",
+    "complete",
+]
+ControlAction = Literal[
+    "replay_prompt",
+    "start_answer",
+    "pause",
+    "resume",
+    "request_hint",
+    "next",
+]
+InputMode = Literal["voice", "keyboard", "pointer"]
+TurnOutcome = Literal["correct", "partial", "retry"]
+FamiliarityStatus = Literal["new", "developing", "familiar"]
+
+
+class SessionCreateRequest(StrictModel):
+    schema_version: Literal["0.1.0"]
+    lesson_id: str = Field(pattern=r"^lesson_[A-Za-z0-9_-]+$")
+
+
+class StudentActionRequest(StrictModel):
+    schema_version: Literal["0.1.0"]
+    action: ControlAction
+    input_mode: InputMode | None = None
+    # Optional body form for non-browser clients. Browser clients may use the
+    # X-Session-Revision/If-Match header instead.
+    expected_revision: int | None = Field(default=None, ge=0)
+
+
+class TurnSubmission(StrictModel):
+    schema_version: Literal["0.1.0"]
+    transcript: str = Field(min_length=1)
+    input_mode: InputMode | None = None
+    asr_device: Literal["npu", "cpu"] | None = None
+    expected_revision: int | None = Field(default=None, ge=0)
+
+
+class SessionView(StrictModel):
+    """Student-safe session projection.
+
+    This projection intentionally contains no Lesson content, evidence,
+    confidence, answer key, or teacher control fields.
+    """
+
+    schema_version: Literal["0.1.0"] = SCHEMA_VERSION
+    session_id: str = Field(pattern=r"^session_[A-Za-z0-9_-]+$")
+    lesson_id: str = Field(pattern=r"^lesson_[A-Za-z0-9_-]+$")
+    state: SessionState
+    phase: TeachingPhase = "introduction"
+    progress: float = Field(ge=0, le=1)
+    current_prompt: str | None
+    can_answer: bool = False
+    revision: int = Field(default=0, ge=0)
+    last_event_id: int = Field(default=0, ge=0)
+
+
+class LatencyMetrics(StrictModel):
+    asr: int | None = Field(ge=0)
+    backend: int = Field(ge=0)
+    vlm: int | None = Field(ge=0)
+    tts: int | None = Field(ge=0)
+    total: int = Field(ge=0)
+
+
+class TurnResult(StrictModel):
+    schema_version: Literal["0.1.0"] = SCHEMA_VERSION
+    turn_id: str = Field(pattern=r"^turn_[A-Za-z0-9_-]+$")
+    session_id: str = Field(pattern=r"^session_[A-Za-z0-9_-]+$")
+    transcript_raw: str
+    transcript_normalized: str
+    result: TurnOutcome
+    matched_concepts: list[str]
+    feedback: str = Field(min_length=1)
+    next_prompt: str = Field(min_length=1)
+    progress: float = Field(ge=0, le=1)
+    latency_ms: LatencyMetrics
+    asr_device: Literal["npu", "cpu"]
+    fallbacks: list[Literal[
+        "mi300_offline",
+        "rag_no_result",
+        "asr_cpu",
+        "tts_prerecorded",
+        "cached_lesson",
+        "fixture_mode",
+    ]]
+    phase: TeachingPhase = "introduction"
+    revision: int = Field(default=0, ge=0)
+    last_event_id: int = Field(default=0, ge=0)
+
+
+class StudentActionResult(StrictModel):
+    schema_version: Literal["0.1.0"] = SCHEMA_VERSION
+    session_id: str = Field(pattern=r"^session_[A-Za-z0-9_-]+$")
+    lesson_id: str = Field(pattern=r"^lesson_[A-Za-z0-9_-]+$")
+    state: SessionState
+    progress: float = Field(ge=0, le=1)
+    current_prompt: str | None
+    action: ControlAction
+    feedback: str | None
+    next_prompt: str | None
+    can_answer: bool
+    phase: TeachingPhase = "introduction"
+    revision: int = Field(default=0, ge=0)
+    last_event_id: int = Field(default=0, ge=0)
+
+
+class ObserverHint(StrictModel):
+    turn_id: str = Field(pattern=r"^turn_[A-Za-z0-9_-]+$")
+    prompt: str = Field(min_length=1)
+    feedback: str = Field(min_length=1)
+
+
+class Familiarity(StrictModel):
+    concept: str = Field(min_length=1)
+    status: FamiliarityStatus
+
+
+class ObserverSessionSummary(StrictModel):
+    """Teacher/parent projection; never return this from student routes."""
+
+    schema_version: Literal["0.1.0"] = SCHEMA_VERSION
+    session_id: str = Field(pattern=r"^session_[A-Za-z0-9_-]+$")
+    lesson_id: str = Field(pattern=r"^lesson_[A-Za-z0-9_-]+$")
+    state: SessionState
+    progress: float = Field(ge=0, le=1)
+    completed_turns: int = Field(ge=0)
+    turns: list[TurnResult]
+    concepts_to_review: list[str]
+    hint_history: list[ObserverHint]
+    familiarity: list[Familiarity]
+    # These fields are additive teacher/parent review data. They are never
+    # copied by the student selector.
+    evidence: list[EvidenceItem] = Field(default_factory=list)
+    health: list[ServiceHealth] = Field(default_factory=list)
+    review_status: Literal["pending", "approved", "rejected"] | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    answer_evidence: list[str] = Field(default_factory=list)
+    vlm_model_revision: str | None = None
+    rag_index_revision: str | None = None
+    phase: TeachingPhase = "introduction"
+    revision: int = Field(default=0, ge=0)
+    last_event_id: int = Field(default=0, ge=0)
+
+
+class SessionEvent(StrictModel):
+    schema_version: Literal["0.1.0"] = SCHEMA_VERSION
+    event_id: int = Field(ge=1)
+    session_id: str = Field(pattern=r"^session_[A-Za-z0-9_-]+$")
+    event: str = Field(min_length=1, max_length=80)
+    request_id: str
+    revision: int = Field(ge=0)
+    payload: dict[str, Any]
+
+
+class SemanticJudgement(StrictModel):
+    """Internal MI300 result; never returned as a student response."""
+
+    decision: TurnOutcome
+    matched_concepts: list[str] = Field(default_factory=list)
+    latency_ms: int | None = Field(default=None, ge=0)

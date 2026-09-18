@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -8,10 +9,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .analyzer import LessonAnalyzer
@@ -29,7 +30,14 @@ from .models import (
     Lesson,
     LessonPatch,
     NormalizeUtteranceRequest,
+    ObserverSessionSummary,
     SCHEMA_VERSION,
+    SessionCreateRequest,
+    StudentActionRequest,
+    StudentActionResult,
+    SessionView,
+    TurnResult,
+    TurnSubmission,
     Utterance,
 )
 from .providers import FixtureProvider, LessonProvider, Mi300Client, load_lesson_schema
@@ -40,6 +48,8 @@ from .rag import (
     RagIndexManager,
     create_embedding_backend,
 )
+from .session_service import SessionService
+from .teaching_agent import TeachingAgent
 
 
 LOGGER = logging.getLogger("hear_our_language.core_api")
@@ -118,6 +128,12 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
     )
     analyzer = LessonAnalyzer(preparer, primary, fixture, pipeline=pipeline)
     health = HealthAggregator(settings, database, primary, rag_manager)
+    semantic_judge = primary if callable(getattr(primary, "judge_answer", None)) else None
+    sessions = SessionService(
+        database,
+        TeachingAgent(semantic_judge, semantic_timeout_seconds=settings.semantic_timeout_seconds),
+        health,
+    )
 
     @asynccontextmanager
     async def lifespan(application: FastAPI):
@@ -133,6 +149,7 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         application.state.rag = rag_manager
         application.state.retriever = retriever
         application.state.health = health
+        application.state.sessions = sessions
         try:
             yield
         finally:
@@ -156,8 +173,22 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         allow_origins=list(settings.allowed_origins),
         allow_credentials=False,
         allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
-        allow_headers=["Accept", "Content-Type", "X-Request-ID"],
-        expose_headers=["X-Request-ID", "X-Provider-Mode"],
+        allow_headers=[
+            "Accept",
+            "Content-Type",
+            "Idempotency-Key",
+            "If-Match",
+            "Last-Event-ID",
+            "X-Request-ID",
+            "X-Session-Revision",
+        ],
+        expose_headers=[
+            "X-Request-ID",
+            "X-Provider-Mode",
+            "X-Session-Revision",
+            "X-Event-ID",
+            "X-Idempotency-Replayed",
+        ],
     )
 
     @app.middleware("http")
@@ -224,6 +255,45 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         503: {"model": ErrorEnvelope, "description": "MI300 unavailable or circuit open."},
         504: {"model": ErrorEnvelope, "description": "MI300 request timed out."},
     }
+
+    def idempotency_key(request: Request) -> str:
+        value = (request.headers.get("Idempotency-Key") or _request_id(request)).strip()
+        if not value or len(value) > 128:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                "Idempotency-Key must be between 1 and 128 characters",
+                status_code=400,
+                fallback="retry_later",
+            )
+        return value
+
+    def expected_revision(request: Request, body_value: int | None = None) -> int | None:
+        header_value = request.headers.get("X-Session-Revision") or request.headers.get("If-Match")
+        if header_value is None or header_value.strip() == "*":
+            return body_value
+        raw = header_value.strip().strip('"')
+        try:
+            parsed = int(raw)
+        except ValueError as exc:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                "session revision must be a non-negative integer",
+                status_code=400,
+                fallback="retry_later",
+            ) from exc
+        if parsed < 0 or (body_value is not None and body_value != parsed):
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                "session revision values do not agree",
+                status_code=400,
+                fallback="retry_later",
+            )
+        return parsed
+
+    def session_headers(response: Response, revision: int, event_id: int, replayed: bool = False) -> None:
+        response.headers["X-Session-Revision"] = str(revision)
+        response.headers["X-Event-ID"] = str(event_id)
+        response.headers["X-Idempotency-Replayed"] = "true" if replayed else "false"
 
     @app.get("/api/health", response_model=HealthResponse, operation_id="getHealth")
     async def get_health(request: Request) -> HealthResponse:
@@ -351,6 +421,185 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
                 fallback="manual_review",
             ) from exc
         return result.utterance
+
+    @app.post(
+        "/api/sessions",
+        response_model=SessionView,
+        status_code=201,
+        responses={
+            400: {"model": ErrorEnvelope, "description": "Invalid session request."},
+            404: {"model": ErrorEnvelope, "description": "Lesson was not found."},
+            409: {"model": ErrorEnvelope, "description": "Idempotency conflict."},
+        },
+        operation_id="createSession",
+    )
+    async def create_session(
+        request: Request,
+        response: Response,
+        body: SessionCreateRequest,
+    ) -> SessionView:
+        command = await sessions.create_session(
+            body.lesson_id,
+            _request_id(request),
+            idempotency_key(request),
+        )
+        session_headers(
+            response,
+            command.response.revision,
+            command.event.event_id,
+            command.replayed,
+        )
+        return command.response
+
+    @app.get(
+        "/api/sessions/{session_id}",
+        response_model=SessionView,
+        responses={404: {"model": ErrorEnvelope, "description": "Session was not found."}},
+        operation_id="getSession",
+    )
+    async def get_session(request: Request, response: Response, session_id: str) -> SessionView:
+        del request
+        view = await sessions.get_student_session(session_id)
+        session_headers(response, view.revision, view.last_event_id)
+        return view
+
+    @app.get(
+        "/api/sessions/{session_id}/snapshot",
+        response_model=SessionView,
+        responses={404: {"model": ErrorEnvelope, "description": "Session was not found."}},
+        operation_id="getSessionSnapshot",
+    )
+    async def get_session_snapshot(request: Request, response: Response, session_id: str) -> SessionView:
+        del request
+        view = await sessions.get_student_session(session_id)
+        session_headers(response, view.revision, view.last_event_id)
+        return view
+
+    @app.post(
+        "/api/sessions/{session_id}/actions",
+        response_model=StudentActionResult,
+        responses={
+            400: {"model": ErrorEnvelope, "description": "Invalid student action."},
+            404: {"model": ErrorEnvelope, "description": "Session was not found."},
+            409: {"model": ErrorEnvelope, "description": "Revision or idempotency conflict."},
+        },
+        operation_id="submitStudentAction",
+    )
+    async def submit_student_action(
+        request: Request,
+        response: Response,
+        session_id: str,
+        body: StudentActionRequest,
+    ) -> StudentActionResult:
+        command = await sessions.submit_action(
+            session_id,
+            body.action,
+            _request_id(request),
+            idempotency_key(request),
+            expected_revision(request, body.expected_revision),
+        )
+        session_headers(
+            response,
+            command.response.revision,
+            command.event.event_id,
+            command.replayed,
+        )
+        return command.response
+
+    @app.post(
+        "/api/sessions/{session_id}/turns",
+        response_model=TurnResult,
+        responses={
+            400: {"model": ErrorEnvelope, "description": "Invalid answer submission."},
+            404: {"model": ErrorEnvelope, "description": "Session was not found."},
+            409: {"model": ErrorEnvelope, "description": "Revision or idempotency conflict."},
+        },
+        operation_id="submitTurn",
+    )
+    async def submit_turn(
+        request: Request,
+        response: Response,
+        session_id: str,
+        body: TurnSubmission,
+    ) -> TurnResult:
+        command = await sessions.submit_turn(
+            session_id,
+            body,
+            _request_id(request),
+            idempotency_key(request),
+            expected_revision(request, body.expected_revision),
+        )
+        session_headers(
+            response,
+            command.response.revision,
+            command.event.event_id,
+            command.replayed,
+        )
+        return command.response
+
+    @app.get(
+        "/api/sessions/{session_id}/events",
+        response_class=StreamingResponse,
+        responses={404: {"model": ErrorEnvelope, "description": "Session was not found."}},
+        operation_id="streamSessionEvents",
+    )
+    async def stream_session_events(
+        request: Request,
+        session_id: str,
+        after: int | None = None,
+    ) -> StreamingResponse:
+        last_event_header = request.headers.get("Last-Event-ID")
+        if after is None and last_event_header:
+            try:
+                after = int(last_event_header)
+            except ValueError as exc:
+                raise AppError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "Last-Event-ID must be a non-negative integer",
+                    status_code=400,
+                    fallback="retry_later",
+                ) from exc
+        if after is None:
+            after = 0
+        if after < 0:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                "Last-Event-ID must be a non-negative integer",
+                status_code=400,
+                fallback="retry_later",
+            )
+        snapshot = await sessions.get_student_session(session_id)
+        events = await sessions.get_events(session_id, after)
+
+        async def event_body():
+            if not events:
+                yield ": heartbeat\n\n"
+                return
+            for event in events:
+                payload = json.dumps(event.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":"))
+                yield f"id: {event.event_id}\nevent: {event.event}\ndata: {payload}\n\n"
+
+        return StreamingResponse(
+            event_body(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Session-Revision": str(snapshot.revision),
+                "X-Event-ID": str(snapshot.last_event_id),
+            },
+        )
+
+    @app.get(
+        "/api/sessions/{session_id}/summary",
+        response_model=ObserverSessionSummary,
+        responses={404: {"model": ErrorEnvelope, "description": "Session was not found."}},
+        operation_id="getSessionSummary",
+    )
+    async def get_session_summary(request: Request, response: Response, session_id: str) -> ObserverSessionSummary:
+        summary = await sessions.get_summary(session_id, _request_id(request))
+        session_headers(response, summary.revision, summary.last_event_id)
+        return summary
 
     return app
 

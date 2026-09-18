@@ -57,6 +57,7 @@ class Settings:
     speech_base_url: str | None = "http://127.0.0.1:8200"
     connect_timeout_seconds: float = 2.0
     read_timeout_seconds: float = 120.0
+    semantic_timeout_seconds: float = 4.0
     health_timeout_seconds: float = 1.0
     max_attempts: int = 2
     retry_backoff_seconds: float = 0.25
@@ -139,6 +140,9 @@ class Settings:
                 "VLM_CONNECT_TIMEOUT_SECONDS", defaults.connect_timeout_seconds, 0.01
             ),
             read_timeout_seconds=_float_env("VLM_READ_TIMEOUT_SECONDS", defaults.read_timeout_seconds, 0.01),
+            semantic_timeout_seconds=_float_env(
+                "VLM_SEMANTIC_TIMEOUT_SECONDS", defaults.semantic_timeout_seconds, 0.05
+            ),
             health_timeout_seconds=_float_env(
                 "DEPENDENCY_HEALTH_TIMEOUT_SECONDS", defaults.health_timeout_seconds, 0.01
             ),
