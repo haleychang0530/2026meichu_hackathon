@@ -5,6 +5,24 @@ stateless wrapper around the local OpenAI-compatible vLLM process. It never
 owns RAG, SQLite, sessions, student records, product APIs, or callbacks to the
 laptop.
 
+## Locked model selection (Stage 02)
+
+Stage 02 is merged and its model decision is final:
+
+- Primary: `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`, revision
+  `d9748a51ae66354c4dad665aab2c71f26cf2c8cd`.
+- Fallback: `Qwen/Qwen2.5-VL-7B-Instruct`, revision
+  `cc594898137f460bfe9f0759e9844b3ce807cfb5`.
+- Both checkpoints are Apache-2.0 releases from their Hugging Face model
+  repositories (`gated=false`).
+
+`VLM_PRIMARY_*` and `VLM_FALLBACK_*` below are the laptop/deployment selection
+variables. The MI300 gateway is stateless and loads one active checkpoint at a
+time; `VLM_MODEL`/`VLM_MODEL_REVISION` identify that active process. Switching
+to the fallback therefore means stopping the active vLLM process, starting the
+pinned fallback checkpoint on port 8000, and restarting the gateway. Product
+fallback policy and conversation state remain on the laptop.
+
 ## Endpoints
 
 Only these routes are exposed:
@@ -81,8 +99,14 @@ logs/PID files under `/tmp`:
 export VLM_PYTHON=/usr/bin/python3.12
 export VLM_SITE_PACKAGES=/mlsteam/workspace/qwen3-benchmark/qwen38-venv/lib/python3.12/site-packages
 export VLM_UPSTREAM_URL=http://127.0.0.1:8000/v1
-export VLM_MODEL=Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
-export VLM_MODEL_REVISION=d9748a51ae66354c4dad665aab2c71f26cf2c8cd
+export VLM_PRIMARY_MODEL=Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
+export VLM_PRIMARY_MODEL_REVISION=d9748a51ae66354c4dad665aab2c71f26cf2c8cd
+export VLM_FALLBACK_MODEL=Qwen/Qwen2.5-VL-7B-Instruct
+export VLM_FALLBACK_MODEL_REVISION=cc594898137f460bfe9f0759e9844b3ce807cfb5
+export VLM_MODEL="$VLM_PRIMARY_MODEL"
+export VLM_MODEL_REVISION="$VLM_PRIMARY_MODEL_REVISION"
+export VLM_MAX_CONTEXT_TOKENS=65536
+export VLM_MAX_OUTPUT_TOKENS=8192
 export VLM_ALLOWED_CIDRS=127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 
 bash services/vlm-mi300/launch_service.sh
@@ -91,18 +115,16 @@ bash services/vlm-mi300/stop_service.sh
 ```
 
 The upstream vLLM model must already be ready on port 8000. The gateway listens
-on port 8100 by default; expose that port only through the trusted LAN/port
-forwarding rule, never to the public internet. The IP allowlist does not trust
-`X-Forwarded-For`; set it to the laptop's exact source CIDR in a controlled
-deployment.
+on `0.0.0.0:8100` by default so the Manta lab can forward that port. Add the
+lab's 8100 forwarding entry, then use the assigned external port from the Manta
+UI. The IP allowlist does not trust `X-Forwarded-For`; in a controlled
+deployment set `VLM_ALLOWED_CIDRS` to the exact forwarding source CIDR.
 
-To switch models, stop the gateway, stop the verified vLLM parent, launch the
-other pinned checkpoint on port 8000, update `VLM_MODEL` and
-`VLM_MODEL_REVISION`, then start the gateway again. The revision mismatch check
-prevents a laptop from accidentally sending a request for a different
-checkpoint. Stage 02's 30B-A3B FP8 revision is provisional primary and the
-32B FP8 revision is provisional fallback; the 96 GB allocation gate remains
-open.
+To switch models, stop the gateway, stop the verified vLLM parent, launch either
+the primary or the pinned 7B fallback checkpoint on port 8000, set
+`VLM_MODEL`/`VLM_MODEL_REVISION` to the selected pair, then start the gateway
+again. The revision mismatch check prevents a laptop from accidentally sending
+a request for a different checkpoint.
 
 ## Example laptop client
 
@@ -170,3 +192,20 @@ and an unavailable upstream (HTTP 503 `VLM_OFFLINE`, fallback
 `cached_lesson`). Cancellation and bounded-queue behavior are covered by the
 seven MI300 unit tests. Evidence remains in the MI300 `/tmp` tree and is not a
 repository artifact.
+
+### Laptop-origin forwarding smoke (2026-09-18 UTC)
+
+Manta was configured with the basic `8100/tcp` forwarding entry; the UI assigned
+external port `46944` for this lab (`8000/tcp` remained `45503`). From the
+laptop, without using the MI300 terminal, the following requests succeeded:
+
+- `GET http://210.61.209.139:46944/internal/health` → HTTP 200,
+  `status=ready`, primary revision `d9748a51ae66354c4dad665aab2c71f26cf2c8cd`.
+- `POST http://210.61.209.139:46944/internal/vlm/generate` with one in-memory
+  synthetic 512×512 PNG, a fixed prompt, and a Draft 2020-12 response schema →
+  HTTP 200, schema-valid `parsed_candidate`, `finish_reason=stop`,
+  `inference_ms=997`, usage `288/43/331` prompt/completion/total tokens.
+
+The image and prompt were not written to the repository or persistent logs.
+The external port is lab-assigned and may change when forwarding is recreated;
+read the current value from Manta before using the sample client.

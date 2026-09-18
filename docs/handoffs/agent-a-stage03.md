@@ -2,11 +2,11 @@
 
 ```text
 Stage: Agent A Stage 03 — MI300 stateless VLM inference service
-Status: partial (service and primary live evidence complete; 32B fallback checkpoint and external 8100 forwarding remain unvalidated)
-Base: main @ fee99c4b (fast-forward synchronized before branch creation)
+Status: done
+Base: main @ e3a0a16b (Stage 02 PR #4 merged)
 Branch: codex/agentA-stage03-vlm-service
 Schema/OpenAPI version: 0.1.0 / OpenAPI 3.1.0
-Previous Stage: Agent A Stage 02 — candidate evaluation (partial/provisional)
+Previous Stage: Agent A Stage 02 — candidate evaluation (done; PR #4)
 ```
 
 ## Summary
@@ -28,6 +28,22 @@ Previous Stage: Agent A Stage 02 — candidate evaluation (partial/provisional)
   latency, and total latency.
 - Added lifecycle scripts, a standard-library client example, unit tests, and
   a metadata-only live evaluation runner.
+
+## Locked model selection
+
+Stage 02 is merged. The official model pair is fixed as follows:
+
+- Primary: `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`, revision
+  `d9748a51ae66354c4dad665aab2c71f26cf2c8cd`.
+- Fallback: `Qwen/Qwen2.5-VL-7B-Instruct`, revision
+  `cc594898137f460bfe9f0759e9844b3ce807cfb5`.
+- Both are Apache-2.0, non-gated Hugging Face releases.
+
+The `VLM_PRIMARY_MODEL(_REVISION)` and
+`VLM_FALLBACK_MODEL(_REVISION)` variables are deployment/laptop selection
+values. MI300 keeps one active checkpoint at a time through
+`VLM_MODEL`/`VLM_MODEL_REVISION`; product fallback and conversation state stay
+on the laptop. No alternate model is implicitly loaded by this gateway.
 
 ## Changed files
 
@@ -68,17 +84,24 @@ run:
 export VLM_PYTHON=/usr/bin/python3.12
 export VLM_SITE_PACKAGES=/mlsteam/workspace/qwen3-benchmark/qwen38-venv/lib/python3.12/site-packages
 export VLM_UPSTREAM_URL=http://127.0.0.1:8000/v1
-export VLM_MODEL=Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
-export VLM_MODEL_REVISION=d9748a51ae66354c4dad665aab2c71f26cf2c8cd
+export VLM_PRIMARY_MODEL=Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
+export VLM_PRIMARY_MODEL_REVISION=d9748a51ae66354c4dad665aab2c71f26cf2c8cd
+export VLM_FALLBACK_MODEL=Qwen/Qwen2.5-VL-7B-Instruct
+export VLM_FALLBACK_MODEL_REVISION=cc594898137f460bfe9f0759e9844b3ce807cfb5
+export VLM_MODEL="$VLM_PRIMARY_MODEL"
+export VLM_MODEL_REVISION="$VLM_PRIMARY_MODEL_REVISION"
+export VLM_MAX_CONTEXT_TOKENS=65536
+export VLM_MAX_OUTPUT_TOKENS=8192
 export VLM_ALLOWED_CIDRS=127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 bash services/vlm-mi300/launch_service.sh
 bash services/vlm-mi300/health_check.sh
 ```
 
-The gateway listens on `http://127.0.0.1:8100` by default. Stop it with
-`bash services/vlm-mi300/stop_service.sh`. The laptop should be the only
-caller; narrow `VLM_ALLOWED_CIDRS` to its exact trusted source network before
-opening a forwarding rule. The service does not trust `X-Forwarded-For`.
+The gateway listens on `0.0.0.0:8100` by default so Manta can forward it. Stop
+it with `bash services/vlm-mi300/stop_service.sh`. Add the basic 8100/tcp
+forwarding entry in Manta and use the assigned external port. For a controlled
+deployment, narrow `VLM_ALLOWED_CIDRS` to the exact forwarding source network;
+the service does not trust `X-Forwarded-For`.
 
 The client example sends a fresh image plus prompt and JSON Schema per call:
 
@@ -138,6 +161,21 @@ Additional live checks:
 - the unit suite's cancellation and queue tests passed. No request payload or
   model output was saved in the `/tmp` evidence files.
 
+Laptop-origin forwarding smoke (2026-09-18 UTC):
+
+- Manta basic forwarding: `8100/tcp` → external port `46944` (existing
+  `8000/tcp` → `45503`). The assigned external port is lab state and can
+  change when the rule is recreated.
+- From the laptop, `GET http://210.61.209.139:46944/internal/health` returned
+  HTTP 200 with `status=ready` and primary revision
+  `d9748a51ae66354c4dad665aab2c71f26cf2c8cd`.
+- From the laptop, one synthetic 512×512 PNG plus prompt and Draft 2020-12
+  schema returned HTTP 200 from `/internal/vlm/generate`; the candidate was
+  schema-valid, `finish_reason=stop`, `inference_ms=997`, and usage was
+  `288/43/331` prompt/completion/total tokens.
+- The smoke image and prompt were held in memory on the laptop and were not
+  committed or persistently logged.
+
 ## Fixtures
 
 - `/tmp/stage02-eval/dataset/` on MI300: ten synthetic/student-safe PNGs,
@@ -155,20 +193,23 @@ Additional live checks:
   port 8000.
 - Gateway: one uvicorn worker, queue max 8, concurrency max 2, request
   timeout 120 s, output cap 8192, estimated context cap 65536.
+- Lifecycle defaults pin `VLM_PRIMARY_MODEL_REVISION` to
+  `d9748a51ae66354c4dad665aab2c71f26cf2c8cd` and
+  `VLM_FALLBACK_MODEL_REVISION` to
+  `cc594898137f460bfe9f0759e9844b3ce807cfb5`; the active gateway uses the
+  primary pair above.
 - Live VRAM remained 158189 MB used of 196592 MB across the 20-request run.
 - Runtime logs, PID files, and sanitized evidence were kept under MI300
   `/tmp/stage03-vlm-service`; they are ephemeral and not committed.
 
 ## Known limits
 
-- Stage 02 selected the 30B-A3B FP8 revision as a provisional primary and the
-  32B FP8 revision (`4bf2c2f39c37c0fede78bede4056e1f18cdf8109`) as a provisional
-  fallback. The 96 GB allocation gate was not validated, and this Stage did
-  not load the 32B checkpoint; no model-selection claim is made.
-- The Manta lab currently forwards vLLM port 8000 only (`45503` observed);
-  external forwarding for gateway port 8100 was not enabled or claimed. The
-  live evidence therefore uses MI300 loopback. An operator must add a
-  trusted-LAN-only 8100 rule before laptop-to-MI300 calls.
+- MI300 loads one checkpoint at a time. The pinned 7B fallback is a deployment
+  switch target, not a second concurrent worker; the laptop owns the product
+  fallback decision and session state.
+- Manta's external port is lab-assigned (`46944` at this handoff) and can
+  change when the forwarding rule is recreated. Read the current port from
+  Manta before using the sample client.
 - The live service was started through the browser terminal with the same
   environment as the lifecycle scripts; the repository scripts were syntax
   checked by inspection and remain the reproducible lifecycle source.
@@ -196,11 +237,9 @@ Additional live checks:
 
 ## Next action
 
-1. Owner adds a trusted-LAN-only port-forward for gateway 8100 (or deploys the
-   gateway behind an authenticated private route) and reruns a laptop-origin
-   smoke request.
-2. After the Stage 02 96 GB gate and license review, run the same evidence
-   workload against the pinned 32B fallback revision and update this handoff
-   with a real switch result, or keep it explicitly unvalidated.
-3. Review and merge this feature PR only after checks and ownership review;
-   no merge was performed by Agent A.
+1. Keep the MI300 30B primary and gateway processes running for the current lab
+   session; read Manta's current assigned external port before use.
+2. Agent B may integrate the two internal routes through the laptop Core
+   Backend using the pinned primary/fallback environment values above.
+3. If the forwarding rule is recreated or the lab restarts, rerun the two
+   laptop-origin smoke commands and record the new assigned port.
