@@ -5,7 +5,7 @@ Stage: Agent A Stage 07 — textbook analysis and accessible activity generation
 Status: done
 Base: main @ a9904c4 (Agent A Stage 06 PR #11 merged)
 Branch: codex/agentA-stage07-lesson-analysis
-Pull request: pending push/creation at document authoring time
+Pull request: #12 — https://github.com/haleychang0530/2026meichu_hackathon/pull/12 (open)
 Schema/OpenAPI version: 0.1.0 / OpenAPI 3.1.0 (additive answer_evidence)
 Runtime host: Ryzen AI 9 laptop only
 MI300 role: stateless page-facts/activity inference only
@@ -170,6 +170,7 @@ Fixtures are synthetic metadata only; no original page image is required.
 ## Git state
 
 - Local implementation: complete after final tests and diff review.
-- Commits: to be recorded after final `git diff --check`.
-- Remote branch: to be pushed to `origin/codex/agentA-stage07-lesson-analysis`.
-- Pull request: to be created against `main`; merge not performed.
+- Commits: `0ac6ff0`, `ef7cfa5`, `b7c2c2a`, plus the handoff metadata update.
+- Remote branch: pushed to `origin/codex/agentA-stage07-lesson-analysis`.
+- Pull request: #12 is open against `main`; merge not performed and still
+  requires explicit repository-owner authorization.
