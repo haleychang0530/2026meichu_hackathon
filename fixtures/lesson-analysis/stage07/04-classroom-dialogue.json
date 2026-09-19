@@ -3,9 +3,10 @@
   "fixture_id": "stage07-classroom-dialogue",
   "input_profile": { "page_type": "classroom_scene", "quality": "good", "media": "synthetic-metadata-only" },
   "facts": {
-    "schema_version": "stage07-facts.v1",
+    "schema_version": "stage07-facts.v2",
     "topic": "教室物件",
     "source_text": "這是冊仔，彼是筆。",
+    "source_text_complete": true,
     "vocabulary": [
       { "hanji": "冊仔", "tailo": "chheh-á", "meaning": "書本" },
       { "hanji": "筆", "tailo": "pit", "meaning": "筆" }

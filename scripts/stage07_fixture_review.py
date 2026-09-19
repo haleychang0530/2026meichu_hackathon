@@ -43,6 +43,8 @@ def main() -> int:
             [str(item) for item in facts.get("answer_evidence", [])] if isinstance(facts, dict) else [],
             activity.get("safety_checks") if isinstance(activity, dict) else None,
         )
+        source_text = facts.get("source_text") if isinstance(facts, dict) else None
+        source_text_complete = facts.get("source_text_complete") is True if isinstance(facts, dict) else False
         row = {
             "fixture_id": fixture_id,
             "file": path.relative_to(ROOT).as_posix(),
@@ -51,9 +53,19 @@ def main() -> int:
             "review_status": payload.get("expected", {}).get("review_status"),
             "answer_evidence_count": len(facts.get("answer_evidence", [])) if isinstance(facts, dict) else 0,
             "quality_warning_count": len(facts.get("quality_warnings", [])) if isinstance(facts, dict) else 0,
+            "source_text_complete": source_text_complete,
+            "source_text_length": len(source_text) if isinstance(source_text, str) else 0,
         }
         rows.append(row)
-        if errors or safety or row["review_status"] != "pending" or row["answer_evidence_count"] < 1:
+        if (
+            errors
+            or safety
+            or row["review_status"] != "pending"
+            or row["answer_evidence_count"] < 1
+            or not source_text_complete
+            or not isinstance(source_text, str)
+            or not source_text.strip()
+        ):
             failures.append({
                 "fixture_id": fixture_id,
                 "schema_errors": [error.validator for error in errors[:8]],

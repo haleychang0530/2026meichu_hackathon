@@ -143,6 +143,7 @@ class AppTests(unittest.IsolatedAsyncioTestCase):
         fetched = await self._request(app, "GET", f"/api/lessons/{lesson_id}")
         self.assertEqual(fetched.status_code, 200, fetched.text)
         self.assertEqual(fetched.json()["review_status"], "pending")
+        self.assertEqual(fetched.json()["source_text"], created.json()["source_text"])
 
         approved = await self._request(
             app,

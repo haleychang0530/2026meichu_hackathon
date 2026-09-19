@@ -104,6 +104,7 @@ class DatabaseTests(unittest.TestCase):
             stored = database.get_lesson(lesson.lesson_id)
             self.assertIsNotNone(stored)
             self.assertEqual(stored.review_status, "pending")
+            self.assertEqual(stored.source_text, lesson.source_text)
             self.assertEqual(stored.answer_evidence, lesson.answer_evidence)
 
             updated = database.update_lesson(lesson.lesson_id, {"review_status": "approved"})

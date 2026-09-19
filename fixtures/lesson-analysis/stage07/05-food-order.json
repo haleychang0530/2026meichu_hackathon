@@ -3,9 +3,10 @@
   "fixture_id": "stage07-food-order",
   "input_profile": { "page_type": "sequence_and_roleplay", "quality": "occluded-warning", "media": "synthetic-metadata-only" },
   "facts": {
-    "schema_version": "stage07-facts.v1",
+    "schema_version": "stage07-facts.v2",
     "topic": "點餐對話",
     "source_text": "我欲一碗麵，毋欲辣。",
+    "source_text_complete": true,
     "vocabulary": [
       { "hanji": "一碗麵", "tailo": "chi̍t uánn mī", "meaning": "一碗麵" },
       { "hanji": "毋欲辣", "tailo": "m̄ beh la̍t", "meaning": "不要辣" }

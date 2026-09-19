@@ -8,6 +8,7 @@
     "schema_version",
     "topic",
     "source_text",
+    "source_text_complete",
     "vocabulary",
     "scene",
     "visual_elements",
@@ -18,9 +19,17 @@
     "confidence"
   ],
   "properties": {
-    "schema_version": { "const": "stage07-facts.v1" },
+    "schema_version": { "const": "stage07-facts.v2" },
     "topic": { "type": "string", "minLength": 1, "maxLength": 200 },
-    "source_text": { "type": "string", "minLength": 1 },
+    "source_text": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Verbatim complete original lesson text in page reading order; do not summarize or fill unclear text."
+    },
+    "source_text_complete": {
+      "type": "boolean",
+      "description": "True only when the visible lesson text has readable beginning and end with no crop, occlusion, glare, or unreadable continuation."
+    },
     "vocabulary": {
       "type": "array",
       "items": {

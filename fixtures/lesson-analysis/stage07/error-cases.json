@@ -4,8 +4,14 @@
     {
       "case_id": "invalid-facts-json",
       "stage": "facts",
-      "failure": "missing required field answer_evidence",
+      "failure": "missing required facts fields such as answer_evidence or source_text_complete",
       "expected": "one repair attempt, then VLM_INVALID_OUTPUT/manual review or explicit fixture fallback"
+    },
+    {
+      "case_id": "incomplete-source-text",
+      "stage": "facts",
+      "failure": "source_text_complete is false because the lesson is cropped or unreadable",
+      "expected": "one repair attempt; unresolved output returns VLM_INVALID_OUTPUT/manual review and is not sent to Stage 08"
     },
     {
       "case_id": "accessible-answer-leak",
