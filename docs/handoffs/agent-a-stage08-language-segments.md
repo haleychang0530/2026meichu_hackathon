@@ -19,6 +19,7 @@ The existing text fields remain in every public response. New clients can use th
 - `packages/contracts/schemas/v0.1/{lesson,session,student-action,turn-result}.schema.json` — optional utterance fields with inline contract definitions to keep direct JSON Schema validation offline.
 - `apps/web/src/{generated/api.ts,types/viewModels.ts,adapters/realAdapter.ts,adapters/mockAdapter.ts,pages/StudentPage.tsx,speech/gateway.ts}` — consume backend utterances; retain string fallback for legacy/mock responses; route `needs_review` spans to Chinese browser speech.
 - `services/speech-local/{tts.py,test_tts.py,README.md}` — `needs_review` nan spans use `web-speech`/Windows Chinese fallback and never reach MMS.
+- `data/rag/manifest.json` — refreshed the approved demo fixture SHA-256 after adding the additive utterance fixture fields.
 - `fixtures/lesson-analysis/stage07/01..05-*.json` and `scripts/stage07_fixture_review.py` — five representative fixtures now carry exact language coverage.
 
 ## Schema/OpenAPI version
