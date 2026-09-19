@@ -360,6 +360,100 @@ code { padding: .1rem .3rem; border-radius: .3rem; background: #edf2f7; font-fam
   .empty-state, .live-message) { border-left: .35rem solid #c08000; border-radius: 0; }
 .observer-shell .observer-page > .card { margin-bottom: 1.5rem; }
 
+/* Keep the student's existing header and mode label, while bringing the
+   learning surface in line with the warm lesson-preparation layout. */
+.student-shell {
+  color: #2a210f;
+  background: #fff8e8;
+}
+.student-shell a { color: #135c5a; }
+.student-shell a:focus-visible,
+.student-shell button:focus-visible,
+.student-shell input:focus-visible,
+.student-shell select:focus-visible,
+.student-shell textarea:focus-visible,
+.student-shell summary:focus-visible,
+.student-shell [tabindex="-1"]:focus-visible {
+  outline: 2px solid #2a210f;
+  box-shadow: 0 0 0 5px #ffaf11;
+  outline-offset: 2px;
+}
+.student-shell .page { width: min(100% - 2rem, 72rem); }
+.student-shell h1,
+.student-shell h2,
+.student-shell h3 { color: #2a210f; }
+.student-shell h1 { letter-spacing: -.025em; }
+.student-shell .eyebrow { color: #8a5b00; }
+.student-page-intro { max-width: 64rem; margin: 0 0 1.25rem; }
+.student-page-intro h1 { margin-bottom: .4rem; }
+.student-page-intro .phase-label { margin: 0; }
+.student-shell .card,
+.student-shell .status-banner,
+.student-shell .error-state {
+  border-color: #e9d9b8;
+  border-radius: 1.2rem;
+  box-shadow: 0 12px 30px rgb(83 58 11 / 7%);
+}
+.student-shell .status-banner { margin-top: 1rem; }
+.student-shell .student-card,
+.student-shell .transcript-card,
+.student-shell .demo-mode-switch { max-width: 64rem; }
+.student-shell .student-card { margin-top: 1.5rem; }
+.student-shell .button {
+  border-color: #8a5b00;
+  border-radius: .7rem;
+  color: #2a210f;
+  background: #ffcc7a;
+}
+.student-shell .button:hover { color: #2a210f; background: #f3a400; }
+.student-shell .button.secondary { border-color: #8a5b00; color: #6f4800; background: #fff; }
+.student-shell .button.secondary:hover { background: #fff2d5; }
+.student-shell .button,
+.student-shell .button.secondary {
+  border: 0;
+  border-bottom: 3px solid #2a210f;
+  border-radius: 0;
+}
+.student-shell .button:not(.secondary),
+.student-shell .button:not(.secondary):hover {
+  padding: .5rem .75rem;
+  background: #ffe8c4;
+}
+.student-shell .button.secondary { padding: .5rem .75rem; }
+.student-shell .button-grid { gap: .75rem; }
+.student-shell .prompt {
+  color: #2a210f;
+  border: 1px solid #e9d9b8;
+  border-radius: 1rem;
+  background: #fff0ca;
+}
+.student-shell .live-message,
+.student-shell .completion-message {
+  border-color: #135c5a;
+  background: #eff8f1;
+}
+.student-shell .completion-message { color: #135c5a; }
+.student-shell .fallback-message {
+  color: #6f4800;
+  border-color: #8a5b00;
+  background: #fff1cc;
+}
+.student-shell .loading-state { background: #ffe8c4; }
+.student-shell .error-state { border-color: #9f2d20; background: #fff4ef; }
+.student-shell .error-state h2,
+.student-shell .field-error { color: #9f2d20; }
+.student-shell .transcript-card textarea {
+  border-color: #c9b27e;
+  border-radius: .7rem;
+  color: #2a210f;
+}
+.student-shell .transcript-card textarea:focus {
+  border-color: #135c5a;
+  outline-color: #ffaf11;
+}
+.student-shell .demo-mode-switch { margin-top: 1rem; }
+.student-shell .demo-mode-switch .button { margin-left: auto; }
+
 @media (max-width: 760px) {
   .observer-shell .home-hero { grid-template-columns: 1fr; min-height: 0; }
   .observer-shell .hero-art { min-height: 16rem; order: -1; }
@@ -375,11 +469,22 @@ code { padding: .1rem .3rem; border-radius: .3rem; background: #edf2f7; font-fam
   .observer-shell .site-header nav a { padding: .45rem .6rem; }
   .observer-shell .home-hero h1 { font-size: clamp(2.2rem, 10vw, 3rem); }
 }
+@media (max-width: 700px) {
+  .student-shell .student-page-intro { margin-bottom: 1rem; }
+  .student-shell .student-card { margin-top: 1rem; }
+  .student-shell .status-banner { margin-top: .75rem; }
+  .student-shell .demo-mode-switch { justify-content: stretch; }
+  .student-shell .demo-mode-switch .button { width: 100%; margin-left: 0; }
+}
 @media (forced-colors: active) {
   .observer-shell .button,
   .observer-shell .card,
   .observer-shell .home-steps,
   .observer-shell .site-header,
   .observer-shell .prompt { border: 2px solid CanvasText; }
+  .student-shell .button,
+  .student-shell .card,
+  .student-shell .status-banner,
+  .student-shell .prompt { border: 2px solid CanvasText; }
   .observer-shell .hero-art { display: none; }
 }

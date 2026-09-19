@@ -482,7 +482,7 @@ export function StudentPage({
 
   return (
     <AppShell currentLabel="學生模式">
-      <main id="main-content" className="page" tabIndex={-1} aria-busy={Boolean(busyLabel)}>
+      <main id="main-content" className="page student-page" tabIndex={-1} aria-busy={Boolean(busyLabel)}>
         {!currentView && !error ? <LoadingState label="載入學生活動……" /> : null}
         {error ? <ErrorState error={error} onRetry={() => void refreshSnapshot()} showTechnicalDetails={false} /> : null}
         {speechError ? (
@@ -497,10 +497,13 @@ export function StudentPage({
         ) : null}
         {currentView ? (
           <>
+            <header className="student-page-intro" aria-labelledby="student-heading">
+              <p className="eyebrow">學生學習</p>
+              <h1 id="student-heading" data-page-title tabIndex={-1}>{studentHeading}</h1>
+              {showSeparatePhase ? <p className="phase-label">目前階段：{phaseLabels[currentView.phase]}</p> : null}
+            </header>
             <StatusBanner health={currentView.health} />
             <section className="card student-card" aria-labelledby="student-heading">
-              {showSeparatePhase ? <p className="phase-label">目前階段：{phaseLabels[currentView.phase]}</p> : null}
-              <h1 id="student-heading" data-page-title tabIndex={-1}>{studentHeading}</h1>
               <p className="prompt">{currentView.prompt}</p>
               {interactionGroup !== 'complete' ? (
                 <p className="live-message" role="status" aria-live="polite">{currentStatusMessage}</p>
