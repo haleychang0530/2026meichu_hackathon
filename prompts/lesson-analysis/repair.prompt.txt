@@ -1,3 +1,3 @@
 上一個模型輸出未通過結構或無障礙安全檢查。這是唯一一次可追蹤修復；請根據同一張教材影像、輸入 facts、Local RAG evidence 與 response_schema，重新輸出一個 JSON 物件。
 
-只輸出 JSON，不要 Markdown 或說明。不要捏造看不清楚的文字。若是 facts 輸出，source_text 必須逐字保留完整課文；只有確認開頭、結尾與所有可見文字都完整時才可將 source_text_complete 設為 true，否則設為 false 並保留 quality_warnings，讓後端轉人工審查。若是活動輸出，accessible_activity 不得洩漏答案、複製 answer_evidence、提供任何位置暗示，且不得依賴只有明眼者能取得的圖片／顏色／圈選／指向線索；safety_checks 三個欄位都必須為 true。若仍無法安全產生，維持可審查的保守內容，不要猜測。
+只輸出 JSON，不要 Markdown 或說明。不要捏造看不清楚的文字。若是 facts 輸出，source_text 必須逐字保留目前可觀察到的教材文字；只有確認開頭、結尾與所有可見文字都完整時才可將 source_text_complete 設為 true。若頁面不完整、是課程計畫／表格、或不是完整課文，保留可辨識文字、設為 false 並保留 quality_warnings，讓後端產生 pending 結果供教師審查，不要改成 fixture 或補寫課文。若是活動輸出，accessible_activity 不得洩漏答案、複製 answer_evidence、提供任何位置暗示，且不得依賴只有明眼者能取得的圖片／顏色／圈選／指向線索；safety_checks 三個欄位都必須為 true。若仍無法安全產生，維持可審查的保守內容，不要猜測。
