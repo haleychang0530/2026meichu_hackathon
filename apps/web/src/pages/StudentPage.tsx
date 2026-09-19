@@ -363,7 +363,12 @@ export function StudentPage({
       transcriptRef.current?.focus();
       return;
     }
-    const mode = transcriptMode || 'keyboard';
+    const mode = transcriptMode;
+    if (!mode) {
+      setInputError('請先按「開始鍵盤回答」或「開始語音回答」，再送出回答。');
+      transcriptRef.current?.focus();
+      return;
+    }
     const previous = pendingTurnRef.current;
     const pending = previous && previous.transcript === transcript && previous.inputMode === mode
       ? previous
@@ -513,7 +518,7 @@ export function StudentPage({
               />
               {inputError ? <p className="field-error" role="alert">{inputError}</p> : null}
               <div className="button-row">
-                <button className="button primary-large" type="button" disabled={Boolean(busyLabel) || !draftTranscript.trim() || currentView.state === 'COMPLETE'} onClick={() => void submitDraft()}>
+                <button className="button primary-large" type="button" disabled={Boolean(busyLabel) || !draftTranscript.trim() || !transcriptMode || currentView.state === 'COMPLETE'} onClick={() => void submitDraft()}>
                   送出這個回答
                 </button>
                 <button className="button secondary" type="button" disabled={Boolean(busyLabel) || currentView.state === 'COMPLETE'} onClick={() => void rerecord()}>

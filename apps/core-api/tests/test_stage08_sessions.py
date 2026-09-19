@@ -327,6 +327,34 @@ class Stage08SessionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result.json()["result"], "retry")
                 self.assertIn("mi300_offline", result.json()["fallbacks"])
 
+    async def test_retry_prompt_keeps_the_current_activity_visible(self) -> None:
+        session = await self.create_session("create-visible-retry-prompt")
+        session_id = session["session_id"]
+        revision = session["revision"]
+
+        for index in range(2):
+            response = await self.action(session_id, "next", f"visible-next-{index}", revision)
+            self.assertEqual(response.status_code, 200, response.text)
+            revision = response.json()["revision"]
+
+        started = await self.action(session_id, "start_answer", "visible-start", revision)
+        self.assertEqual(started.status_code, 200, started.text)
+        revision = started.json()["revision"]
+        result = await self.turn(session_id, "我不確定。", "visible-turn", revision)
+        self.assertEqual(result.status_code, 200, result.text)
+        prompt = result.json()["next_prompt"]
+
+        self.assertEqual(result.json()["phase"], "hint")
+        self.assertIn("目前題目：請跟讀這句：", prompt)
+        self.assertIn("提示：", prompt)
+
+        snapshot = await self.client.get(
+            f"/api/sessions/{session_id}/snapshot",
+            headers={"X-Request-ID": self.request_id()},
+        )
+        self.assertEqual(snapshot.status_code, 200, snapshot.text)
+        self.assertEqual(snapshot.json()["current_prompt"], prompt)
+
     async def test_session_is_restored_after_app_restart(self) -> None:
         app = create_app(self.settings)
         async with app.router.lifespan_context(app):

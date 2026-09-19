@@ -194,7 +194,7 @@ function providerModeFromHeader(value: string | null): CaptureProviderMode {
 
 function toProgress(progress: number): { readonly label: string; readonly value: number } {
   const value = Math.round(progress * 100);
-  return { label: `目前進度 ${value}%`, value };
+  return { label: '目前進度', value };
 }
 
 function toStudentView(

@@ -164,6 +164,20 @@ describe('RealAdapter', () => {
     expect(view.canConfirm).toBe(true);
   });
 
+  it('keeps the student progress label separate from the percentage value', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/api/health')) return jsonResponse(healthPayload);
+      if (url.endsWith('/api/sessions/session_demo_001')) return jsonResponse(sessionPayload);
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const view = await new RealAdapter('http://127.0.0.1:8000').getStudentSession('session_demo_001');
+
+    expect(view.progressLabel).toBe('目前進度');
+    expect(view.progressValue).toBe(40);
+  });
+
   it('uses the Stage 04 health route as the capture entrypoint before Stage 08 routes exist', async () => {
     const calls: string[] = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
