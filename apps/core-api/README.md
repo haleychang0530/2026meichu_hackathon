@@ -211,14 +211,24 @@ business state. The migrations are applied in order:
 0005_mastery.sql
 0006_events.sql
 0007_settings.sql
+0008_stage08_source_read.sql
 ```
 
-The student flow is:
+Only a teacher/parent-approved Lesson may create a student session. The
+student flow is:
 
 ```text
-introduction → demonstration → read_aloud → comprehension → review → complete
-                                      ↘ hint ↗
+introduction → demonstration (full source read) → read_aloud (follow-read)
+             → comprehension → review → complete
+                         ↘ hint ↗
 ```
+
+The demonstration prompt reads the complete persisted `Lesson.source_text`
+verbatim once before the student can enter follow-read. The follow-read prompt
+uses the same persisted text; it is never reconstructed from RAG evidence or
+`accessible_activity`. A `start_answer` action during introduction or the
+source-read demonstration remains in `SPEAKING` until the full source read is
+finished.
 
 `POST /api/sessions/{session_id}/turns` accepts a transcript and returns only
 the student-safe `TurnResult`. Local concept matching handles straightforward

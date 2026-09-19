@@ -429,7 +429,7 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         responses={
             400: {"model": ErrorEnvelope, "description": "Invalid session request."},
             404: {"model": ErrorEnvelope, "description": "Lesson was not found."},
-            409: {"model": ErrorEnvelope, "description": "Idempotency conflict."},
+            409: {"model": ErrorEnvelope, "description": "Lesson approval or idempotency conflict."},
         },
         operation_id="createSession",
     )
@@ -512,7 +512,7 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         responses={
             400: {"model": ErrorEnvelope, "description": "Invalid answer submission."},
             404: {"model": ErrorEnvelope, "description": "Session was not found."},
-            409: {"model": ErrorEnvelope, "description": "Revision or idempotency conflict."},
+            409: {"model": ErrorEnvelope, "description": "Session state, revision, or idempotency conflict."},
         },
         operation_id="submitTurn",
     )

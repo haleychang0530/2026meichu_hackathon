@@ -5,6 +5,7 @@
 | `VALIDATION_ERROR` | no | correct input |
 | `IMAGE_QUALITY_LOW` | yes, user action | retake/upload |
 | `LESSON_NOT_FOUND` | no | choose a lesson |
+| `LESSON_NOT_APPROVED` | yes, after teacher/parent review | manual review |
 | `SESSION_NOT_FOUND` | no | start a session |
 | `VLM_TIMEOUT` | yes, bounded by policy | cached lesson/fixture/manual review |
 | `VLM_OFFLINE` | yes, bounded by policy | cached lesson or fixture |

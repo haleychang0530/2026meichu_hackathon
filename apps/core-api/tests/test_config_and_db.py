@@ -80,6 +80,7 @@ class DatabaseTests(unittest.TestCase):
                     "0005_mastery.sql",
                     "0006_events.sql",
                     "0007_settings.sql",
+                    "0008_stage08_source_read.sql",
                 ],
             )
             self.assertEqual(database.migrate(), [])
@@ -89,7 +90,7 @@ class DatabaseTests(unittest.TestCase):
                 values = dict(connection.execute("SELECT key, value_json FROM settings"))
             finally:
                 connection.close()
-            self.assertEqual(json.loads(values["teaching_agent_version"]), "stage08-v1")
+            self.assertEqual(json.loads(values["teaching_agent_version"]), "stage08-v2-source-read")
             self.assertEqual(json.loads(values["schema_version"]), "0.1.0")
 
     def test_lessons_are_structurally_persisted_and_reviewable(self) -> None:

@@ -16,6 +16,7 @@
     { "path": "observer/mi300-offline.service-health.json", "audience": "observer", "schema": "service-health.schema.json", "scenario": "mi300_offline" },
     { "path": "errors/mi300-offline.error.json", "audience": "shared", "schema": "error.schema.json", "scenario": "mi300_offline" },
     { "path": "errors/rag-no-result.error.json", "audience": "shared", "schema": "error.schema.json", "scenario": "rag_no_result" },
+    { "path": "errors/lesson-not-approved.error.json", "audience": "shared", "schema": "error.schema.json", "scenario": "lesson_not_approved" },
     { "path": "errors/asr-failed.error.json", "audience": "shared", "schema": "error.schema.json", "scenario": "asr_failure" },
     { "path": "errors/tts-failed.error.json", "audience": "shared", "schema": "error.schema.json", "scenario": "tts_failure" },
     { "path": "student/action-request-hint.json", "audience": "student", "schema": "student-action.schema.json#/$defs/control_request", "scenario": "success" },

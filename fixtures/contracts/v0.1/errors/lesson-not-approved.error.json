@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1.0",
+  "code": "LESSON_NOT_APPROVED",
+  "message": "課程尚未經教師或家長確認，暫時不能開始學生教學。",
+  "retryable": true,
+  "fallback": "manual_review",
+  "request_id": "00000000-0000-4000-8000-000000000405",
+  "details": {
+    "review_status": "pending"
+  }
+}

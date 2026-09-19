@@ -71,6 +71,11 @@ class Stage08SessionTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(analyzed.status_code, 200, analyzed.text)
         self.lesson_id = analyzed.json()["lesson_id"]
+        approved = await self.client.patch(
+            f"/api/lessons/{self.lesson_id}",
+            json={"review_status": "approved"},
+        )
+        self.assertEqual(approved.status_code, 200, approved.text)
 
     async def asyncTearDown(self) -> None:
         await self.client.aclose()
@@ -99,6 +104,78 @@ class Stage08SessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 201, response.text)
         self.assertEqual(response.headers["X-Session-Revision"], "0")
         return response.json()
+
+    async def test_pending_lesson_requires_teacher_approval_before_session(self) -> None:
+        pending = await self.client.patch(
+            f"/api/lessons/{self.lesson_id}",
+            json={"review_status": "pending"},
+        )
+        self.assertEqual(pending.status_code, 200, pending.text)
+
+        blocked = await self.client.post(
+            "/api/sessions",
+            headers=self.headers("approval-gate"),
+            json={"schema_version": "0.1.0", "lesson_id": self.lesson_id},
+        )
+        self.assertEqual(blocked.status_code, 409, blocked.text)
+        self.assertEqual(blocked.json()["code"], "LESSON_NOT_APPROVED")
+        self.assertEqual(blocked.json()["details"]["review_status"], "pending")
+
+        approved = await self.client.patch(
+            f"/api/lessons/{self.lesson_id}",
+            json={"review_status": "approved"},
+        )
+        self.assertEqual(approved.status_code, 200, approved.text)
+
+        created = await self.client.post(
+            "/api/sessions",
+            headers=self.headers("approval-gate"),
+            json={"schema_version": "0.1.0", "lesson_id": self.lesson_id},
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+
+    async def test_full_source_read_precedes_follow_read(self) -> None:
+        session = await self.create_session("create-source-read-order")
+        session_id = session["session_id"]
+        source_text = self.app.state.database.get_lesson(self.lesson_id).source_text
+
+        demonstration = await self.action(session_id, "next", "source-read-demo", 0)
+        self.assertEqual(demonstration.status_code, 200, demonstration.text)
+        demonstration_body = demonstration.json()
+        self.assertEqual(demonstration_body["phase"], "demonstration")
+        self.assertIn("完整朗讀一次原始課文", demonstration_body["current_prompt"])
+        self.assertIn(source_text, demonstration_body["current_prompt"])
+
+        follow_read = await self.action(session_id, "next", "source-read-follow", 1)
+        self.assertEqual(follow_read.status_code, 200, follow_read.text)
+        follow_read_body = follow_read.json()
+        self.assertEqual(follow_read_body["phase"], "read_aloud")
+        self.assertIn("跟讀完整原始課文", follow_read_body["current_prompt"])
+        self.assertIn(source_text, follow_read_body["current_prompt"])
+
+    async def test_student_cannot_answer_before_source_read_finishes(self) -> None:
+        session = await self.create_session("create-source-read-guard")
+        session_id = session["session_id"]
+        demonstration = await self.action(session_id, "next", "source-read-guard-next", 0)
+        self.assertEqual(demonstration.status_code, 200, demonstration.text)
+
+        early_hint = await self.action(session_id, "request_hint", "source-read-guard-hint", 1)
+        self.assertEqual(early_hint.status_code, 200, early_hint.text)
+        self.assertEqual(early_hint.json()["phase"], "demonstration")
+        self.assertFalse(early_hint.json()["can_answer"])
+        self.assertIn("先完成完整課文聆聽", early_hint.json()["feedback"])
+
+        direct_turn = await self.turn(session_id, "阿媽欲去市場買菜。", "source-read-guard-turn", 2)
+        self.assertEqual(direct_turn.status_code, 409, direct_turn.text)
+        self.assertEqual(direct_turn.json()["code"], "VALIDATION_ERROR")
+        self.assertEqual(direct_turn.json()["details"]["phase"], "demonstration")
+
+        blocked = await self.action(session_id, "start_answer", "source-read-guard-start", 2)
+        self.assertEqual(blocked.status_code, 200, blocked.text)
+        body = blocked.json()
+        self.assertEqual(body["phase"], "demonstration")
+        self.assertFalse(body["can_answer"])
+        self.assertIn("先聽完完整課文", body["feedback"])
 
     async def action(self, session_id: str, action: str, key: str, revision: int) -> httpx.Response:
         return await self.client.post(
@@ -296,6 +373,11 @@ class Stage08SessionTests(unittest.IsolatedAsyncioTestCase):
                     data={"language": "nan-TW", "use_fixture_on_failure": "true"},
                 )
                 lesson_id = analyzed.json()["lesson_id"]
+                approved = await client.patch(
+                    f"/api/lessons/{lesson_id}",
+                    json={"review_status": "approved"},
+                )
+                self.assertEqual(approved.status_code, 200, approved.text)
                 created = await client.post(
                     "/api/sessions",
                     headers=self.headers("slow-create"),
@@ -345,7 +427,7 @@ class Stage08SessionTests(unittest.IsolatedAsyncioTestCase):
         prompt = result.json()["next_prompt"]
 
         self.assertEqual(result.json()["phase"], "hint")
-        self.assertIn("目前題目：請跟讀這句：", prompt)
+        self.assertIn("目前題目：現在請跟讀完整原始課文：", prompt)
         self.assertIn("提示：", prompt)
 
         snapshot = await self.client.get(
@@ -368,6 +450,11 @@ class Stage08SessionTests(unittest.IsolatedAsyncioTestCase):
                     files={"image": ("page.jpg", jpeg_bytes(), "image/jpeg")},
                     data={"language": "nan-TW", "use_fixture_on_failure": "true"},
                 )
+                approved = await client.patch(
+                    f"/api/lessons/{analyzed.json()['lesson_id']}",
+                    json={"review_status": "approved"},
+                )
+                self.assertEqual(approved.status_code, 200, approved.text)
                 created = await client.post(
                     "/api/sessions",
                     headers=self.headers("restart-create"),
