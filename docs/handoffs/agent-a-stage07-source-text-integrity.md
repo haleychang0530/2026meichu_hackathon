@@ -2,9 +2,10 @@
 
 ```text
 Stage: Agent A Stage 07 follow-up — complete original source-text preservation
-Status: done locally; push and PR pending
+Status: done — committed and pushed; PR open, not merged
 Base: origin/main @ e7dcd4c
 Branch: codex/agentA-stage07-source-text-integrity
+Pull request: #23 — https://github.com/haleychang0530/2026meichu_hackathon/pull/23
 Schema/OpenAPI version: public JSON Schema 0.1.0 / OpenAPI 3.1.0 unchanged
 Internal prompt schema: stage07-facts.v2
 Runtime host: Ryzen AI 9 laptop only
@@ -149,7 +150,8 @@ git diff --check: PASS (Windows LF/CRLF conversion warnings only)
 ## Git state
 
 - Local implementation: complete and tested on the feature branch.
-- Commit: pending.
-- Remote branch: pending push.
-- Pull request: pending creation against `main`.
+- Commits: `40a27f2` implementation/tests and `a0ffe90` docs/handoff; this
+  handoff metadata update is the next small docs commit.
+- Remote branch: pushed to `origin/codex/agentA-stage07-source-text-integrity`.
+- Pull request: #23 is open against `main`; review is pending.
 - Merge: not performed; requires explicit user/repository-owner authorization.
