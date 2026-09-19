@@ -150,8 +150,8 @@ git diff --check: PASS (Windows LF/CRLF conversion warnings only)
 ## Git state
 
 - Local implementation: complete and tested on the feature branch.
-- Commits: `40a27f2` implementation/tests and `a0ffe90` docs/handoff; this
-  handoff metadata update is the next small docs commit.
+- Commits: `40a27f2` implementation/tests, `a0ffe90` docs/handoff, and
+  `60464b1` pushed handoff/PR metadata.
 - Remote branch: pushed to `origin/codex/agentA-stage07-source-text-integrity`.
 - Pull request: #23 is open against `main`; review is pending.
 - Merge: not performed; requires explicit user/repository-owner authorization.
