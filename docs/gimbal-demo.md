@@ -43,3 +43,16 @@ Core 的四個本機路由：`POST /api/gimbal/start`、`/observe`（multipart `
 - 預訓練 `book` 類別不保證辨識單張紙。四邊形輪廓只是受控展示場景的備援；若 demo 有固定紙張/背景，先用實景測試，必要時把同一個 nano 模型微調為「頁面」類別。
 - ESP 的 `ACK` 只確認指令和目標角度，並不提供角度感測器回饋。鏡頭是否真的往紙張移動，由下一張影格判斷；若初始畫面完全看不到紙，有限搜索後會請使用者先手動將紙移近。
 - ESP32 韌體和實際舵機尚需上板驗證。若 Z 軸或仰角動作與影像相反，控制器會在下一張影格誤差變大時反轉該軸的後續指令。
+
+## Stage 12 handoff
+
+- **Status:** software demo implementation complete; physical validation pending.
+- **Changed files:** `apps/web/src/capture/CameraCapture.tsx`, `apps/web/src/capture/gimbalClient.ts`, `apps/core-api/core_api/gimbal.py`, Core routes/config/error code, Core OpenAPI and generated TypeScript, ESP32 firmware, setup documentation, tests.
+- **How to run:** follow the preparation and operation steps above.
+- **Runtime versions:** development checks used Python 3.12 and the repository's Node/Vite 8.3 toolchain. Target runtime is the user's PN54; actual environment versions must be recorded during on-device testing.
+- **Tests and results:** web Vitest 40/40, TypeScript typecheck and production build passed. Six isolated Python controller/Serial tests passed using fake camera detections and fake Serial replies. Python syntax compilation, contract JSON parsing, and `git diff --check` passed. Full Core API test suite could not run in this workspace because the Python dependencies were absent and package installation did not complete. Arduino compilation and hardware movement have not run here.
+- **Latency/RAM measurements:** not measured on PN54. Cold model load, per-frame inference, Serial acknowledgement, and full alignment time should be measured during the hardware walkthrough.
+- **Accessibility checks:** buttons use native keyboard operation; progress/error text uses `role=status` and `aria-live`; the visual page box is decorative and hidden from assistive technology. No screen-reader walkthrough has been performed.
+- **Known limits:** pretrained `book` detection and contour fallback are not validated on the actual demo paper/background; the servo's physical travel and direction are not validated; this is a single-user demo controller with one COM owner.
+- **Agent A can rely on:** the four additive `/api/gimbal/*` routes and `GIMBAL_UNAVAILABLE` error are documented in the Core OpenAPI contract. They do not change the lesson/session data path. Agent A should review the additive contract because the Core canonical contract is Agent A-owned.
+- **Next action:** install the optional model/Serial dependencies on PN54, flash the firmware, set `GIMBAL_PORT`, and run an end-to-end capture with a real page. Record inference latency, first-move direction, servo travel, and final photo quality.
