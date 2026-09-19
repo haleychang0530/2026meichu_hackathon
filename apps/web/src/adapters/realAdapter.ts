@@ -420,6 +420,17 @@ export class RealAdapter implements FrontendAdapter {
   }
 
   async confirmLesson(lessonId: string): Promise<{ readonly sessionId: string }> {
+    const lesson = await this.getLesson(lessonId);
+    if (lesson.review_status === 'pending') {
+      await this.request<CoreLesson>(
+        `/api/lessons/${encodeURIComponent(lessonId)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/merge-patch+json' },
+          body: JSON.stringify({ review_status: 'approved' }),
+        },
+      );
+    }
     const session = await this.request<CoreSession>('/api/sessions', {
       method: 'POST',
       body: JSON.stringify({ schema_version: SCHEMA_VERSION, lesson_id: lessonId }),

@@ -243,7 +243,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     if (!pendingAsset || pendingAsset.quality.status === 'rejected') return;
     if (pendingAsset.quality.status === 'warning' && !qualityOverride) return;
     onImageSelected(pendingAsset);
-    setProcessingMessage('照片已準備好，可以開始分析教材。');
+    setProcessingMessage('照片已準備好；按下「開始分析教材」開始教材理解。');
   }
 
   const hasCamera = cameraStatus === 'ready' || cameraStatus === 'starting';
@@ -253,7 +253,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
 
   return (
     <section className="card camera-card" aria-labelledby="camera-heading">
-      <p className="eyebrow">STAGE 03 · CAMERA／UPLOAD</p>
+      <p className="eyebrow">01 · 拍攝或選擇教材</p>
       <h2 id="camera-heading">拍攝或選擇一頁教材</h2>
       <p>
         照片只會先送到筆電上的 Core Backend；前端不直接連線到 MI300。分析完成後由後端依隱私政策清除暫存影像。
@@ -375,6 +375,8 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
           </div>
         </section>
       ) : null}
+
+      <p className="camera-note">若拒絕相機權限，檔案上傳仍可完成；取消或離開頁面時，相機串流與預覽網址會自動釋放。</p>
     </section>
   );
 }

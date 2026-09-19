@@ -21,6 +21,20 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    const titles: Record<AppRoute['kind'], string> = {
+      setup: '設定',
+      health: '健康檢查',
+      capture: '教材',
+      student: '學生模式',
+      observer: '教師／家長模式',
+      not_found: '找不到頁面',
+    };
+    document.title = `${titles[route.kind]}｜hear tAIgi`;
+    try {
+      if (!window.localStorage.getItem('hear-our-language.accessibility-mode')) return;
+    } catch {
+      return;
+    }
     const main = document.querySelector<HTMLElement>('#main-content');
     const pageTitle = main?.querySelector<HTMLElement>('[data-page-title]');
     (pageTitle || main)?.focus();

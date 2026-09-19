@@ -322,8 +322,6 @@ class LessonAnalysisPipeline:
         source_text = facts.get("source_text")
         if not isinstance(source_text, str) or not source_text.strip():
             reasons.append("source_text_missing")
-        if facts.get("source_text_complete") is not True:
-            reasons.append("source_text_incomplete")
         reasons.extend(
             LessonAnalysisPipeline._language_segment_issues(
                 facts.get("source_text"),
@@ -452,6 +450,9 @@ class LessonAnalysisPipeline:
             for item in facts.get("quality_warnings", [])
             if str(item).strip()
         ]
+        if facts.get("source_text_complete") is not True:
+            quality_warnings.append("教材原文完整性尚未確認，需教師審查。")
+            quality_warnings = list(dict.fromkeys(quality_warnings))
         confidence = min(float(facts.get("confidence", 0.0)), float(activity.get("confidence", 0.0)))
         if quality_warnings:
             confidence *= 0.85
@@ -488,7 +489,8 @@ class LessonAnalysisPipeline:
             # Keep the validated facts text verbatim; strip only transport
             # whitespace around the JSON value, never internal line breaks or
             # lesson punctuation. The internal completeness flag is not a
-            # public Lesson field; the gate above is what Stage 08 relies on.
+            # public Lesson field; an unconfirmed value is retained as a
+            # quality warning for teacher/parent review.
             source_text=source_text.strip(),
             vocabulary=vocabulary,
             scene=str(facts["scene"]).strip(),
