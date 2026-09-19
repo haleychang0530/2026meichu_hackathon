@@ -8,7 +8,12 @@ Core API 與本機 Speech Gateway，不能直接連 MI300。啟動器會把 demo
 
 - Windows PowerShell 7、Node.js、Core API `.venv` 與 `npm install` 已完成。
 - 真實 CPU ASR/TTS 模式只使用本機已準備的模型檔；現場不得下載模型。
-- 若要使用 MI300，先取得當天可信任的內網 forwarding URL，不要把 URL 寫進前端或提交到 Git。
+- MI300 位於 Manta project `qwen3-coder-fp8-bench`。需要 shell 時開啟該
+  project 的 Terminal Console；需要 API 時使用 gateway `8100/tcp` 的 forwarding。
+- 2026-09-19 觀察到 gateway forwarding 為 `http://210.61.209.139:46944`
+  （vLLM `8000/tcp` 的 forwarding 為 `45503`，Core 不直接呼叫它）。Manta
+  外部 port 是動態配置；forwarding 重建後先到 **Settings → Port Forwarding**
+  取得新值。URL 只傳給 Core，不得寫入 `VITE_*` 或前端程式。
 - 第一次展示先以 mock profile 完成暖機，再視現場狀況切換 real profile。
 
 ## 一鍵啟動
@@ -34,12 +39,26 @@ pwsh -File .\scripts\release\Start-Demo.ps1 -Mode mock -SpeechProfile cpu
 
 ```powershell
 pwsh -File .\scripts\release\Start-Demo.ps1 `
-  -Mode real -SpeechProfile cpu -Mi300BaseUrl 'http://<trusted-mi300-host>:<port>'
+  -Mode real -SpeechProfile cpu `
+  -Mi300BaseUrl 'http://210.61.209.139:46944'
 ```
 
 `-Mode real` 仍讓 Core API、RAG、SQLite、session、Speech 與前端留在筆電；只有
 Core Backend 的內部 VLM client 會使用 `Mi300BaseUrl`。不要把該位址設定成
-`VITE_*`，也不要從瀏覽器直接呼叫 MI300。
+`VITE_*`，也不要從瀏覽器直接呼叫 MI300。real mode 現在會拒絕缺少、含
+credentials 或含 endpoint path 的 `Mi300BaseUrl`，避免誤用過期 localhost
+預設值或把 `/internal/health` 重複接到 request path。
+
+啟動前可先做不保存 payload 的 gateway probe：
+
+```powershell
+pwsh -File .\scripts\release\Test-Mi300Forwarding.ps1 `
+  -BaseUrl 'http://210.61.209.139:46944'
+```
+
+它呼叫 `GET /internal/health`；若要測試圖片推論，可另傳 synthetic
+`-ImagePath`，腳本會呼叫 `POST /internal/vlm/generate`，但不輸出圖片、prompt
+或 raw model output。
 
 ## 健康頁與展示入口
 

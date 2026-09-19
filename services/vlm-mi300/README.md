@@ -91,7 +91,9 @@ and returns `VLM_TIMEOUT`/504. Upstream connection failures return
 
 ## MI300 lifecycle
 
-The Manta image used for Stage 02 has a full `/mlsteam/workspace` NFS volume.
+The Manta project `qwen3-coder-fp8-bench` used for this service exposes a
+Terminal Console for direct MI300 shell work. The image has a full
+`/mlsteam/workspace` NFS volume.
 Use `/usr/bin/python3.12` plus the existing vLLM site-packages and keep runtime
 logs/PID files under `/tmp`:
 
@@ -208,4 +210,7 @@ laptop, without using the MI300 terminal, the following requests succeeded:
 
 The image and prompt were not written to the repository or persistent logs.
 The external port is lab-assigned and may change when forwarding is recreated;
-read the current value from Manta before using the sample client.
+read the current value from Manta **Settings → Port Forwarding** before using
+the sample client. As reconfirmed on 2026-09-19, internal vLLM `8000/tcp` maps
+to external `45503`, while the Core-facing gateway `8100/tcp` maps to external
+`46944`. Product code must use the gateway mapping, never the vLLM mapping.
