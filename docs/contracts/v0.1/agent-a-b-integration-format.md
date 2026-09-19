@@ -103,7 +103,10 @@ The internal Stage 07 facts response must confirm `source_text_complete=true`;
 the laptop then copies the complete `source_text` into the pending Lesson and
 SQLite without exposing the internal flag as a public contract field. Stage 08
 must consume that persisted Lesson text rather than reconstructing the lesson
-from activity or RAG evidence.
+from activity or RAG evidence. A student session may be created only after the
+teacher/parent review endpoint changes `review_status` to `approved`; a
+pending or rejected Lesson returns `LESSON_NOT_APPROVED` and no session/event
+is created.
 
 ## 4. Observer summary — accepted v0.1 shape
 
@@ -240,6 +243,13 @@ Ryzen AI 9 laptop. Simple answers are resolved by local concept matching. The
 MI300 remains a private, stateless VLM and is consulted only for difficult
 unmatched semantic judgement with a bounded timeout; the browser never calls
 it directly.
+
+The initial student prompt introduces the lesson. The next demonstration phase
+reads the complete persisted `Lesson.source_text` once, and only the following
+`read_aloud` phase enables follow-read. Both prompts use the same validated
+source text; `source_text_complete` remains an internal Stage 07 validation
+field and is never included in a student response, cache, DOM, or Speech
+payload.
 
 ## 7. Walkthrough and sign-off record
 
