@@ -102,17 +102,33 @@ Set-Location apps/core-api
 & .\.venv\Scripts\python.exe -m core_api
 ```
 
-Real MI300 provider (use the current trusted forwarding URL; the Stage 03
-handoff notes that the external Manta port can change):
+Real MI300 provider through the current Manta gateway forwarding. On
+2026-09-19, project `qwen3-coder-fp8-bench` maps gateway `8100/tcp` to
+`http://210.61.209.139:46944`; this external port is dynamic, so re-check
+Manta **Settings → Port Forwarding** whenever the rule is rebuilt:
 
 ```powershell
 $env:CORE_PROFILE = 'development'
 $env:CORE_PROVIDER = 'real'
-$env:VLM_BASE_URL = 'http://<trusted-mi300-host>:<current-port>'
+$env:VLM_BASE_URL = 'http://210.61.209.139:46944'
 $env:VLM_MODEL_REVISION = 'd9748a51ae66354c4dad665aab2c71f26cf2c8cd'
 Set-Location apps/core-api
 & .\.venv\Scripts\python.exe -m core_api
 ```
+
+Before starting Core, an operator can verify the forwarding without exposing
+the URL to the browser. The health-only probe persists no payload:
+
+```powershell
+pwsh -File .\scripts\release\Test-Mi300Forwarding.ps1 `
+  -BaseUrl 'http://210.61.209.139:46944'
+```
+
+Add `-ImagePath .\path\to\synthetic-test.png` to exercise
+`POST /internal/vlm/generate`. The probe prints only bounded metadata and the
+schema-validated candidate; it does not print image bytes, prompt text, or raw
+model output. Direct gateway calls are for operator diagnostics only—product
+traffic still goes through Core.
 
 The Core API remains on `http://127.0.0.1:8000`. Agent B can set
 `VITE_CORE_API_BASE_URL=http://127.0.0.1:8000`; it must not set a MI300 URL.
