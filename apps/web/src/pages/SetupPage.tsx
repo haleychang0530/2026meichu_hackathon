@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FrontendAdapter } from '../adapters/adapter';
 import { AppShell } from '../components/AppShell';
-import { StatusBanner } from '../components/StatusBanner';
 import { ErrorState, LoadingState } from '../components/States';
 import type { SetupViewModel } from '../types/viewModels';
 import { navigateTo } from '../app/routing';
@@ -19,31 +18,32 @@ export function SetupPage({ adapter }: { readonly adapter: FrontendAdapter }) {
   useEffect(load, [adapter]);
 
   return (
-    <AppShell currentLabel="設定">
-      <main id="main-content" className="page" tabIndex={-1}>
-        <p className="eyebrow">STAGE 02 · MOCK FRONTEND</p>
-        <h1 data-page-title tabIndex={-1}>先聽見，再一起說</h1>
-        <p className="lead">這個 Mock flow 先驗證學生與教師／家長兩種操作路徑；真正的 server-side session 仍由 Core Backend 提供。</p>
+    <AppShell currentLabel="首頁">
+      <main id="main-content" className="page home-page" tabIndex={-1}>
+        <section className="home-hero" aria-labelledby="home-heading">
+          <div className="hero-copy">
+            <p className="eyebrow">一頁教材，一段有聲的學習旅程</p>
+            <h1 id="home-heading" data-page-title tabIndex={-1}>讓一頁台語教材，<br />變成可以聽、可以說的課程</h1>
+            <p className="lead">把課文、圖片和活動轉成適合聽與說的教學，讓每個孩子都能用自己的節奏學習母語。</p>
+            <div className="button-row">
+              <button className="button primary-large" type="button" onClick={() => navigateTo('/capture')}>準備一頁教材 <span aria-hidden="true">→</span></button>
+              {import.meta.env.VITE_DATA_MODE !== 'real' ? <button className="button secondary primary-large" type="button" onClick={() => navigateTo('/session/demo-session/student')}>體驗範例課程</button> : null}
+            </div>
+          </div>
+          <div className="hero-art" aria-hidden="true"><div className="hero-book"><span>聽</span><span>說</span><span>學</span></div><div className="sound-ring ring-one" /><div className="sound-ring ring-two" /></div>
+        </section>
         {!view && !error ? <LoadingState /> : null}
         {error ? <ErrorState error={error} onRetry={load} /> : null}
         {view ? (
           <>
-            <StatusBanner health={view.health} />
-            <section className="card callout" aria-labelledby="setup-heading">
-              <h2 id="setup-heading">{view.title}</h2>
-              <p>{view.description}</p>
-              <div className="button-row">
-                <button className="button" type="button" onClick={() => navigateTo(view.nextRoute)}>選擇教材</button>
-                <button className="button secondary" type="button" onClick={() => navigateTo('/session/demo-session/student')}>直接進入學生 Mock</button>
-              </div>
+            <section className="home-steps" aria-label="使用步驟">
+              <ol>
+                <li className="step-card"><h2><span className="step-number">01</span> 準備教材</h2><p>拍下或選擇一頁教材，檢查影像是否清楚。</p></li>
+                <li className="step-card"><h2><span className="step-number">02</span> 一起確認</h2><p>由教師或家長確認課文和適合的活動。</p></li>
+                <li className="step-card"><h2><span className="step-number">03</span> 開始聽說</h2><p>孩子聽課文、回答問題，再收到清楚的回饋。</p></li>
+              </ol>
             </section>
-            <section className="card" aria-labelledby="state-heading">
-              <h2 id="state-heading">狀態展示</h2>
-              <p>可在網址加上 <code>?health=degraded</code>、<code>?health=offline</code> 或 <code>?health=recoverable_error</code> 驗證降級畫面。</p>
-              <div className="button-row">
-                <button className="button secondary" type="button" onClick={() => navigateTo('/health')}>開啟 Stage 10 健康檢查</button>
-              </div>
-            </section>
+            <p className="home-note">{view.health.status === 'ready' ? '系統已準備好。' : '部分服務暫時無法使用；你可以查看系統狀態或使用範例課程。'}</p>
           </>
         ) : null}
       </main>

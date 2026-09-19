@@ -140,16 +140,16 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
 
   return (
     <AppShell currentLabel="教材">
-      <main id="main-content" className="page" tabIndex={-1}>
-        <p className="eyebrow">STAGE 03 · 教材擷取</p>
-        <h1 data-page-title tabIndex={-1}>選擇一頁教材</h1>
+      <main id="main-content" className="page capture-page" tabIndex={-1}>
+        <p className="eyebrow">準備教材</p>
+        <h1 data-page-title tabIndex={-1}>從一頁教材開始</h1>
         {!view && !error ? <LoadingState label="載入教材入口……" /> : null}
         {error ? (
           <>
             <ErrorState error={error} onRetry={load} />
             <section className="card callout" aria-labelledby="offline-heading">
               <h2 id="offline-heading">先使用離線合成教材</h2>
-              <p>Core Backend 尚未回應時，可以先用明確標示的 fixture 驗證鍵盤與雙模式流程。</p>
+              <p>服務暫時無法使用時，可以先用範例教材體驗流程。</p>
               <button className="button" type="button" onClick={() => void useFixture()}>使用離線合成教材</button>
             </section>
           </>
@@ -161,10 +161,10 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
           resetToken={cameraResetToken}
         />
 
-        <section className="card" aria-labelledby="analysis-heading">
-          <p className="eyebrow">Core Backend 唯一產品入口</p>
-          <h2 id="analysis-heading">送出教材分析</h2>
-          <p>送出前會在瀏覽器完成方向校正、EXIF 清理、有界壓縮與品質提示；Core Backend 完成驗證後才會呼叫後續 VLM。</p>
+        <section className="card capture-analysis-card" aria-labelledby="analysis-heading">
+          <p className="eyebrow">02 · 確認照片</p>
+          <h2 id="analysis-heading">準備分析教材</h2>
+          <p>請確認照片清晰、文字完整，再送出分析。</p>
           {selectedImage ? (
             <p className="selected-upload" role="status">
               已選擇 {selectedImage.width} × {selectedImage.height} 的教材照片（{formatBytes(selectedImage.blob.size)}）；{qualityStatusLabel(selectedImage.quality.status)}。
@@ -183,7 +183,7 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
               disabled={!selectedImage || selectedImage.quality.status === 'rejected' || analysisStatus === 'uploading'}
               onClick={() => void analyzeSelectedImage()}
             >
-              {analysisStatus === 'uploading' ? '分析中……' : '送至 Core Backend 分析'}
+              {analysisStatus === 'uploading' ? '分析中……' : '開始分析教材'}
             </button>
             {analysisStatus === 'uploading' ? (
               <button className="button secondary" type="button" onClick={cancelAnalysis}>取消分析</button>
@@ -205,9 +205,9 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
 
         {view ? (
           <>
-            <StatusBanner health={view.health} />
+            {view.health.status !== 'ready' ? <StatusBanner health={view.health} /> : null}
             <section className="card" aria-labelledby="lesson-heading">
-              <p className="eyebrow">{view.reviewStatus === 'pending' ? '待確認' : view.reviewStatus}</p>
+              <p className="eyebrow">03 · 查看教材</p>
               <h2 id="lesson-heading">{view.title}</h2>
               <p>{view.description}</p>
               {view.images.length ? (
@@ -224,20 +224,12 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
                   ? '目前沒有可預覽的圖片，仍可使用這份教材建立 session。'
                   : '目前沒有可預覽的圖片；請先完成教材分析，再建立 session。'} />
               )}
-              <p className="analysis-provider" role="status">
-                分析來源：{view.providerMode === 'real'
-                  ? 'Core Backend real'
-                  : view.providerMode === 'fixture-fallback'
-                    ? 'Core Backend fixture fallback'
-                    : view.providerMode === 'fixture'
-                      ? 'Core Backend fixture'
-                      : '前端 Mock'}
-              </p>
+              {view.providerMode !== 'real' ? <p className="analysis-provider" role="status">目前顯示範例教材，請在正式使用前確認內容。</p> : null}
               <div className="button-row">
                 <button className="button" type="button" disabled={busy || !view.canConfirm} onClick={confirmLesson}>
-                  {busy ? '建立 session……' : view.canConfirm ? '確認教材並開始' : '等待 Core session API'}
+                  {busy ? '準備課程中……' : view.canConfirm ? '確認教材並開始' : '請先完成教材分析'}
                 </button>
-                <button className="button secondary" type="button" onClick={() => navigateTo('/setup')}>返回設定</button>
+                <button className="button secondary" type="button" onClick={() => navigateTo('/setup')}>返回首頁</button>
               </div>
             </section>
           </>

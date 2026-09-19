@@ -374,7 +374,7 @@ export class RealAdapter implements FrontendAdapter {
   async getSetup(): Promise<SetupViewModel> {
     const health = await this.getHealth();
     return {
-      title: '聽見母語｜正式 API 流程',
+      title: 'hear tAIgi｜教學流程',
       description: '服務健康狀態來自 Core Backend；教材、session 與回合狀態由 server-side session 管理。',
       health,
       nextRoute: '/capture',

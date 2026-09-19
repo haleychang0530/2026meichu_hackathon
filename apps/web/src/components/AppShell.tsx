@@ -1,7 +1,8 @@
-import { useEffect, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { navigateTo } from '../app/routing';
 import { useNarration } from '../accessibility/NarrationProvider';
 import type { NarrationDetail } from '../accessibility/narrator';
+import basicIcon from '../assets/basic_icon.png';
 
 interface AppShellProps {
   readonly children: ReactNode;
@@ -45,18 +46,43 @@ const detailLabels: Record<NarrationDetail, string> = {
 
 function AccessibilityChoice() {
   const { chooseMode } = useNarration();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const firstChoiceRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    firstChoiceRef.current?.focus();
+    const main = document.querySelector<HTMLElement>('#main-content');
+    const header = document.querySelector<HTMLElement>('.site-header');
+    if (main) main.inert = true;
+    if (header) header.inert = true;
+    return () => {
+      if (main) main.inert = false;
+      if (header) header.inert = false;
+    };
+  }, []);
+  function trapFocus(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Tab') return;
+    const buttons = dialogRef.current?.querySelectorAll<HTMLButtonElement>('button');
+    if (!buttons?.length) return;
+    if (event.shiftKey && document.activeElement === buttons[0]) {
+      event.preventDefault();
+      buttons[buttons.length - 1].focus();
+    } else if (!event.shiftKey && document.activeElement === buttons[buttons.length - 1]) {
+      event.preventDefault();
+      buttons[0].focus();
+    }
+  }
   return (
-    <div className="accessibility-gate" role="dialog" aria-modal="true" aria-labelledby="accessibility-choice-heading">
+    <div ref={dialogRef} className="accessibility-gate" role="dialog" aria-modal="true" aria-labelledby="accessibility-choice-heading" onKeyDown={trapFocus}>
       <section className="accessibility-choice">
         <p className="eyebrow">第一次使用設定</p>
         <h2 id="accessibility-choice-heading">請選擇一種朗讀方式</h2>
-        <p>我們不會自動猜測你是否使用螢幕閱讀器。請明確選擇一種；之後可以在頁首重新設定。</p>
+        <p>選擇適合你的朗讀方式，之後可在頁首調整。</p>
         <div className="button-row">
-          <button className="button" type="button" onClick={() => chooseMode('system')}>
-            使用系統螢幕閱讀器
+          <button ref={firstChoiceRef} className="button" type="button" onClick={() => chooseMode('system')}>
+            使用 Narrator／NVDA
           </button>
           <button className="button secondary" type="button" onClick={() => chooseMode('app')}>
-            使用 App 旁白
+            使用內建旁白
           </button>
         </div>
       </section>
@@ -111,15 +137,21 @@ function NarrationControls() {
 
 export function AppShell({ children, currentLabel }: AppShellProps) {
   const narration = useNarration();
+  const isStudent = currentLabel === '學生模式';
   const runtimeLabel = import.meta.env.VITE_DATA_MODE === 'real'
-    ? 'Real adapter · Core Backend is the source of truth'
-    : 'Mock mode · keyboard, speech, and session recovery are simulated locally';
+    ? '即時服務模式'
+    : '本機展示模式：課程與語音以範例資料模擬';
 
   useEffect(() => {
     if (narration.mode === 'app') {
       narration.announce(currentLabel, { priority: 3, key: 'page', interrupt: true });
     }
   }, [currentLabel, narration.mode]);
+
+  useEffect(() => {
+    if (narration.mode === null) return;
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-page-title]')?.focus());
+  }, [narration.mode]);
 
   function handleFocusCapture(event: FocusEvent<HTMLDivElement>): void {
     if (narration.mode !== 'app') return;
@@ -129,21 +161,25 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
   }
 
   return (
-    <div className="app-shell" onFocusCapture={handleFocusCapture}>
+    <div className={`app-shell ${isStudent ? 'student-shell' : 'observer-shell'}`} onFocusCapture={handleFocusCapture}>
+      <a className="skip-link" href="#main-content">跳到主要內容</a>
       <header className="site-header">
         <a className="brand" href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>
-          聽見母語
+          <img className="brand-icon" src={basicIcon} alt="" />
+          <span>hear tAIgi</span>
         </a>
-        <nav aria-label="主要導覽">
-          <a href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>設定</a>
-          <a href="/capture" onClick={(event) => handleInternalLink(event, '/capture')}>教材</a>
-          <a href="/health" onClick={(event) => handleInternalLink(event, '/health')}>健康檢查</a>
-          <span aria-current="page">{currentLabel}</span>
-        </nav>
+        {isStudent ? <span className="header-context">我的課程</span> : (
+          <nav aria-label="主要導覽">
+            <a href="/setup" aria-current={currentLabel === '首頁' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/setup')}>首頁</a>
+            <a href="/capture" aria-current={currentLabel === '教材' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/capture')}>準備教材</a>
+            <a href="/health" aria-current={currentLabel === '健康檢查' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/health')}>系統狀態</a>
+            {currentLabel === '教師／家長模式' ? <a href={window.location.pathname} aria-current="page">教師／家長</a> : null}
+          </nav>
+        )}
       </header>
       {narration.mode === null ? <AccessibilityChoice /> : <NarrationControls />}
       {children}
-      <footer className="site-footer">{runtimeLabel}</footer>
+      {!isStudent ? <footer className="site-footer"><details><summary>展示資訊</summary><p>{runtimeLabel}</p></details></footer> : null}
     </div>
   );
 }

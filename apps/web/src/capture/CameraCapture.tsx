@@ -253,7 +253,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
 
   return (
     <section className="card camera-card" aria-labelledby="camera-heading">
-      <p className="eyebrow">STAGE 03 · CAMERA／UPLOAD</p>
+      <p className="eyebrow">01 · 拍攝或選擇教材</p>
       <h2 id="camera-heading">拍攝或選擇一頁教材</h2>
       <p>
         照片只會先送到筆電上的 Core Backend；前端不直接連線到 MI300。分析完成後由後端依隱私政策清除暫存影像。

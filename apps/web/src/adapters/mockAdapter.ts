@@ -121,7 +121,7 @@ export class MockAdapter implements FrontendAdapter {
 
   async getSetup(): Promise<SetupViewModel> {
     return {
-      title: '聽見母語｜Mock 教學流程',
+      title: 'hear tAIgi｜範例教學流程',
       description: '用合成教材與 Mock adapter 走完學生／教師家長雙模式流程。',
       health: this.health,
       nextRoute: '/capture',

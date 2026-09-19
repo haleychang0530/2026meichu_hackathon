@@ -2,11 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FrontendAdapter } from '../adapters/adapter';
 import { asAdapterError } from '../adapters/errors';
 import { AppShell } from '../components/AppShell';
-import { StatusBanner } from '../components/StatusBanner';
 import { ErrorState, LoadingState } from '../components/States';
 import { useNarration } from '../accessibility/NarrationProvider';
 import type {
-  SessionState,
   StudentAction,
   StudentSessionViewModel,
   TeachingPhase,
@@ -25,16 +23,6 @@ const speechStateLabels: Record<SpeechState, string> = {
   LISTENING: '聆聽中，請開始回答',
   TRANSCRIBING: '辨識中',
   EVALUATING: '準備送出回饋',
-};
-
-const sessionStateLabels: Record<SessionState, string> = {
-  IDLE: '已暫停',
-  SPEAKING: '等待播放或重播提示',
-  LISTENING: '等待學生回答',
-  TRANSCRIBING: '辨識學生回答',
-  EVALUATING: '判定回答並準備回饋',
-  RECOVERABLE_ERROR: '可恢復錯誤',
-  COMPLETE: '本課完成',
 };
 
 const phaseLabels: Record<TeachingPhase, string> = {
@@ -444,7 +432,7 @@ export function StudentPage({
   return (
     <AppShell currentLabel="學生模式">
       <main id="main-content" className="page" tabIndex={-1} aria-busy={Boolean(busyLabel)}>
-        <p className="eyebrow">學生模式 · {sessionId}</p>
+        <p className="eyebrow">一起來聽台語、說台語</p>
         {!currentView && !error ? <LoadingState label="載入學生活動……" /> : null}
         {error ? <ErrorState error={error} onRetry={() => void refreshSnapshot()} /> : null}
         {speechError ? (
@@ -458,16 +446,14 @@ export function StudentPage({
         ) : null}
         {currentView ? (
           <>
-            <StatusBanner health={currentView.health} />
             <section className="card student-card" aria-labelledby="student-heading">
               <div className="progress-line"><span>{currentView.progressLabel}</span><span>{currentView.progressValue}%</span></div>
               <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={currentView.progressValue} aria-label="教學進度">
                 <span style={{ width: `${currentView.progressValue}%` }} />
               </div>
               <div className="student-status-grid" aria-label="目前教學狀態">
-                <span>教學階段：{phaseLabels[currentView.phase]}</span>
-                <span>Core：{sessionStateLabels[currentView.state]}</span>
-                <span>同步：{streamLabel}</span>
+                <span>目前活動：{phaseLabels[currentView.phase]}</span>
+                {streamStatus !== 'connected' ? <span>{streamLabel}</span> : null}
               </div>
               <h1 id="student-heading" data-page-title tabIndex={-1}>{currentView.lessonTitle}</h1>
               <p className="prompt">{currentView.prompt}</p>
@@ -475,12 +461,10 @@ export function StudentPage({
               {fallbackMessage(currentView.fallbacks) ? (
                 <p className="fallback-message" role="status" aria-live="polite">{fallbackMessage(currentView.fallbacks)}</p>
               ) : null}
-              <p className="speech-status" role="status" aria-live="polite">
-                語音狀態：{speechStateLabels[speechState]}
-              </p>
+              {speechState !== 'IDLE' ? <p className="speech-status" role="status" aria-live="polite">{speechStateLabels[speechState]}</p> : null}
               <div className="button-grid" aria-label="學生操作">
                 <button className="button" type="button" disabled={Boolean(busyLabel) || speechState === 'SPEAKING'} onClick={() => void playPrompt()}>
-                  播放／重播提示
+                  {currentView.phase === 'demonstration' ? '聽完整課文' : '播放／重播提示'}
                 </button>
                 <button
                   className="button primary-large"
@@ -488,7 +472,7 @@ export function StudentPage({
                   disabled={!canBeginAnswer && speechState !== 'LISTENING'}
                   onClick={() => void (speechState === 'LISTENING' ? stopVoiceAnswer() : beginVoiceAnswer())}
                 >
-                  {speechState === 'LISTENING' ? '停止錄音並辨識' : '開始語音回答'}
+                  {speechState === 'LISTENING' ? '停止並查看回答' : '開始語音回答'}
                 </button>
                 <button className="button secondary" type="button" disabled={!canBeginAnswer} onClick={() => void beginKeyboardAnswer()}>
                   開始鍵盤回答
@@ -506,10 +490,9 @@ export function StudentPage({
               {busyLabel ? <p className="live-message" role="status" aria-live="polite">{busyLabel}</p> : null}
             </section>
 
-            <section className="card transcript-card" aria-labelledby="transcript-heading">
-              <p className="eyebrow">只顯示學生自己的內容</p>
+            {(transcriptMode || draftTranscript) ? <section className="card transcript-card" aria-labelledby="transcript-heading">
               <h2 id="transcript-heading">你的回答</h2>
-              <p>你可以確認語音辨識結果、修改文字，或完全使用鍵盤回答。這裡不會顯示標準答案、信心或教師欄位。</p>
+              <p>確認辨識結果，也可以直接修改文字。</p>
               <label htmlFor="student-transcript">你的逐字稿／回答</label>
               <textarea
                 id="student-transcript"
@@ -523,17 +506,17 @@ export function StudentPage({
               {inputError ? <p className="field-error" role="alert">{inputError}</p> : null}
               <div className="button-row">
                 <button className="button primary-large" type="button" disabled={Boolean(busyLabel) || !draftTranscript.trim() || !transcriptMode || currentView.state === 'COMPLETE'} onClick={() => void submitDraft()}>
-                  送出這個回答
+                  送出回答
                 </button>
                 <button className="button secondary" type="button" disabled={Boolean(busyLabel) || currentView.state === 'COMPLETE'} onClick={() => void rerecord()}>
                   清除並重錄
                 </button>
               </div>
-            </section>
+            </section> : null}
 
             <section className="card mode-switch" aria-labelledby="switch-heading">
               <h2 id="switch-heading">切換檢視</h2>
-              <p>切換模式前會停止播放與錄音；教師／家長模式讀取同一個 server-side session 的觀察摘要。</p>
+              <p>需要協助時，可以請教師或家長查看課程進度。</p>
               <button className="button secondary" type="button" onClick={() => void switchToObserver()}>開啟教師／家長模式</button>
             </section>
           </>
