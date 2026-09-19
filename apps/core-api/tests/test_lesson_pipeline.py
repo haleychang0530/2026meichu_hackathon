@@ -114,6 +114,28 @@ class LessonAnalysisPipelineTests(unittest.IsolatedAsyncioTestCase):
             (),
         )
 
+    def test_position_hints_are_not_rejected_by_activity_safety_checks(self) -> None:
+        self.assertEqual(
+            accessible_activity_issues(
+                "請說左邊的詞語。",
+                [],
+                {"answer_leak_free": True, "no_position_hint": False, "no_sighted_only_clue": True},
+            ),
+            (),
+        )
+
+    async def test_activity_language_segment_mismatch_keeps_lesson_with_fallback_playback(self) -> None:
+        facts, activity = _fixture_parts()
+        mismatched_activity = copy.deepcopy(activity)
+        mismatched_activity["language_segments"] = [
+            {"lang": "zh-TW", "content": "活動語音標記與原文不同。"},
+        ]
+        generator = RecordingGenerator([facts, mismatched_activity])
+        _, _, lesson = await self._run(generator)
+
+        self.assertEqual(lesson.accessible_activity, activity["accessible_activity"])
+        self.assertIsNone(lesson.accessible_activity_utterance)
+
     async def test_source_text_is_preserved_verbatim_through_lesson_assembly(self) -> None:
         facts, activity = _fixture_parts()
         source_text = "第一句保留標點。\n第二句也要完整保存？"
