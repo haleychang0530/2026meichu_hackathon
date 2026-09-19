@@ -342,6 +342,33 @@ describe('RealAdapter', () => {
     expect(calls[0].headers.get('Last-Event-ID')).toBe('2');
   });
 
+  it('treats a successful heartbeat response as connected between polls', async () => {
+    const statuses: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(': heartbeat\n\n'));
+          controller.close();
+        },
+      });
+      return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+    });
+
+    const unsubscribe = new RealAdapter('http://127.0.0.1:8000').subscribeStudentSession(
+      'session_demo_001',
+      {
+        afterEventId: 2,
+        onEvent: () => undefined,
+        onError: () => undefined,
+        onStatus: (status) => statuses.push(status),
+      },
+    );
+
+    await vi.waitFor(() => expect(statuses).toContain('connected'));
+    expect(statuses).not.toContain('reconnecting');
+    unsubscribe();
+  });
+
   it('uses the teacher-only merge patch endpoint for pending Lesson review', async () => {
     let request: RequestInit | undefined;
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {

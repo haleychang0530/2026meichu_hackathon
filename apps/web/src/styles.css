@@ -18,6 +18,7 @@ a:focus-visible, button:focus-visible, [tabindex="-1"]:focus-visible {
 .app-shell { min-height: 100vh; display: flex; flex-direction: column; }
 .site-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem clamp(1rem, 4vw, 4rem); color: #fff; background: #102a43; }
 .brand { color: #fff; font-weight: 800; text-decoration: none; font-size: 1.2rem; }
+.current-page-label { padding: .35rem .55rem; border: 1px solid #90cdf4; border-radius: .35rem; }
 .site-header nav { display: flex; flex-wrap: wrap; gap: .9rem; align-items: center; }
 .site-header nav a, .site-header nav span { color: #fff; text-decoration: none; }
 .site-header nav span { padding: .35rem .55rem; border: 1px solid #90cdf4; border-radius: .35rem; }
@@ -104,24 +105,20 @@ p { line-height: 1.65; }
 .crop-control span { color: #486581; font-size: .92rem; }
 .selected-upload { padding: .75rem 1rem; border: 1px solid #90cdf4; border-radius: .5rem; background: #f0f8ff; }
 .analysis-progress { display: block; width: 100%; height: .9rem; margin: 1rem 0; accent-color: #145da0; }
-.camera-note { margin-bottom: 0; color: #486581; font-size: .92rem; }
-.progress-line { display: flex; justify-content: space-between; gap: 1rem; font-weight: 750; }
-.progress-track { height: .8rem; margin: .7rem 0 1.5rem; border-radius: 999px; background: #dbeafe; overflow: hidden; }
-.progress-track span { display: block; height: 100%; border-radius: inherit; background: #145da0; }
 .student-card { max-width: 58rem; }
-.student-status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; margin: 1rem 0; color: #486581; font-size: .92rem; }
-.student-status-grid span { padding: .65rem .75rem; border: 1px solid #dbeafe; border-radius: .45rem; background: #f8fbff; }
+.phase-label { margin: 0 0 .65rem; color: #486581; font-weight: 750; }
 .prompt { padding: 1.25rem; border-radius: .6rem; color: #102a43; background: #eaf3ff; font-size: clamp(1.25rem, 3vw, 1.8rem); font-weight: 700; }
 .live-message { min-height: 3rem; padding: .8rem; border-left: .35rem solid #68b984; background: #f0fff4; }
+.completion-message { min-height: 3rem; margin: 1.25rem 0 0; padding: 1rem; border-left: .35rem solid #2f855a; color: #22543d; background: #f0fff4; font-size: 1.1rem; font-weight: 750; }
 .fallback-message { padding: .8rem; border-left: .35rem solid #d69e2e; color: #744210; background: #fffaf0; }
 .analysis-provider { padding: .7rem .8rem; border-left: .35rem solid #2f80ed; background: #edf6ff; font-weight: 700; }
-.speech-status { min-height: 2.6rem; padding: .7rem .8rem; border-left: .35rem solid #805ad5; background: #faf5ff; font-weight: 700; }
 .transcript-card { max-width: 58rem; }
 .transcript-card label { display: block; margin-top: 1rem; font-weight: 800; }
 .transcript-card textarea { display: block; width: 100%; min-height: 8rem; margin-top: .45rem; padding: .8rem; border: 2px solid #829ab1; border-radius: .45rem; color: #172033; background: #fff; font: inherit; line-height: 1.6; resize: vertical; }
 .transcript-card textarea:focus { border-color: #145da0; outline: 3px solid #bfdbfe; outline-offset: 1px; }
 .field-error { color: #9b2c2c; font-weight: 700; }
 .mode-switch { max-width: 58rem; }
+.demo-mode-switch { display: flex; max-width: 58rem; justify-content: flex-end; margin: 1rem 0; }
 .two-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
 .detail-list { margin: 0; }
 .detail-list > div { display: grid; grid-template-columns: minmax(7rem, .35fr) 1fr; gap: 1rem; padding: .75rem 0; border-bottom: 1px solid #e2e8f0; }
@@ -163,7 +160,6 @@ code { padding: .1rem .3rem; border-radius: .3rem; background: #edf2f7; font-fam
   .service-list { margin-top: 1rem; }
   .button-grid, .two-column { grid-template-columns: 1fr; }
   .health-check { grid-template-columns: 1fr; gap: .25rem; }
-  .student-status-grid { grid-template-columns: 1fr; }
   .detail-list > div { grid-template-columns: 1fr; gap: .25rem; }
   .photo-review-grid { grid-template-columns: 1fr; }
 }

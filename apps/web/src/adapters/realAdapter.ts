@@ -560,6 +560,7 @@ export class RealAdapter implements FrontendAdapter {
           });
           if (!response.ok) throw await adapterErrorFromResponse(response);
           if (!response.body) throw new Error('SSE response body is unavailable');
+          reconnectDelay = 500;
           options.onStatus?.('connected');
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
@@ -579,9 +580,7 @@ export class RealAdapter implements FrontendAdapter {
           buffer += decoder.decode();
           if (buffer.trim()) consumeSessionEventFrames(`${buffer}\n\n`, handleEvent);
           if (!closed) {
-            options.onStatus?.('reconnecting');
             const delay = reconnectDelay;
-            reconnectDelay = Math.min(10_000, reconnectDelay * 2);
             await waitBeforeReconnect(delay);
           }
         } catch (error) {
