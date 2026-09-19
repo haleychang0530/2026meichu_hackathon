@@ -27,6 +27,7 @@ class SettingsTests(unittest.TestCase):
                 "CORE_PROVIDER": "fixture",
                 "CORE_PORT": "9000",
                 "CORE_ALLOWED_ORIGINS": "http://127.0.0.1:5173",
+                "VLM_OUTPUT_VALIDATION_ENABLED": "false",
             },
             clear=True,
         ):
@@ -34,6 +35,7 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.port, 9000)
         self.assertEqual(settings.provider_mode, "fixture")
         self.assertEqual(settings.allowed_origins, ("http://127.0.0.1:5173",))
+        self.assertFalse(settings.vlm_output_validation_enabled)
 
     def test_manta_forwarding_origin_is_normalized(self) -> None:
         with patch.dict(

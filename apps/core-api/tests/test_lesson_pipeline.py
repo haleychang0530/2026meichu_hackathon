@@ -69,12 +69,18 @@ def _fixture_parts() -> tuple[dict[str, object], dict[str, object]]:
 
 
 class LessonAnalysisPipelineTests(unittest.IsolatedAsyncioTestCase):
-    async def _run(self, generator: RecordingGenerator) -> tuple[LessonAnalysisPipeline, RecordingRetriever, object]:
+    async def _run(
+        self,
+        generator: RecordingGenerator,
+        *,
+        validate_model_output: bool = True,
+    ) -> tuple[LessonAnalysisPipeline, RecordingRetriever, object]:
         retriever = RecordingRetriever()
         pipeline = LessonAnalysisPipeline(
             generator,
             retriever,
             language_normalizer=LanguageNormalizer(REPOSITORY_ROOT / "data/language/normalization-golden.json"),
+            validate_model_output=validate_model_output,
         )
         with tempfile.TemporaryDirectory() as directory:
             image_path = Path(directory) / "normalized.jpg"
@@ -135,6 +141,32 @@ class LessonAnalysisPipelineTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(lesson.accessible_activity, activity["accessible_activity"])
         self.assertIsNone(lesson.accessible_activity_utterance)
+
+    async def test_disabled_validation_accepts_candidates_without_repair(self) -> None:
+        facts, activity = _fixture_parts()
+        unchecked_facts = copy.deepcopy(facts)
+        unchecked_facts["language_segments"] = [
+            {"lang": "nan-TW", "content": "與教材原文不同"},
+        ]
+        unchecked_activity = copy.deepcopy(activity)
+        unchecked_activity["accessible_activity"] = "請看圖，答案是左邊的角色。"
+        unchecked_activity["language_segments"] = [
+            {"lang": "zh-TW", "content": "與活動原文不同"},
+        ]
+        unchecked_activity["safety_checks"] = {
+            "answer_leak_free": False,
+            "no_position_hint": False,
+            "no_sighted_only_clue": False,
+        }
+        generator = RecordingGenerator([unchecked_facts, unchecked_activity])
+
+        _, _, lesson = await self._run(generator, validate_model_output=False)
+
+        self.assertEqual(len(generator.calls), 2)
+        self.assertEqual(lesson.source_text, unchecked_facts["source_text"])
+        self.assertEqual(lesson.accessible_activity, unchecked_activity["accessible_activity"])
+        self.assertIsNotNone(lesson.source_utterance)
+        self.assertIsNotNone(lesson.accessible_activity_utterance)
 
     async def test_source_text_is_preserved_verbatim_through_lesson_assembly(self) -> None:
         facts, activity = _fixture_parts()

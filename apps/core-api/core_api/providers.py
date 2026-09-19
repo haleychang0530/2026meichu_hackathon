@@ -321,27 +321,28 @@ class Mi300Client:
             if body.get("model_revision") != self.settings.vlm_model_revision:
                 raise ValueError("model revision mismatch")
             candidate = body["output"]["parsed_candidate"]
-            Draft202012Validator.check_schema(response_schema)
-            validator = Draft202012Validator(response_schema)
-            errors = sorted(validator.iter_errors(candidate), key=lambda error: list(error.path))
-            if errors:
-                details = {
-                    "validation_errors": [
-                        {
-                            "path": ".".join(str(part) for part in error.path)[:200],
-                            "validator": str(error.validator)[:100],
-                        }
-                        for error in errors[:10]
-                    ]
-                }
-                raise ProviderError(
-                    ErrorCode.VLM_INVALID_OUTPUT,
-                    "MI300 returned JSON that does not match the requested schema",
-                    status_code=503,
-                    retryable=False,
-                    fallback="manual_review",
-                    details=details,
-                )
+            if self.settings.vlm_output_validation_enabled:
+                Draft202012Validator.check_schema(response_schema)
+                validator = Draft202012Validator(response_schema)
+                errors = sorted(validator.iter_errors(candidate), key=lambda error: list(error.path))
+                if errors:
+                    details = {
+                        "validation_errors": [
+                            {
+                                "path": ".".join(str(part) for part in error.path)[:200],
+                                "validator": str(error.validator)[:100],
+                            }
+                            for error in errors[:10]
+                        ]
+                    }
+                    raise ProviderError(
+                        ErrorCode.VLM_INVALID_OUTPUT,
+                        "MI300 returned JSON that does not match the requested schema",
+                        status_code=503,
+                        retryable=False,
+                        fallback="manual_review",
+                        details=details,
+                    )
             output = body["output"]
             if not isinstance(output, dict):
                 raise ValueError("output must be an object")

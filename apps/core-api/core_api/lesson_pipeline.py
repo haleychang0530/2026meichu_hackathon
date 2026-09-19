@@ -123,10 +123,12 @@ class LessonAnalysisPipeline:
         *,
         prompt_root: Path | None = None,
         language_normalizer: LanguageNormalizer | None = None,
+        validate_model_output: bool = True,
     ) -> None:
         self.generator = generator
         self.retriever = retriever
         self.language_normalizer = language_normalizer
+        self.validate_model_output = validate_model_output
         self.prompt_root = prompt_root or (REPOSITORY_ROOT / "prompts" / "lesson-analysis")
         self.facts_prompt = (self.prompt_root / "facts.prompt.txt").read_text(encoding="utf-8")
         self.activity_prompt = (self.prompt_root / "activity.prompt.txt").read_text(encoding="utf-8")
@@ -215,6 +217,11 @@ class LessonAnalysisPipeline:
                 response_schema=response_schema,
                 evidence=evidence,
             )
+            if not self.validate_model_output:
+                trace = GenerationTrace(stage, 1, False, self._model_revision_value(generation))
+                traces.append(trace)
+                self._log_trace(request_id, trace)
+                return generation
             first_candidate = self._candidate(generation)
             self._validate_schema(response_schema, first_candidate, stage)
             first_reasons = list(semantic_validator(first_candidate))
@@ -446,24 +453,45 @@ class LessonAnalysisPipeline:
                     segments=list(facts["language_segments"]),
                     utterance_id=f"utt_{lesson_id}_source",
                 ).utterance
-            except (TypeError, ValueError) as error:
-                raise StageOutputError("language_normalization", ["language_segments_normalization_failed"]) from error
+            except (KeyError, TypeError, ValueError) as error:
+                if self.validate_model_output:
+                    raise StageOutputError(
+                        "language_normalization",
+                        ["language_segments_normalization_failed"],
+                    ) from error
+                source_utterance = self.language_normalizer.normalize_labeled_segments(
+                    text=source_text,
+                    segments=[{"lang": "nan-TW", "content": source_text}],
+                    utterance_id=f"utt_{lesson_id}_source",
+                ).utterance
             try:
                 activity_utterance = self.language_normalizer.normalize_labeled_segments(
                     text=str(activity["accessible_activity"]).strip(),
                     segments=list(activity["language_segments"]),
                     utterance_id=f"utt_{lesson_id}_activity",
                 ).utterance
-            except ValueError as error:
+            except (KeyError, TypeError, ValueError) as error:
+                if not self.validate_model_output:
+                    activity_text = str(activity["accessible_activity"]).strip()
+                    activity_utterance = self.language_normalizer.normalize_labeled_segments(
+                        text=activity_text,
+                        segments=[{"lang": "zh-TW", "content": activity_text}],
+                        utterance_id=f"utt_{lesson_id}_activity",
+                    ).utterance
                 # Activity language labels are advisory playback metadata. A
                 # mismatch must not reject an otherwise safe activity; the
                 # teaching agent falls back to conservative Chinese playback
                 # when no validated activity utterance is available.
-                if str(error) != "language_segments do not concatenate to the source text":
-                    raise StageOutputError("language_normalization", ["language_segments_normalization_failed"]) from error
-                activity_utterance = None
-            except TypeError as error:
-                raise StageOutputError("language_normalization", ["language_segments_normalization_failed"]) from error
+                elif (
+                    isinstance(error, ValueError)
+                    and str(error) == "language_segments do not concatenate to the source text"
+                ):
+                    activity_utterance = None
+                else:
+                    raise StageOutputError(
+                        "language_normalization",
+                        ["language_segments_normalization_failed"],
+                    ) from error
 
         return Lesson(
             schema_version="0.1.0",

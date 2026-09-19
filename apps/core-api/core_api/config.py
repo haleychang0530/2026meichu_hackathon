@@ -83,6 +83,7 @@ class Settings:
     allowed_origins: tuple[str, ...] = ("http://127.0.0.1:5173", "http://localhost:5173")
     vlm_base_url: str = "http://127.0.0.1:8100"
     vlm_model_revision: str = "d9748a51ae66354c4dad665aab2c71f26cf2c8cd"
+    vlm_output_validation_enabled: bool = True
     speech_base_url: str | None = "http://127.0.0.1:8200"
     connect_timeout_seconds: float = 2.0
     read_timeout_seconds: float = 120.0
@@ -166,6 +167,10 @@ class Settings:
                 "VLM_BASE_URL", os.getenv("VLM_BASE_URL", defaults.vlm_base_url)
             ),
             vlm_model_revision=os.getenv("VLM_MODEL_REVISION", defaults.vlm_model_revision),
+            vlm_output_validation_enabled=_bool_env(
+                "VLM_OUTPUT_VALIDATION_ENABLED",
+                defaults.vlm_output_validation_enabled,
+            ),
             speech_base_url=speech_url.rstrip("/") if speech_url else None,
             connect_timeout_seconds=_float_env(
                 "VLM_CONNECT_TIMEOUT_SECONDS", defaults.connect_timeout_seconds, 0.01
