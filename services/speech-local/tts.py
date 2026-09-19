@@ -14,12 +14,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from io import BytesIO
+import base64
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
+import tempfile
 import threading
 import time
 from typing import Any, Callable, Iterable, Mapping, Sequence
@@ -45,6 +49,8 @@ MMS_TTS_DEFAULT_SPEED = 1.0
 MMS_TTS_DEFAULT_SEED = 555
 MMS_TTS_WARMUP_TEXT = "chiah-peng"
 MMS_TTS_MAX_TEXT_LENGTH = 512
+WINDOWS_SAPI_SAMPLE_RATE = 16_000
+WINDOWS_SAPI_MAX_TEXT_LENGTH = 4_096
 
 DEFAULT_CACHE_MAX_BYTES = 256 * 1024 * 1024
 DEFAULT_CACHE_MAX_ENTRIES = 500
@@ -361,6 +367,131 @@ class PrerecordedFallbackManifest:
             if _is_valid_wav(audio):
                 return audio
         return None
+
+
+class WindowsSapiTTSWorker:
+    """Synthesize Chinese UI text with the local Windows zh-TW voice.
+
+    MMS-TTS-nan intentionally accepts only reviewed Taiwanese POJ.  The
+    student prompt, however, is often Chinese UI/scaffolding text.  Browsers
+    normally provide that voice through Web Speech, but the embedded browser
+    used by the demo has no ``speechSynthesis`` implementation.  Windows SAPI
+    is a local-only fallback for that environment; it never sends prompt text
+    over the network.
+    """
+
+    _SCRIPT = r'''
+Add-Type -AssemblyName System.Speech
+$output = [Environment]::GetEnvironmentVariable("MEICHU_TTS_OUTPUT")
+$text = [Environment]::GetEnvironmentVariable("MEICHU_TTS_TEXT")
+if ([string]::IsNullOrWhiteSpace($output) -or [string]::IsNullOrWhiteSpace($text)) {
+  throw "Windows SAPI output path or text is missing."
+}
+$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+try {
+  $voice = $synth.GetInstalledVoices() |
+    Where-Object { $_.VoiceInfo.Culture.Name -eq "zh-TW" } |
+    Select-Object -First 1
+  if (-not $voice) { throw "No installed zh-TW Windows voice was found." }
+  $synth.SelectVoice($voice.VoiceInfo.Name)
+  $format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(
+    16000,
+    [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen,
+    [System.Speech.AudioFormat.AudioChannel]::Mono
+  )
+  $synth.SetOutputToWaveFile($output, $format)
+  $synth.Speak($text)
+} finally {
+  $synth.Dispose()
+}
+'''
+
+    def __init__(
+        self,
+        *,
+        executable: str | None = None,
+        runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+        timeout_s: float = 30.0,
+    ) -> None:
+        self.executable = executable or shutil.which("powershell.exe")
+        self.runner = runner
+        self.timeout_s = timeout_s
+
+    @property
+    def available(self) -> bool:
+        return bool(self.executable)
+
+    def synthesize(self, text: str, token: CancellationToken) -> bytes:
+        token.checkpoint()
+        if not self.executable:
+            raise SpeechWorkerError(
+                "Windows SAPI is unavailable on this device.",
+                reason="windows_sapi_unavailable",
+            )
+        normalized = unicodedata.normalize("NFC", text).strip()
+        if not normalized:
+            raise SpeechWorkerError(
+                "Windows SAPI requires non-empty Chinese text.",
+                reason="missing_zh_text",
+            )
+        if len(normalized) > WINDOWS_SAPI_MAX_TEXT_LENGTH:
+            raise SpeechWorkerError(
+                "Chinese UI text is too long for local Windows SAPI.",
+                reason="text_too_long",
+            )
+
+        with tempfile.TemporaryDirectory(prefix="meichu-sapi-") as directory:
+            output = Path(directory) / "speech.wav"
+            environment = os.environ.copy()
+            environment["MEICHU_TTS_OUTPUT"] = str(output)
+            environment["MEICHU_TTS_TEXT"] = normalized
+            encoded_script = base64.b64encode(
+                self._SCRIPT.encode("utf-16le"),
+            ).decode("ascii")
+            try:
+                completed = self.runner(
+                    [
+                        self.executable,
+                        "-NoProfile",
+                        "-NonInteractive",
+                        "-EncodedCommand",
+                        encoded_script,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=self.timeout_s,
+                    env=environment,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise SpeechWorkerError(
+                    "Windows SAPI timed out while generating Chinese audio.",
+                    reason="windows_sapi_timeout",
+                ) from exc
+            except OSError as exc:
+                raise SpeechWorkerError(
+                    "Windows SAPI could not be started.",
+                    reason="windows_sapi_failed",
+                ) from exc
+            token.checkpoint()
+            if completed.returncode != 0 or not output.is_file():
+                raise SpeechWorkerError(
+                    "Windows SAPI failed to generate Chinese audio.",
+                    reason="windows_sapi_failed",
+                )
+            try:
+                audio = output.read_bytes()
+            except OSError as exc:
+                raise SpeechWorkerError(
+                    "Windows SAPI audio could not be read.",
+                    reason="windows_sapi_failed",
+                ) from exc
+            if not _is_valid_wav(audio, sample_rate=WINDOWS_SAPI_SAMPLE_RATE):
+                raise SpeechWorkerError(
+                    "Windows SAPI returned an unsupported WAV format.",
+                    reason="windows_sapi_invalid_audio",
+                )
+            return audio
 
 
 @dataclass(frozen=True)
@@ -711,7 +842,7 @@ class MMSNanTTSWorker:
 
 
 class RoutedSpeechTTSWorker:
-    """Route nan-TW to MMS and Chinese UI text to Web Speech/fallback audio."""
+    """Route nan-TW to MMS and Chinese UI text to local/browser speech."""
 
     device = MMS_TTS_DEVICE
 
@@ -721,11 +852,13 @@ class RoutedSpeechTTSWorker:
         mms_worker: MMSNanTTSWorker | None = None,
         fallback_manifest: PrerecordedFallbackManifest | None = None,
         manifest_path: str | os.PathLike[str] | None = None,
+        windows_tts: WindowsSapiTTSWorker | None = None,
     ) -> None:
         self.mms_worker = mms_worker or MMSNanTTSWorker()
         self.fallback_manifest = fallback_manifest or PrerecordedFallbackManifest.load(manifest_path)
         self.router = LanguageRouter()
         self.model_revision = self.mms_worker.model_revision
+        self.windows_tts = windows_tts if windows_tts is not None else WindowsSapiTTSWorker()
 
     def warmup(self, token: CancellationToken) -> None:
         self.mms_worker.warmup(token)
@@ -752,8 +885,11 @@ class RoutedSpeechTTSWorker:
                 chunks.append(fallback)
                 continue
             if route.provider == "web-speech":
+                if self.windows_tts.available:
+                    chunks.append(self.windows_tts.synthesize(route.text, token))
+                    continue
                 raise SpeechWorkerError(
-                    "Chinese UI speech requires the browser Web Speech voice or an approved recording.",
+                    "Chinese UI speech requires a browser Web Speech voice, Windows zh-TW voice, or approved recording.",
                     reason="browser_tts_required",
                 )
             raise SpeechWorkerError(
@@ -791,6 +927,7 @@ __all__ = [
     "MMS_TTS_SAMPLE_RATE",
     "MMS_TTS_VOCABULARY",
     "MMS_TTS_WARMUP_TEXT",
+    "WindowsSapiTTSWorker",
     "PrerecordedFallbackManifest",
     "RoutedSpeechTTSWorker",
     "SpeechRoute",

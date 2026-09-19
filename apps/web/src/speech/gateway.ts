@@ -8,6 +8,8 @@ export type SpeechState =
   | 'TRANSCRIBING'
   | 'EVALUATING';
 
+export type SpeechMode = 'mock' | 'real';
+
 export type SpeechLanguage = 'nan-TW' | 'zh-TW';
 export type SpeechDevicePreference = 'npu' | 'cpu' | 'auto';
 // openapi-typescript exposes the external schema's JSON Schema `$defs` as an
@@ -20,6 +22,7 @@ export type SpeechHealth =
   operations['getSpeechHealth']['responses'][200]['content']['application/json'];
 
 export interface SpeechGatewayClient {
+  readonly mode: SpeechMode;
   readonly state: SpeechState;
   subscribe(listener: (state: SpeechState) => void): () => void;
   play(utterance: SpeechUtterance): Promise<void>;
@@ -138,6 +141,7 @@ function segmentUtterance(
 }
 
 export class HttpSpeechGatewayClient implements SpeechGatewayClient {
+  readonly mode: SpeechMode = 'real';
   private readonly baseUrl: string;
   private readonly devicePreference: SpeechDevicePreference;
   private readonly fetchImpl: typeof fetch;
@@ -484,6 +488,7 @@ export interface MockSpeechGatewayClientOptions {
 }
 
 export class MockSpeechGatewayClient implements SpeechGatewayClient {
+  readonly mode: SpeechMode = 'mock';
   private readonly transcript: string;
   private readonly delayMs: number;
   private readonly listeners = new Set<(state: SpeechState) => void>();
