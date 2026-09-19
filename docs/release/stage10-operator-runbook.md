@@ -14,6 +14,10 @@ Core API 與本機 Speech Gateway，不能直接連 MI300。啟動器會把 demo
   （vLLM `8000/tcp` 的 forwarding 為 `45503`，Core 不直接呼叫它）。Manta
   外部 port 是動態配置；forwarding 重建後先到 **Settings → Port Forwarding**
   取得新值。URL 只傳給 Core，不得寫入 `VITE_*` 或前端程式。
+- 若模型尚未準備，先在有網路的維運環境執行
+  `pwsh -File .\scripts\release\Provision-SpeechModels.ps1 -Model all`，並確認
+  `services\speech-local\.venv` 已安裝 `requirements.txt`。
+- 若要使用 MI300，先取得當天可信任的內網 forwarding URL，不要把 URL 寫進前端或提交到 Git。
 - 第一次展示先以 mock profile 完成暖機，再視現場狀況切換 real profile。
 
 ## 一鍵啟動
@@ -42,6 +46,11 @@ pwsh -File .\scripts\release\Start-Demo.ps1 `
   -Mode real -SpeechProfile cpu `
   -Mi300BaseUrl 'http://210.61.209.139:46944'
 ```
+
+`Start-Demo.ps1` 會自動尋找固定 revision 的 Hugging Face snapshot；也可明確
+指定 `-AsrModelPath` 與 `-TtsModelPath`。若任一模型或 Torch/Transformers runtime
+缺少，啟動器會在啟動服務前停止並指出 provisioning 指令，不再讓健康頁顯示
+難以診斷的 `worker failed`。
 
 `-Mode real` 仍讓 Core API、RAG、SQLite、session、Speech 與前端留在筆電；只有
 Core Backend 的內部 VLM client 會使用 `Mi300BaseUrl`。不要把該位址設定成
