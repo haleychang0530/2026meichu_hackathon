@@ -125,13 +125,18 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
     pipeline = LessonAnalysisPipeline(
         primary if hasattr(primary, "generate") else None,
         retriever,
+        language_normalizer=normalizer,
     )
     analyzer = LessonAnalyzer(preparer, primary, fixture, pipeline=pipeline)
     health = HealthAggregator(settings, database, primary, rag_manager)
     semantic_judge = primary if callable(getattr(primary, "judge_answer", None)) else None
     sessions = SessionService(
         database,
-        TeachingAgent(semantic_judge, semantic_timeout_seconds=settings.semantic_timeout_seconds),
+        TeachingAgent(
+            semantic_judge,
+            semantic_timeout_seconds=settings.semantic_timeout_seconds,
+            normalizer=normalizer,
+        ),
         health,
     )
 
@@ -373,6 +378,22 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
             )
         patch = body.model_dump(exclude_none=True)
         candidate = current.model_copy(update=patch)
+        if "source_text" in patch:
+            patch["source_utterance"] = normalizer.normalize_labeled_segments(
+                text=candidate.source_text,
+                segments=[{"lang": "nan-TW", "content": candidate.source_text}],
+                utterance_id=f"utt_{lesson_id}_source",
+            ).utterance.model_dump(mode="json")
+        if "accessible_activity" in patch:
+            # A teacher-edited activity has no MI300 language labels. Keep a
+            # conservative Chinese playback contract until a new analysis
+            # supplies explicit Taiwanese spans.
+            patch["accessible_activity_utterance"] = normalizer.normalize_labeled_segments(
+                text=candidate.accessible_activity,
+                segments=[{"lang": "zh-TW", "content": candidate.accessible_activity}],
+                utterance_id=f"utt_{lesson_id}_activity",
+            ).utterance.model_dump(mode="json")
+            candidate = current.model_copy(update=patch)
         safety_reasons = accessible_activity_issues(
             candidate.accessible_activity,
             candidate.answer_evidence,

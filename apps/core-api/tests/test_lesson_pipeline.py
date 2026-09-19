@@ -8,6 +8,7 @@ from pathlib import Path
 
 from core_api.errors import ProviderError
 from core_api.image_pipeline import PreparedImage
+from core_api.language import LanguageNormalizer
 from core_api.lesson_pipeline import LessonAnalysisPipeline, accessible_activity_issues
 from core_api.providers import StructuredGeneration
 from core_api.rag import EvidenceCitation, RetrievalBundle
@@ -70,7 +71,11 @@ def _fixture_parts() -> tuple[dict[str, object], dict[str, object]]:
 class LessonAnalysisPipelineTests(unittest.IsolatedAsyncioTestCase):
     async def _run(self, generator: RecordingGenerator) -> tuple[LessonAnalysisPipeline, RecordingRetriever, object]:
         retriever = RecordingRetriever()
-        pipeline = LessonAnalysisPipeline(generator, retriever)
+        pipeline = LessonAnalysisPipeline(
+            generator,
+            retriever,
+            language_normalizer=LanguageNormalizer(REPOSITORY_ROOT / "data/language/normalization-golden.json"),
+        )
         with tempfile.TemporaryDirectory() as directory:
             image_path = Path(directory) / "normalized.jpg"
             image_path.write_bytes(b"normalized-image-placeholder")
@@ -94,6 +99,9 @@ class LessonAnalysisPipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(lesson.answer_evidence)
         self.assertTrue(facts["source_text_complete"])
         self.assertEqual(lesson.source_text, facts["source_text"])
+        self.assertIsNotNone(lesson.source_utterance)
+        self.assertIsNotNone(lesson.accessible_activity_utterance)
+        self.assertEqual(lesson.source_utterance.segments[0].lang, "nan-TW")
         self.assertEqual(lesson.rag_index_revision, "rag-stage07-test")
         self.assertEqual(lesson.evidence[0].locator, retriever.citation.locator)
         self.assertNotIn(facts["answer_evidence"][0], retriever.queries[0])
@@ -111,12 +119,31 @@ class LessonAnalysisPipelineTests(unittest.IsolatedAsyncioTestCase):
         source_text = "第一句保留標點。\n第二句也要完整保存？"
         facts = copy.deepcopy(facts)
         facts["source_text"] = source_text
+        facts["language_segments"] = [{"lang": "nan-TW", "content": source_text}]
         generator = RecordingGenerator([facts, activity])
         _, _, lesson = await self._run(generator)
 
         self.assertEqual(lesson.source_text, source_text)
         self.assertIn("第一句保留標點。", lesson.source_text)
         self.assertIn("第二句也要完整保存？", lesson.source_text)
+
+    async def test_language_labels_are_checked_then_normalized_on_laptop(self) -> None:
+        facts, activity = _fixture_parts()
+        facts = copy.deepcopy(facts)
+        facts["source_text"] = "我會帶你讀學校"
+        facts["language_segments"] = [
+            {"lang": "zh-TW", "content": "我會帶你讀"},
+            {"lang": "nan-TW", "content": "學校"},
+        ]
+        generator = RecordingGenerator([facts, activity])
+        _, _, lesson = await self._run(generator)
+
+        assert lesson.source_utterance is not None
+        self.assertEqual(
+            [segment.lang for segment in lesson.source_utterance.segments],
+            ["zh-TW", "nan-TW"],
+        )
+        self.assertEqual(lesson.source_utterance.segments[1].poj_citation, "ha̍k-hāu")
 
     async def test_incomplete_source_text_remains_pending_with_quality_warning(self) -> None:
         facts, activity = _fixture_parts()

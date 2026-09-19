@@ -148,7 +148,8 @@ class RoutingAndFallbackTests(unittest.TestCase):
             )
         )
         self.assertEqual([item.index for item in plan], [0, 1, 2])
-        self.assertEqual([item.provider for item in plan], ["web-speech", "mms-tts-nan", "prerecorded"])
+        self.assertEqual([item.provider for item in plan], ["web-speech", "mms-tts-nan", "web-speech"])
+        self.assertEqual(plan[2].reason, "needs_review_zh_fallback")
 
     def test_approved_manifest_audio_is_read_only_and_hash_checked(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

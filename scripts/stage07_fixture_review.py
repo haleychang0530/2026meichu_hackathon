@@ -21,6 +21,25 @@ FIXTURE_ROOT = ROOT / "fixtures" / "lesson-analysis" / "stage07"
 PROMPT_ROOT = ROOT / "prompts" / "lesson-analysis"
 
 
+def segment_coverage_issues(text: object, segments: object) -> list[str]:
+    if not isinstance(text, str) or not text.strip() or not isinstance(segments, list) or not segments:
+        return ["language_segments_missing"]
+    contents: list[str] = []
+    issues: list[str] = []
+    for index, item in enumerate(segments):
+        if not isinstance(item, dict) or item.get("lang") not in {"zh-TW", "nan-TW"}:
+            issues.append(f"segment_{index}_invalid")
+            continue
+        content = item.get("content")
+        if not isinstance(content, str) or not content.strip():
+            issues.append(f"segment_{index}_content_missing")
+        else:
+            contents.append(content)
+    if " ".join("".join(contents).split()) != " ".join(text.split()):
+        issues.append("segments_not_exact")
+    return issues
+
+
 def main() -> int:
     facts_schema = json.loads((PROMPT_ROOT / "facts.schema.json").read_text(encoding="utf-8"))
     activity_schema = json.loads((PROMPT_ROOT / "activity.schema.json").read_text(encoding="utf-8"))
@@ -43,6 +62,16 @@ def main() -> int:
             [str(item) for item in facts.get("answer_evidence", [])] if isinstance(facts, dict) else [],
             activity.get("safety_checks") if isinstance(activity, dict) else None,
         )
+        language_issues = [
+            *segment_coverage_issues(
+                facts.get("source_text") if isinstance(facts, dict) else None,
+                facts.get("language_segments") if isinstance(facts, dict) else None,
+            ),
+            *segment_coverage_issues(
+                activity.get("accessible_activity") if isinstance(activity, dict) else None,
+                activity.get("language_segments") if isinstance(activity, dict) else None,
+            ),
+        ]
         source_text = facts.get("source_text") if isinstance(facts, dict) else None
         source_text_complete = facts.get("source_text_complete") is True if isinstance(facts, dict) else False
         row = {
@@ -50,6 +79,7 @@ def main() -> int:
             "file": path.relative_to(ROOT).as_posix(),
             "schema_valid": not errors,
             "safety_reasons": list(safety),
+            "language_segment_issues": language_issues,
             "review_status": payload.get("expected", {}).get("review_status"),
             "answer_evidence_count": len(facts.get("answer_evidence", [])) if isinstance(facts, dict) else 0,
             "quality_warning_count": len(facts.get("quality_warnings", [])) if isinstance(facts, dict) else 0,
@@ -60,6 +90,7 @@ def main() -> int:
         if (
             errors
             or safety
+            or language_issues
             or row["review_status"] != "pending"
             or row["answer_evidence_count"] < 1
             or not source_text_complete
@@ -70,6 +101,7 @@ def main() -> int:
                 "fixture_id": fixture_id,
                 "schema_errors": [error.validator for error in errors[:8]],
                 "safety_reasons": list(safety),
+                "language_segment_issues": language_issues,
             })
     report = {
         "schema_version": "stage07-review.v1",

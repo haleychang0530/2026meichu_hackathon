@@ -8,14 +8,29 @@
     "schema_version",
     "learning_objective",
     "accessible_activity",
+    "language_segments",
     "activity_type",
     "safety_checks",
     "confidence"
   ],
   "properties": {
-    "schema_version": { "const": "stage07-activity.v1" },
+    "schema_version": { "const": "stage07-activity.v2" },
     "learning_objective": { "type": "string", "minLength": 1 },
     "accessible_activity": { "type": "string", "minLength": 1 },
+    "language_segments": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered MI300 labels for accessible_activity. Concatenating content after whitespace normalization must equal accessible_activity exactly. Do not generate Tailo or POJ here.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lang", "content"],
+        "properties": {
+          "lang": { "type": "string", "enum": ["zh-TW", "nan-TW"] },
+          "content": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "activity_type": {
       "type": "string",
       "enum": ["auditory_reasoning", "oral_choice", "role_play", "listen_repeat", "sequence"]

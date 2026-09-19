@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -8,7 +9,8 @@ from time import perf_counter
 from typing import Any, Protocol
 
 from .db import SessionRow
-from .models import Lesson, SemanticJudgement
+from .language import LanguageNormalizer
+from .models import Lesson, SCHEMA_VERSION, SemanticJudgement, Utterance, UtteranceSegment
 
 
 class SemanticJudge(Protocol):
@@ -59,9 +61,16 @@ class TeachingAgent:
     MI300-offline sessions remain usable without a remote dependency.
     """
 
-    def __init__(self, semantic_judge: SemanticJudge | None = None, *, semantic_timeout_seconds: float = 4.0) -> None:
+    def __init__(
+        self,
+        semantic_judge: SemanticJudge | None = None,
+        *,
+        semantic_timeout_seconds: float = 4.0,
+        normalizer: LanguageNormalizer | None = None,
+    ) -> None:
         self.semantic_judge = semantic_judge
         self.semantic_timeout_seconds = semantic_timeout_seconds
+        self.normalizer = normalizer
 
     def start_session(self, lesson: Lesson) -> dict[str, Any]:
         return {
@@ -69,6 +78,7 @@ class TeachingAgent:
             "phase": "introduction",
             "progress": 0.0,
             "current_prompt": self.prompt_for(lesson, "introduction", 0, 0.7, {}),
+            "current_utterance": self.prompt_utterance(lesson, "introduction", 0, 0.7, {}),
             "hint_level": 0,
             "language_ratio_zh": 0.7,
             "language_ratio_nan": 0.3,
@@ -116,6 +126,174 @@ class TeachingAgent:
                 return "我們來複習剛才的重點，請說出一個關鍵詞。"
             return f"來複習「{weak}」：請說出它的台語或意思。"
         return "本課完成。"
+
+    def prompt_utterance(
+        self,
+        lesson: Lesson,
+        phase: str,
+        hint_level: int,
+        language_ratio_zh: float,
+        mastery: dict[str, dict[str, Any]],
+        *,
+        hinted_phase: str | None = None,
+    ) -> Utterance:
+        """Build the student playback contract for the same prompt string.
+
+        The text fields remain available for the visual UI and old clients.
+        This additive projection is the only place where the state machine
+        chooses lesson utterance segments; language conversion itself stays in
+        the laptop normalizer.
+        """
+
+        text = self.prompt_for(
+            lesson,
+            phase,
+            hint_level,
+            language_ratio_zh,
+            mastery,
+            hinted_phase=hinted_phase,
+        )
+        if phase == "demonstration" and lesson.source_utterance is not None:
+            return self._compose_utterance(
+                text,
+                [
+                    self._zh_segment("我先完整朗讀一次原始課文，請先聽，不用回答：\n"),
+                    *lesson.source_utterance.segments,
+                    self._zh_segment("\n聽完後，我們再一起跟讀。"),
+                ],
+                "demonstration",
+            )
+        if phase == "read_aloud" and lesson.source_utterance is not None:
+            return self._compose_utterance(
+                text,
+                [self._zh_segment("現在請跟讀完整原始課文：\n"), *lesson.source_utterance.segments],
+                "read_aloud",
+            )
+        if phase == "comprehension" and lesson.accessible_activity_utterance is not None:
+            return self._compose_utterance(
+                text,
+                [self._zh_segment("請回答活動："), *lesson.accessible_activity_utterance.segments],
+                "comprehension",
+            )
+        if phase == "hint" and hinted_phase in {"demonstration", "read_aloud", "comprehension", "review"}:
+            base = self.prompt_utterance(
+                lesson,
+                hinted_phase,
+                0,
+                language_ratio_zh,
+                mastery,
+            )
+            return self._compose_utterance(
+                text,
+                [*base.segments, self._zh_segment(" "), *self._hint_utterance_segments(lesson, hint_level)],
+                "hint",
+            )
+        if phase in {"introduction", "hint", "review"}:
+            return self._normalize_known_terms(text, lesson, phase)
+        return self._all_zh_utterance(text, phase)
+
+    def _hint_utterance_segments(self, lesson: Lesson, hint_level: int) -> list[UtteranceSegment]:
+        return self._normalize_known_terms(
+            self._hint_text(lesson, hint_level),
+            lesson,
+            f"hint_{hint_level}",
+        ).segments
+
+    def _normalize_known_terms(self, text: str, lesson: Lesson, seed: str) -> Utterance:
+        if self.normalizer is None:
+            return self._all_zh_utterance(text, seed)
+        phrases = [item.hanji for item in lesson.vocabulary if item.hanji.strip()]
+        weak = self._weakest_concept(lesson, {})
+        if weak:
+            phrases.append(weak)
+        candidates: list[dict[str, str]] = []
+        pending_zh: list[str] = []
+        cursor = 0
+        ordered = sorted(set(phrases), key=lambda value: (-len(value), value))
+        while cursor < len(text):
+            match = next((phrase for phrase in ordered if text.startswith(phrase, cursor)), None)
+            if match is None:
+                pending_zh.append(text[cursor])
+                cursor += 1
+                continue
+            if pending_zh:
+                candidates.append({"lang": "zh-TW", "content": "".join(pending_zh)})
+                pending_zh.clear()
+            candidates.append({"lang": "nan-TW", "content": match})
+            cursor += len(match)
+        if pending_zh:
+            candidates.append({"lang": "zh-TW", "content": "".join(pending_zh)})
+        if not candidates:
+            return self._all_zh_utterance(text, seed)
+        try:
+            return self.normalizer.normalize_labeled_segments(
+                text=text,
+                segments=candidates,
+                utterance_id=self._utterance_id(seed, text),
+            ).utterance
+        except ValueError:
+            return self._all_zh_utterance(text, seed)
+
+    @staticmethod
+    def _utterance_id(seed: str, text: str) -> str:
+        digest = hashlib.sha256(f"{seed}\0{text}".encode("utf-8")).hexdigest()[:20]
+        return f"utt_{digest}"
+
+    def _all_zh_utterance(self, text: str, seed: str) -> Utterance:
+        return Utterance(
+            schema_version=SCHEMA_VERSION,
+            id=self._utterance_id(seed, text),
+            segments=[self._zh_segment(text)],
+            tts_provider="windows",
+        )
+
+    def text_utterance(
+        self,
+        text: str,
+        *,
+        seed: str = "feedback",
+        lesson: Lesson | None = None,
+    ) -> Utterance:
+        """Return a playback contract for feedback and scaffolding."""
+
+        return self._normalize_known_terms(text, lesson, seed) if lesson is not None else self._all_zh_utterance(text, seed)
+
+    def _compose_utterance(
+        self,
+        text: str,
+        segments: list[UtteranceSegment],
+        seed: str,
+    ) -> Utterance:
+        nan_segments = [segment for segment in segments if segment.lang == "nan-TW"]
+        provider = "windows"
+        if nan_segments:
+            provider = (
+                "mms-tts-nan"
+                if any(
+                    segment.pronunciation_status in {"verified", "converted"}
+                    and segment.poj_citation
+                    for segment in nan_segments
+                )
+                else None
+            )
+        return Utterance(
+            schema_version=SCHEMA_VERSION,
+            id=self._utterance_id(seed, text),
+            segments=segments,
+            tts_provider=provider,
+        )
+
+    @staticmethod
+    def _zh_segment(text: str) -> UtteranceSegment:
+        return UtteranceSegment(
+            lang="zh-TW",
+            hanji=text,
+            tailo_citation=None,
+            poj_citation=None,
+            zh_gloss=None,
+            source="generated",
+            pronunciation_status="verified",
+        )
 
     def _hint_text(self, lesson: Lesson, hint_level: int) -> str:
         concepts = [item.hanji for item in lesson.vocabulary[:3]]

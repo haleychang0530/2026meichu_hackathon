@@ -1,3 +1,5 @@
+import type { SpeechUtterance } from '../speech/gateway';
+
 export type HealthStatus = 'ready' | 'degraded' | 'offline' | 'recoverable_error';
 
 export interface ServiceHealthView {
@@ -120,6 +122,8 @@ export interface StudentSessionViewModel {
   readonly state: SessionState;
   readonly phase: TeachingPhase;
   readonly prompt: string;
+  /** Backend-provided language-aware playback contract; null only for legacy/mock responses. */
+  readonly utterance: SpeechUtterance | null;
   readonly feedback: string;
   readonly progressLabel: string;
   readonly progressValue: number;

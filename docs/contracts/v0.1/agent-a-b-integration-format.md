@@ -99,9 +99,12 @@ until a teacher/parent review action approves it. For a visual question,
 teacher review only; it is not used as student prompt content or indexed into
 Local RAG. The laptop binds `evidence[]` and `rag_index_revision` from the
 active Local RAG revision after MI300 facts extraction; MI300 remains stateless.
-The internal Stage 07 facts response must confirm `source_text_complete=true`;
-the laptop then copies the complete `source_text` into the pending Lesson and
-SQLite without exposing the internal flag as a public contract field. Stage 08
+The internal Stage 07 facts response reports `source_text_complete`; `true`
+means the observable lesson text has a readable beginning and end, while
+`false` is valid for a partial, cropped, or non-lesson page. The laptop keeps
+the observable `source_text` verbatim, adds an internal completeness warning,
+reduces confidence, and stores the Lesson as `pending` for teacher/parent
+review. The internal flag and warning are not public contract fields. Stage 08
 must consume that persisted Lesson text rather than reconstructing the lesson
 from activity or RAG evidence. A student session may be created only after the
 teacher/parent review endpoint changes `review_status` to `approved`; a
@@ -248,8 +251,10 @@ The initial student prompt introduces the lesson. The next demonstration phase
 reads the complete persisted `Lesson.source_text` once, and only the following
 `read_aloud` phase enables follow-read. Both prompts use the same validated
 source text; `source_text_complete` remains an internal Stage 07 validation
-field and is never included in a student response, cache, DOM, or Speech
-payload.
+field and is never included in a student response, cache, or DOM. The
+student-safe `current_utterance`/`next_utterance` Speech payload may carry the
+same source text as ordered Hanji segments, but never carries the internal
+completeness flag.
 
 ## 7. Walkthrough and sign-off record
 
@@ -313,3 +318,43 @@ No JSON Schema or OpenAPI version bump is required: Stage 06 fills the frozen
 v0.1 endpoint and corrects the POJ fixture value without adding, removing, or
 reinterpreting a field. Agent B should regenerate types as a regression check;
 the generated type shape is expected to remain unchanged.
+
+## 10. Stage 08 language-segment playback extension
+
+The public v0.1 contract remains additive. Lesson analysis now asks MI300 for
+`language_segments` in both internal responses:
+
+```json
+{
+  "lang": "zh-TW",
+  "content": "我會帶你讀"
+}
+```
+
+`lang` is only `zh-TW` or `nan-TW`; concatenating all `content` values, after
+normalizing transport whitespace, must equal the original `source_text` or
+`accessible_activity`. MI300 does not generate Tailo or POJ. The laptop then
+uses the checked-in golden dictionary and longest-match tokenizer to produce
+the public `Utterance.segments[]` fields (`hanji`, `tailo_citation`,
+`poj_citation`, and `pronunciation_status`).
+
+The following additive response fields are available to clients:
+
+- `Lesson.source_utterance` and `Lesson.accessible_activity_utterance`
+  (teacher/parent lesson response);
+- `Session.current_utterance`;
+- `StudentAction.current_utterance`, `feedback_utterance`, and
+  `next_utterance`; and
+- `TurnResult.feedback_utterance` and `next_utterance`.
+
+Existing `current_prompt`/`next_prompt` strings remain populated and are the
+visual blue prompt. The student UI must not render language labels, Tailo,
+POJ, or the JSON structure. It passes the additive utterance to Speech: zh
+segments use browser/Windows speech, approved nan segments use MMS, and
+`needs_review` nan segments use a Chinese browser/Windows fallback. A
+`needs_review` segment never reaches MMS.
+
+The internal prompt schemas are `stage07-facts.v3` and
+`stage07-activity.v2`; the public schema/OpenAPI directory remains `v0.1`.
+The generated TypeScript file must be refreshed with `npm run
+contracts:generate` after contract edits.

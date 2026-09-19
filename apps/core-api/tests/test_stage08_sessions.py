@@ -103,7 +103,10 @@ class Stage08SessionTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(response.status_code, 201, response.text)
         self.assertEqual(response.headers["X-Session-Revision"], "0")
-        return response.json()
+        body = response.json()
+        self.assertIn("current_utterance", body)
+        self.assertTrue(body["current_utterance"]["segments"])
+        return body
 
     async def test_pending_lesson_requires_teacher_approval_before_session(self) -> None:
         pending = await self.client.patch(
@@ -145,6 +148,8 @@ class Stage08SessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(demonstration_body["phase"], "demonstration")
         self.assertIn("完整朗讀一次原始課文", demonstration_body["current_prompt"])
         self.assertIn(source_text, demonstration_body["current_prompt"])
+        self.assertEqual(demonstration_body["current_utterance"]["segments"][0]["lang"], "zh-TW")
+        self.assertTrue(any(item["lang"] == "nan-TW" for item in demonstration_body["current_utterance"]["segments"]))
 
         follow_read = await self.action(session_id, "next", "source-read-follow", 1)
         self.assertEqual(follow_read.status_code, 200, follow_read.text)
@@ -152,6 +157,7 @@ class Stage08SessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(follow_read_body["phase"], "read_aloud")
         self.assertIn("跟讀完整原始課文", follow_read_body["current_prompt"])
         self.assertIn(source_text, follow_read_body["current_prompt"])
+        self.assertTrue(follow_read_body["current_utterance"]["segments"])
 
     async def test_student_cannot_answer_before_source_read_finishes(self) -> None:
         session = await self.create_session("create-source-read-guard")
@@ -213,6 +219,8 @@ class Stage08SessionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response.status_code, 200, response.text)
                 body = response.json()
                 self.assertEqual(body["result"], step["expected_result"])
+                self.assertIn("next_utterance", body)
+                self.assertIn("feedback_utterance", body)
                 turn_results.append(body)
             revision = body["revision"]
             self.assertEqual(body["last_event_id"], int(response.headers["X-Event-ID"]))

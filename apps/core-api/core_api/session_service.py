@@ -94,6 +94,7 @@ class SessionService:
             phase=initial["phase"],
             progress=initial["progress"],
             current_prompt=initial["current_prompt"],
+            current_utterance=initial["current_utterance"],
             can_answer=False,
             revision=0,
             last_event_id=0,
@@ -126,7 +127,11 @@ class SessionService:
                 details={"event_type": exc.event_type},
             ) from exc
         return SessionCommandResult(
-            response=select_student_session(row, event.event_id),
+            response=select_student_session(
+                row,
+                event.event_id,
+                current_utterance=initial["current_utterance"],
+            ),
             event=event,
             replayed=_replayed,
         )
@@ -134,10 +139,12 @@ class SessionService:
     async def get_student_session(self, session_id: str) -> SessionView:
         row, lesson = await self._session_and_lesson(session_id)
         last_event_id = await asyncio.to_thread(self.database.get_last_event_id, session_id)
+        current_utterance = self._current_utterance(lesson, row)
         return select_student_session(
             row,
             last_event_id,
             current_prompt=self.teaching_agent.prompt_for_session(lesson, row),
+            current_utterance=current_utterance,
         )
 
     async def submit_action(
@@ -161,12 +168,21 @@ class SessionService:
         row, lesson = await self._session_and_lesson(session_id)
         decision: ActionDecision = self.teaching_agent.apply_action(row, lesson, action)
         projected = self._project_row(row, decision.updates, row.revision + 1)
+        next_utterance = self._current_utterance(lesson, projected)
+        feedback_utterance = (
+            self.teaching_agent.text_utterance(decision.feedback, seed="feedback", lesson=lesson)
+            if decision.feedback
+            else None
+        )
         provisional = select_student_action(
             projected,
             action,
             decision.feedback,
             decision.next_prompt,
             0,
+            current_utterance=next_utterance,
+            feedback_utterance=feedback_utterance,
+            next_utterance=next_utterance,
         )
         try:
             updated, event, replayed = await asyncio.to_thread(
@@ -220,6 +236,7 @@ class SessionService:
                 details={"state": row.state, "phase": row.phase},
             )
         mastery_rows = await asyncio.to_thread(self.database.get_mastery, session_id)
+        mastery_by_concept = {str(item["concept"]): item for item in mastery_rows}
         started = time.perf_counter()
         decision = await self.teaching_agent.evaluate_turn(
             row,
@@ -243,6 +260,16 @@ class SessionService:
             matched_concepts=decision.matched_concepts,
             feedback=decision.feedback,
             next_prompt=decision.next_prompt,
+            feedback_utterance=self.teaching_agent.text_utterance(
+                decision.feedback,
+                seed="feedback",
+                lesson=lesson,
+            ),
+            next_utterance=self._current_utterance(
+                lesson,
+                self._project_row(row, decision.updates, row.revision + 1),
+                mastery=mastery_by_concept,
+            ),
             progress=float(decision.updates["progress"]),
             latency_ms={
                 "asr": None,
@@ -284,6 +311,23 @@ class SessionService:
             }
         )
         return TurnCommandResult(response=response, event=event, replayed=replayed)
+
+    def _current_utterance(
+        self,
+        lesson: Lesson,
+        row: SessionRow,
+        *,
+        mastery: dict[str, dict[str, Any]] | None = None,
+    ):
+        hinted_phase = self.teaching_agent.effective_phase(row) if row.phase == "hint" else None
+        return self.teaching_agent.prompt_utterance(
+            lesson,
+            row.phase,
+            row.hint_level,
+            row.language_ratio_zh,
+            mastery or {},
+            hinted_phase=hinted_phase,
+        )
 
     async def get_summary(self, session_id: str, request_id: str) -> ObserverSessionSummary:
         row, lesson = await self._session_and_lesson(session_id)

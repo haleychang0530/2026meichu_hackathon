@@ -31,8 +31,43 @@
     },
     "progress": { "type": "number", "minimum": 0, "maximum": 1 },
     "current_prompt": { "type": ["string", "null"] },
+    "current_utterance": {
+      "anyOf": [
+        { "$ref": "#/$defs/utterance" },
+        { "type": "null" }
+      ]
+    },
     "can_answer": { "type": "boolean" },
     "revision": { "type": "integer", "minimum": 0 },
     "last_event_id": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "utterance_segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lang", "hanji", "tailo_citation", "poj_citation", "zh_gloss", "source", "pronunciation_status"],
+      "properties": {
+        "lang": { "type": "string", "enum": ["nan-TW", "zh-TW"] },
+        "hanji": { "type": "string", "minLength": 1 },
+        "tailo_citation": { "type": ["string", "null"] },
+        "poj_citation": { "type": ["string", "null"] },
+        "zh_gloss": { "type": ["string", "null"] },
+        "source": { "type": "string", "enum": ["textbook", "dictionary", "generated"] },
+        "pronunciation_status": { "type": "string", "enum": ["verified", "converted", "needs_review"] }
+      }
+    },
+    "utterance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "id", "segments", "tts_provider", "audio_url", "audio_cache_key"],
+      "properties": {
+        "schema_version": { "const": "0.1.0" },
+        "id": { "type": "string", "pattern": "^utt_[A-Za-z0-9_-]+$" },
+        "segments": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/utterance_segment" } },
+        "tts_provider": { "type": ["string", "null"], "enum": ["mms-tts-nan", "windows", "prerecorded", null] },
+        "audio_url": { "type": ["string", "null"], "format": "uri-reference" },
+        "audio_cache_key": { "type": ["string", "null"] }
+      }
+    }
   }
 }
