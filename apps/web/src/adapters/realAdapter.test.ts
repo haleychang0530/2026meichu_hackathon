@@ -178,6 +178,39 @@ describe('RealAdapter', () => {
     expect(view.progressValue).toBe(40);
   });
 
+  it('approves a pending analyzed lesson before starting the student session', async () => {
+    const calls: Array<{ readonly url: string; readonly init?: RequestInit }> = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.endsWith('/api/lessons/lesson_market_001')) {
+        if (init?.method === 'PATCH') {
+          expect(new Headers(init.headers).get('content-type')).toBe('application/merge-patch+json');
+          expect(JSON.parse(String(init.body))).toEqual({ review_status: 'approved' });
+          return jsonResponse({ ...lessonPayload, review_status: 'approved' });
+        }
+        return jsonResponse(lessonPayload);
+      }
+      if (url.endsWith('/api/sessions')) {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          schema_version: '0.1.0',
+          lesson_id: 'lesson_market_001',
+        });
+        return jsonResponse(sessionPayload, 201);
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await new RealAdapter().confirmLesson('lesson_market_001');
+
+    expect(result.sessionId).toBe('session_demo_001');
+    expect(calls.map((call) => `${call.init?.method || 'GET'} ${call.url}`)).toEqual([
+      'GET /api/lessons/lesson_market_001',
+      'PATCH /api/lessons/lesson_market_001',
+      'POST /api/sessions',
+    ]);
+  });
+
   it('uses the Stage 04 health route as the capture entrypoint before Stage 08 routes exist', async () => {
     const calls: string[] = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
