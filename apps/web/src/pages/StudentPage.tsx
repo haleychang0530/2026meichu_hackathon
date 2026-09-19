@@ -283,7 +283,11 @@ export function StudentPage({
     try {
       setSessionMessage('提示播放中；播放結束後才會開啟麥克風。');
       await speechClient.play(promptToUtterance(next.prompt));
-      setSessionMessage('提示播放完成；你可以開始語音或鍵盤回答。');
+      setSessionMessage(
+        speechClient.mode === 'mock'
+          ? '目前是 mock 語音模式；這次只模擬播放狀態，不會產生實際聲音。請改用 -SpeechProfile cpu。'
+          : '提示播放完成；你可以開始語音或鍵盤回答。',
+      );
     } catch (nextError) {
       setSpeechError(nextError);
     }

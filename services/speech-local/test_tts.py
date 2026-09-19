@@ -198,6 +198,39 @@ class RoutingAndFallbackTests(unittest.TestCase):
                 self.assertEqual(wav_file.getnframes(), 2)
             self.assertEqual(calls, ["chiah-peng", "tshia̍h"])
 
+    def test_routed_worker_uses_windows_voice_for_chinese_ui_text(self) -> None:
+        calls: list[str] = []
+
+        class FakeWindowsVoice:
+            available = True
+
+            def synthesize(self, text: str, _token: CancellationToken) -> bytes:
+                calls.append(text)
+                return make_wav()
+
+        with tempfile.TemporaryDirectory() as directory:
+            worker = RoutedSpeechTTSWorker(
+                windows_tts=FakeWindowsVoice(),  # type: ignore[arg-type]
+                fallback_manifest=PrerecordedFallbackManifest(Path(directory), {}),
+            )
+            audio = worker.synthesize(
+                utterance=utterance(
+                    {
+                        "lang": "zh-TW",
+                        "hanji": "請跟我說",
+                        "tailo_citation": None,
+                        "poj_citation": None,
+                        "zh_gloss": "請跟我說",
+                        "source": "generated",
+                        "pronunciation_status": "verified",
+                    },
+                    provider="windows",
+                ),
+                token=CancellationToken(),
+            )
+        self.assertEqual(calls, ["請跟我說"])
+        self.assertTrue(audio.startswith(b"RIFF"))
+
 
 if __name__ == "__main__":
     unittest.main()
