@@ -170,5 +170,7 @@ Lesson fixture and no source-text completeness marker is exposed publicly.
   Stage 07 source-text branch, which is now included in `main` via PR #23.
 - Stage 07 dependency is complete on `main`; this Stage 08 branch does not
   modify the Stage 07 branch.
-- Commit, push, and PR URL will be recorded here after the final diff audit.
+- Commits: `fada58f` implementation, `22ee636` tests, `edde06e` contracts and
+  handoff, `968033c` base alignment.
+- Push and PR URL will be recorded here after the final diff audit.
 - Merge: not performed; explicit repository-owner authorization is required.
