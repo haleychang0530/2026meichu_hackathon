@@ -201,7 +201,6 @@ export function ObserverPage({ adapter, sessionId }: { readonly adapter: Fronten
                   <label htmlFor="observer-accessible-activity">無障礙活動（不得直接洩漏答案）</label>
                   <textarea id="observer-accessible-activity" rows={4} value={accessibleActivity} onChange={(event) => setAccessibleActivity(event.target.value)} disabled={!canEditLesson || busyAction !== null} />
                 </div>
-                <p className="form-help">Core Backend 會再次執行 answer-leak、位置提示與 sighted-only clue 檢查；前端不自行改寫 canonical schema。</p>
                 <div className="button-row">
                   <button className="button" type="submit" disabled={!canEditLesson || busyAction !== null}>儲存教材修改</button>
                   <button className="button primary-large" type="button" onClick={() => void approveLesson()} disabled={!canEditLesson || busyAction !== null}>批准 Lesson</button>

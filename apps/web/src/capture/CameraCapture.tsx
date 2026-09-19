@@ -243,7 +243,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     if (!pendingAsset || pendingAsset.quality.status === 'rejected') return;
     if (pendingAsset.quality.status === 'warning' && !qualityOverride) return;
     onImageSelected(pendingAsset);
-    setProcessingMessage('照片已準備好；按下「送至 Core Backend 分析」開始教材理解。');
+    setProcessingMessage('照片已準備好，可以開始分析教材。');
   }
 
   const hasCamera = cameraStatus === 'ready' || cameraStatus === 'starting';
@@ -375,8 +375,6 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
           </div>
         </section>
       ) : null}
-
-      <p className="camera-note">若拒絕相機權限，檔案上傳仍可完成；取消或離開頁面時，Camera stream 與預覽網址會自動釋放。</p>
     </section>
   );
 }

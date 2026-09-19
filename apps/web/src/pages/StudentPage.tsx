@@ -6,7 +6,6 @@ import { StatusBanner } from '../components/StatusBanner';
 import { ErrorState, LoadingState } from '../components/States';
 import { useNarration } from '../accessibility/NarrationProvider';
 import type {
-  SessionState,
   StudentAction,
   StudentSessionViewModel,
   TeachingPhase,
@@ -16,8 +15,13 @@ import {
   createSpeechGatewayClient,
   type SpeechGatewayClient,
   type SpeechState,
-  type SpeechUtterance,
 } from '../speech/gateway';
+import { promptToUtterance } from '../speech/mixedPrompt';
+import {
+  canAnswerInStudentInteractionGroup,
+  getStudentInteractionGroup,
+  showsNextInStudentInteractionGroup,
+} from './studentInteractions';
 
 const speechStateLabels: Record<SpeechState, string> = {
   IDLE: '待機',
@@ -25,16 +29,6 @@ const speechStateLabels: Record<SpeechState, string> = {
   LISTENING: '聆聽中，請開始回答',
   TRANSCRIBING: '辨識中',
   EVALUATING: '準備送出回饋',
-};
-
-const sessionStateLabels: Record<SessionState, string> = {
-  IDLE: '已暫停',
-  SPEAKING: '等待播放或重播提示',
-  LISTENING: '等待學生回答',
-  TRANSCRIBING: '辨識學生回答',
-  EVALUATING: '判定回答並準備回饋',
-  RECOVERABLE_ERROR: '可恢復錯誤',
-  COMPLETE: '本課完成',
 };
 
 const phaseLabels: Record<TeachingPhase, string> = {
@@ -47,6 +41,16 @@ const phaseLabels: Record<TeachingPhase, string> = {
   complete: '完成',
 };
 
+const phaseHeadings: Record<TeachingPhase, string> = {
+  introduction: '課程介紹',
+  demonstration: '發音示範',
+  read_aloud: '跟讀練習',
+  comprehension: '理解練習',
+  hint: '作答提示',
+  review: '複習',
+  complete: '完成',
+};
+
 type TranscriptMode = 'voice' | 'keyboard';
 type PendingTurn = {
   readonly key: string;
@@ -54,26 +58,6 @@ type PendingTurn = {
   readonly inputMode: TranscriptMode;
   readonly asrDevice?: 'cpu' | 'npu';
 };
-
-function promptToUtterance(prompt: string): SpeechUtterance {
-  const text = prompt.trim() || '目前沒有可播放的提示。';
-  return {
-    schema_version: '0.1.0',
-    id: 'utt_student_prompt',
-    segments: [{
-      lang: 'zh-TW',
-      hanji: text,
-      tailo_citation: null,
-      poj_citation: null,
-      zh_gloss: text,
-      source: 'generated',
-      pronunciation_status: 'needs_review',
-    }],
-    tts_provider: 'prerecorded',
-    audio_url: null,
-    audio_cache_key: null,
-  };
-}
 
 function createOperationKey(prefix: string): string {
   const suffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -97,15 +81,15 @@ function withPreservedTranscript(
 
 function fallbackMessage(fallbacks: readonly string[]): string | null {
   if (fallbacks.includes('mi300_offline')) {
-    return 'MI300 暫時離線；目前使用筆電本機規則完成回饋，你可以繼續回答。';
+    return '回饋服務暫時受限，你仍可繼續回答。';
   }
   if (fallbacks.includes('asr_cpu')) {
-    return '目前使用筆電 CPU 語音辨識；若辨識不準，可以修改逐字稿或改用鍵盤。';
+    return '若語音辨識不準，可以修改文字或改用鍵盤。';
   }
   if (fallbacks.includes('tts_prerecorded')) {
-    return '目前使用核可的預錄語音備援；你仍可重播提示或用鍵盤回答。';
+    return '目前使用備援語音，你仍可繼續作答。';
   }
-  return fallbacks.length ? '目前使用明確標示的降級路徑；你可以繼續或重試。' : null;
+  return fallbacks.length ? '目前使用備援服務，你可以繼續或重試。' : null;
 }
 
 export function StudentPage({
@@ -160,7 +144,7 @@ export function StudentPage({
       .then((next) => {
         const merged = withPreservedTranscript(next, viewRef.current);
         commitView(merged);
-        setSessionMessage('已從 Core Backend snapshot 恢復目前進度。');
+        setSessionMessage('已恢復目前進度。');
         setError(null);
         return merged;
       })
@@ -200,14 +184,20 @@ export function StudentPage({
         unsubscribe = adapter.subscribeStudentSession(sessionId, {
           afterEventId: initial.lastEventId,
           onStatus: (status) => {
-            if (active) setStreamStatus(status);
+            if (!active) return;
+            setStreamStatus(status);
+            if (status === 'connected') {
+              setSessionMessage((message) => (
+                message === '連線中斷，正在重新連線。' ? '' : message
+              ));
+            }
           },
           onError: (streamError) => {
             if (!active) return;
             setStreamStatus('reconnecting');
             const normalized = asAdapterError(streamError);
             if (normalized.code === 'SESSION_NOT_FOUND') setError(streamError);
-            else setSessionMessage('即時進度連線中斷，正在以 snapshot 自動恢復。');
+            else setSessionMessage('連線中斷，正在重新連線。');
             void refreshSnapshot(false).catch(() => undefined);
           },
           onEvent: (event) => {
@@ -285,7 +275,7 @@ export function StudentPage({
       await speechClient.play(promptToUtterance(next.prompt));
       setSessionMessage(
         speechClient.mode === 'mock'
-          ? '目前是 mock 語音模式；這次只模擬播放狀態，不會產生實際聲音。請改用 -SpeechProfile cpu。'
+          ? '目前無法播放實際語音，你仍可使用鍵盤回答。'
           : '提示播放完成；你可以開始語音或鍵盤回答。',
       );
     } catch (nextError) {
@@ -309,7 +299,12 @@ export function StudentPage({
   }
 
   async function beginVoiceAnswer(): Promise<void> {
-    if (!viewRef.current || viewRef.current.state === 'COMPLETE') return;
+    const current = viewRef.current;
+    if (
+      !current
+      || current.state === 'COMPLETE'
+      || !canAnswerInStudentInteractionGroup(getStudentInteractionGroup(current.phase))
+    ) return;
     const next = await runControl('answer');
     if (!next || !next.canAnswer) return;
     setDraftTranscript('');
@@ -342,14 +337,19 @@ export function StudentPage({
     } catch (nextError) {
       speechClient.markEvaluationComplete();
       setSpeechError(nextError);
-      setSessionMessage('辨識失敗；可以重錄或改用鍵盤輸入。');
+      setSessionMessage('辨識失敗；可以重錄，或在提供鍵盤回答的階段改用鍵盤。');
     } finally {
       setBusyLabel(null);
     }
   }
 
   async function beginKeyboardAnswer(): Promise<void> {
-    if (!viewRef.current || viewRef.current.state === 'COMPLETE') return;
+    const current = viewRef.current;
+    if (
+      !current
+      || current.state === 'COMPLETE'
+      || !canAnswerInStudentInteractionGroup(getStudentInteractionGroup(current.phase))
+    ) return;
     const next = await runControl('answer');
     if (!next || !next.canAnswer) return;
     setDraftTranscript('');
@@ -369,7 +369,7 @@ export function StudentPage({
     }
     const mode = transcriptMode;
     if (!mode) {
-      setInputError('請先按「開始鍵盤回答」或「開始語音回答」，再送出回答。');
+      setInputError('請先按目前階段提供的回答按鈕，再送出回答。');
       transcriptRef.current?.focus();
       return;
     }
@@ -412,6 +412,20 @@ export function StudentPage({
     }
   }
 
+  async function goToNextStep(): Promise<void> {
+    if (transcriptMode) {
+      setInputError('請先送出目前回答，再進入下一步。');
+      transcriptRef.current?.focus();
+      return;
+    }
+    const next = await runControl('next');
+    if (!next) return;
+    pendingTurnRef.current = null;
+    setDraftTranscript('');
+    setAsrDevice(undefined);
+    setInputError('');
+  }
+
   async function rerecord(): Promise<void> {
     pendingTurnRef.current = null;
     setDraftTranscript('');
@@ -427,32 +441,57 @@ export function StudentPage({
   }
 
   const currentView = view;
+  const interactionGroup = currentView
+    ? currentView.state === 'COMPLETE'
+      ? 'complete'
+      : getStudentInteractionGroup(currentView.phase)
+    : null;
+  const canAnswerInCurrentPhase = canAnswerInStudentInteractionGroup(interactionGroup);
+  const showNext = showsNextInStudentInteractionGroup(interactionGroup);
   const canBeginAnswer = Boolean(
     currentView
+      && canAnswerInCurrentPhase
       && currentView.state !== 'COMPLETE'
       && currentView.health.status !== 'offline'
       && speechState !== 'TRANSCRIBING'
       && speechState !== 'EVALUATING'
       && !busyLabel,
   );
-  const streamLabel = streamStatus === 'connected'
-    ? '即時進度已連線'
-    : streamStatus === 'reconnecting'
-      ? '即時進度斷線，正在重連並以 snapshot 恢復'
-      : '正在連接即時進度';
+  const showTranscriptCard = Boolean(
+    currentView
+      && interactionGroup !== 'teaching'
+      && interactionGroup !== 'complete'
+      && (transcriptMode || draftTranscript),
+  );
+  const connectionMessage = streamStatus === 'reconnecting'
+    ? '連線中斷，正在重新連線。'
+    : streamStatus === 'connecting'
+      ? '正在連線。'
+      : null;
+  const activeSpeechMessage = speechState === 'IDLE' ? null : speechStateLabels[speechState];
+  const currentStatusMessage = busyLabel
+    || connectionMessage
+    || activeSpeechMessage
+    || sessionMessage
+    || currentView?.feedback
+    || '';
+  const studentHeading = currentView?.lessonTitle === '目前教材'
+    ? phaseHeadings[currentView.phase]
+    : currentView?.lessonTitle || '學習活動';
+  const showSeparatePhase = Boolean(currentView && currentView.lessonTitle !== '目前教材');
 
   return (
     <AppShell currentLabel="學生模式">
       <main id="main-content" className="page" tabIndex={-1} aria-busy={Boolean(busyLabel)}>
-        <p className="eyebrow">學生模式 · {sessionId}</p>
         {!currentView && !error ? <LoadingState label="載入學生活動……" /> : null}
-        {error ? <ErrorState error={error} onRetry={() => void refreshSnapshot()} /> : null}
+        {error ? <ErrorState error={error} onRetry={() => void refreshSnapshot()} showTechnicalDetails={false} /> : null}
         {speechError ? (
           <ErrorState
             error={speechError}
+            showTechnicalDetails={false}
             onRetry={() => {
               setSpeechError(null);
-              setSessionMessage('可以重錄，或改用下方鍵盤輸入。');
+              setSessionMessage('可以重錄；若目前階段提供鍵盤回答，也可以改用鍵盤。');
             }}
           />
         ) : null}
@@ -460,64 +499,73 @@ export function StudentPage({
           <>
             <StatusBanner health={currentView.health} />
             <section className="card student-card" aria-labelledby="student-heading">
-              <div className="progress-line"><span>{currentView.progressLabel}</span><span>{currentView.progressValue}%</span></div>
-              <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={currentView.progressValue} aria-label="教學進度">
-                <span style={{ width: `${currentView.progressValue}%` }} />
-              </div>
-              <div className="student-status-grid" aria-label="目前教學狀態">
-                <span>教學階段：{phaseLabels[currentView.phase]}</span>
-                <span>Core：{sessionStateLabels[currentView.state]}</span>
-                <span>同步：{streamLabel}</span>
-              </div>
-              <h1 id="student-heading" data-page-title tabIndex={-1}>{currentView.lessonTitle}</h1>
+              {showSeparatePhase ? <p className="phase-label">目前階段：{phaseLabels[currentView.phase]}</p> : null}
+              <h1 id="student-heading" data-page-title tabIndex={-1}>{studentHeading}</h1>
               <p className="prompt">{currentView.prompt}</p>
-              <p className="live-message" role="status" aria-live="polite">{sessionMessage || currentView.feedback}</p>
-              {fallbackMessage(currentView.fallbacks) ? (
-                <p className="fallback-message" role="status" aria-live="polite">{fallbackMessage(currentView.fallbacks)}</p>
+              {interactionGroup !== 'complete' ? (
+                <p className="live-message" role="status" aria-live="polite">{currentStatusMessage}</p>
               ) : null}
-              <p className="speech-status" role="status" aria-live="polite">
-                語音狀態：{speechStateLabels[speechState]}
-              </p>
-              <div className="button-grid" aria-label="學生操作">
-                <button className="button" type="button" disabled={Boolean(busyLabel) || speechState === 'SPEAKING'} onClick={() => void playPrompt()}>
-                  播放／重播提示
-                </button>
-                <button
-                  className="button primary-large"
-                  type="button"
-                  disabled={!canBeginAnswer && speechState !== 'LISTENING'}
-                  onClick={() => void (speechState === 'LISTENING' ? stopVoiceAnswer() : beginVoiceAnswer())}
-                >
-                  {speechState === 'LISTENING' ? '停止錄音並辨識' : '開始語音回答'}
-                </button>
-                <button className="button secondary" type="button" disabled={!canBeginAnswer} onClick={() => void beginKeyboardAnswer()}>
-                  開始鍵盤回答
-                </button>
-                <button className="button secondary" type="button" disabled={Boolean(busyLabel)} onClick={() => void runControl('hint')}>
-                  取得提示
-                </button>
-                <button className="button secondary" type="button" disabled={Boolean(busyLabel) || currentView.state === 'COMPLETE'} onClick={() => void runControl(currentView.state === 'IDLE' ? 'resume' : 'pause')}>
-                  {currentView.state === 'IDLE' ? '繼續活動' : '停止音訊／暫停'}
-                </button>
-                <button className="button secondary" type="button" disabled={Boolean(busyLabel) || currentView.state === 'COMPLETE'} onClick={() => void runControl('next')}>
-                  下一步
-                </button>
-              </div>
-              {busyLabel ? <p className="live-message" role="status" aria-live="polite">{busyLabel}</p> : null}
+              {fallbackMessage(currentView.fallbacks) ? (
+                <p className="fallback-message">{fallbackMessage(currentView.fallbacks)}</p>
+              ) : null}
+              {interactionGroup === 'complete' ? (
+                <p className="completion-message" role="status" aria-live="polite">
+                  {currentView.feedback || '本課完成。'}
+                </p>
+              ) : (
+                <div className="button-grid" aria-label="目前可用操作">
+                  <button className="button" type="button" disabled={Boolean(busyLabel) || speechState === 'SPEAKING'} onClick={() => void playPrompt()}>
+                    播放提示
+                  </button>
+                  {interactionGroup === 'practice' ? (
+                    <>
+                      <button
+                        className="button primary-large"
+                        type="button"
+                        disabled={speechState === 'LISTENING' ? Boolean(busyLabel) : !canBeginAnswer}
+                        onClick={() => void (speechState === 'LISTENING' ? stopVoiceAnswer() : beginVoiceAnswer())}
+                      >
+                        {speechState === 'LISTENING' ? '停止錄音並辨識' : '回答這題（語音）'}
+                      </button>
+                      <button className="button secondary" type="button" disabled={!canBeginAnswer} onClick={() => void beginKeyboardAnswer()}>
+                        鍵盤回答
+                      </button>
+                    </>
+                  ) : null}
+                  {interactionGroup === 'hint' ? (
+                    <button
+                      className="button primary-large"
+                      type="button"
+                      disabled={speechState === 'LISTENING' ? Boolean(busyLabel) : !canBeginAnswer}
+                      onClick={() => void (speechState === 'LISTENING' ? stopVoiceAnswer() : beginVoiceAnswer())}
+                    >
+                      {speechState === 'LISTENING' ? '停止錄音並辨識' : '繼續回答'}
+                    </button>
+                  ) : null}
+                  {showNext ? (
+                    <button
+                      className="button secondary"
+                      type="button"
+                      disabled={Boolean(busyLabel) || speechState !== 'IDLE'}
+                      onClick={() => void goToNextStep()}
+                    >
+                      下一步
+                    </button>
+                  ) : null}
+                </div>
+              )}
             </section>
 
-            <section className="card transcript-card" aria-labelledby="transcript-heading">
-              <p className="eyebrow">只顯示學生自己的內容</p>
-              <h2 id="transcript-heading">你的回答</h2>
-              <p>你可以確認語音辨識結果、修改文字，或完全使用鍵盤回答。這裡不會顯示標準答案、信心或教師欄位。</p>
-              <label htmlFor="student-transcript">你的逐字稿／回答</label>
+            {showTranscriptCard ? <section className="card transcript-card" aria-labelledby="transcript-heading">
+              <h2 id="transcript-heading">確認回答</h2>
+              <p>確認或修改後送出。</p>
+              <label htmlFor="student-transcript">回答內容</label>
               <textarea
                 id="student-transcript"
                 ref={transcriptRef}
                 rows={4}
                 value={draftTranscript}
                 onChange={(event) => setDraftTranscript(event.target.value)}
-                placeholder="請輸入你自己的回答"
                 disabled={Boolean(busyLabel) || currentView.state === 'COMPLETE'}
               />
               {inputError ? <p className="field-error" role="alert">{inputError}</p> : null}
@@ -529,13 +577,13 @@ export function StudentPage({
                   清除並重錄
                 </button>
               </div>
-            </section>
+            </section> : null}
 
-            <section className="card mode-switch" aria-labelledby="switch-heading">
-              <h2 id="switch-heading">切換檢視</h2>
-              <p>切換模式前會停止播放與錄音；教師／家長模式讀取同一個 server-side session 的觀察摘要。</p>
-              <button className="button secondary" type="button" onClick={() => void switchToObserver()}>開啟教師／家長模式</button>
-            </section>
+            <nav className="demo-mode-switch" aria-label="Demo 模式切換">
+              <button className="button secondary" type="button" onClick={() => void switchToObserver()}>
+                切換至教師／家長模式
+              </button>
+            </nav>
           </>
         ) : null}
       </main>

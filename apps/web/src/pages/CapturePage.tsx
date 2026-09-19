@@ -161,16 +161,13 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
           resetToken={cameraResetToken}
         />
 
-        <section className="card" aria-labelledby="analysis-heading">
-          <p className="eyebrow">Core Backend 唯一產品入口</p>
-          <h2 id="analysis-heading">送出教材分析</h2>
-          <p>送出前會在瀏覽器完成方向校正、EXIF 清理、有界壓縮與品質提示；Core Backend 完成驗證後才會呼叫後續 VLM。</p>
+        <section className="card" aria-label="教材分析操作">
           {selectedImage ? (
             <p className="selected-upload" role="status">
               已選擇 {selectedImage.width} × {selectedImage.height} 的教材照片（{formatBytes(selectedImage.blob.size)}）；{qualityStatusLabel(selectedImage.quality.status)}。
             </p>
           ) : (
-            <EmptyState message="請先在上方按「使用此照片」，再送出教材分析。" />
+            <EmptyState message="請先在上方按「使用此照片」，再開始分析。" />
           )}
           {analysisMessage ? <p className="live-message" role="status" aria-live="polite">{analysisMessage}</p> : null}
           {analysisStatus === 'uploading' ? (
@@ -183,7 +180,7 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
               disabled={!selectedImage || selectedImage.quality.status === 'rejected' || analysisStatus === 'uploading'}
               onClick={() => void analyzeSelectedImage()}
             >
-              {analysisStatus === 'uploading' ? '分析中……' : '送至 Core Backend 分析'}
+              {analysisStatus === 'uploading' ? '分析中……' : '開始分析教材'}
             </button>
             {analysisStatus === 'uploading' ? (
               <button className="button secondary" type="button" onClick={cancelAnalysis}>取消分析</button>

@@ -48,9 +48,8 @@ function AccessibilityChoice() {
   return (
     <div className="accessibility-gate" role="dialog" aria-modal="true" aria-labelledby="accessibility-choice-heading">
       <section className="accessibility-choice">
-        <p className="eyebrow">第一次使用設定</p>
         <h2 id="accessibility-choice-heading">請選擇一種朗讀方式</h2>
-        <p>我們不會自動猜測你是否使用螢幕閱讀器。請明確選擇一種；之後可以在頁首重新設定。</p>
+        <p>已開啟螢幕閱讀器請選第一個；否則可使用 App 旁白。</p>
         <div className="button-row">
           <button className="button" type="button" onClick={() => chooseMode('system')}>
             使用系統螢幕閱讀器
@@ -70,7 +69,6 @@ function NarrationControls() {
     status,
     rate,
     detail,
-    queueLength,
     lastText,
     available,
     stop,
@@ -85,10 +83,9 @@ function NarrationControls() {
   return (
     <section className="narration-panel" aria-labelledby="narration-heading">
       <div>
-        <p className="eyebrow">App 旁白</p>
-        <h2 id="narration-heading">中文 UI 朗讀控制</h2>
+        <h2 id="narration-heading">App 旁白控制</h2>
         <p role="status" aria-live="polite">
-          {available ? `狀態：${status === 'speaking' ? '朗讀中' : status === 'paused' ? '已暫停' : '待機'}；佇列 ${queueLength} 段。` : '此瀏覽器沒有可用的 Web Speech voice；畫面文字仍完整保留。'}
+          {available ? `狀態：${status === 'speaking' ? '朗讀中' : status === 'paused' ? '已暫停' : '待機'}。` : '此瀏覽器無法使用 App 旁白，請改用系統螢幕閱讀器。'}
         </p>
       </div>
       <div className="narration-controls" aria-label="App 旁白操作">
@@ -111,6 +108,7 @@ function NarrationControls() {
 
 export function AppShell({ children, currentLabel }: AppShellProps) {
   const narration = useNarration();
+  const isStudentView = currentLabel === '學生模式';
   const runtimeLabel = import.meta.env.VITE_DATA_MODE === 'real'
     ? 'Real adapter · Core Backend is the source of truth'
     : 'Mock mode · keyboard, speech, and session recovery are simulated locally';
@@ -131,19 +129,27 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
   return (
     <div className="app-shell" onFocusCapture={handleFocusCapture}>
       <header className="site-header">
-        <a className="brand" href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>
-          聽見母語
-        </a>
-        <nav aria-label="主要導覽">
-          <a href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>設定</a>
-          <a href="/capture" onClick={(event) => handleInternalLink(event, '/capture')}>教材</a>
-          <a href="/health" onClick={(event) => handleInternalLink(event, '/health')}>健康檢查</a>
-          <span aria-current="page">{currentLabel}</span>
-        </nav>
+        {isStudentView ? (
+          <span className="brand">聽見母語</span>
+        ) : (
+          <a className="brand" href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>
+            聽見母語
+          </a>
+        )}
+        {isStudentView ? (
+          <span className="current-page-label" aria-current="page">學生模式</span>
+        ) : (
+          <nav aria-label="主要導覽">
+            <a href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>設定</a>
+            <a href="/capture" onClick={(event) => handleInternalLink(event, '/capture')}>教材</a>
+            <a href="/health" onClick={(event) => handleInternalLink(event, '/health')}>健康檢查</a>
+            <span aria-current="page">{currentLabel}</span>
+          </nav>
+        )}
       </header>
       {narration.mode === null ? <AccessibilityChoice /> : <NarrationControls />}
       {children}
-      <footer className="site-footer">{runtimeLabel}</footer>
+      {isStudentView ? null : <footer className="site-footer">{runtimeLabel}</footer>}
     </div>
   );
 }
