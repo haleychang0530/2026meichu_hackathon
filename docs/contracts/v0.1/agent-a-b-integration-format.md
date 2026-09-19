@@ -99,9 +99,12 @@ until a teacher/parent review action approves it. For a visual question,
 teacher review only; it is not used as student prompt content or indexed into
 Local RAG. The laptop binds `evidence[]` and `rag_index_revision` from the
 active Local RAG revision after MI300 facts extraction; MI300 remains stateless.
-The internal Stage 07 facts response must confirm `source_text_complete=true`;
-the laptop then copies the complete `source_text` into the pending Lesson and
-SQLite without exposing the internal flag as a public contract field. Stage 08
+The internal Stage 07 facts response reports `source_text_complete`; `true`
+means the observable lesson text has a readable beginning and end, while
+`false` is valid for a partial, cropped, or non-lesson page. The laptop keeps
+the observable `source_text` verbatim, adds an internal completeness warning,
+reduces confidence, and stores the Lesson as `pending` for teacher/parent
+review. The internal flag and warning are not public contract fields. Stage 08
 must consume that persisted Lesson text rather than reconstructing the lesson
 from activity or RAG evidence. A student session may be created only after the
 teacher/parent review endpoint changes `review_status` to `approved`; a

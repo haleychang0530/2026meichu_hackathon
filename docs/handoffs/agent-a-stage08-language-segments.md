@@ -49,7 +49,7 @@ Pop-Location
 - Core Backend: PASS — 57 tests.
 - Contract checks: PASS — 9 schemas, 3 OpenAPI documents / 49 responses, 21 schema fixtures, 10 student-safe fixtures.
 - Stage 07 fixture review: PASS — all 5 fixtures, pending status, answer evidence, exact language coverage, and privacy checks.
-- Web: PASS — TypeScript typecheck and 29 Vitest tests.
+- Web: PASS — TypeScript typecheck and 40 Vitest tests.
 - Speech direct routing smoke: PASS — an unverified nan segment routes to `web-speech` with reason `needs_review_zh_fallback`.
 - Full `services/speech-local` unittest suite: not executable in this checkout because `services/speech-local/.venv` is absent and the available Core venv does not contain `numpy`; no dependency or model installation was performed.
 
@@ -68,6 +68,7 @@ The five Stage 07 metadata-only fixtures now include `language_segments` for bot
 - The checked-in golden set does not yet contain human-reviewed pronunciations for the screenshot's night-market food terms. Those terms therefore remain `needs_review` until approved data is added; no pronunciation was invented in this change.
 - Teacher-edited accessible activities conservatively receive an all-Chinese utterance until a new MI300 analysis supplies explicit language boundaries.
 - Existing clients that ignore the additive utterance fields continue to display the natural blue prompt text and can use their old all-text fallback.
+- If the internal facts field `source_text_complete` is false, the laptop preserves the observable source text, keeps the Lesson `pending`, reduces confidence, and leaves the completeness warning internal; no public `quality_warnings` field is added.
 - Full speech worker tests still require the existing speech-local environment with `numpy` and its pinned dependencies.
 
 ## Agent B can rely on
