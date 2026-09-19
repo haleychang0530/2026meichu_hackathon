@@ -24,11 +24,11 @@
     "source_text": {
       "type": "string",
       "minLength": 1,
-      "description": "Verbatim complete original lesson text in page reading order; do not summarize or fill unclear text."
+      "description": "Verbatim observable textbook text in page reading order; preserve only what is visible and do not summarize or fill unclear text."
     },
     "source_text_complete": {
       "type": "boolean",
-      "description": "True only when the visible lesson text has readable beginning and end with no crop, occlusion, glare, or unreadable continuation."
+      "description": "True only when the visible lesson text has a readable beginning and end with no crop, occlusion, glare, or unreadable continuation; false is valid for a partial, non-lesson, or review-required page."
     },
     "vocabulary": {
       "type": "array",

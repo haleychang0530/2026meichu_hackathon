@@ -319,8 +319,6 @@ class LessonAnalysisPipeline:
         source_text = facts.get("source_text")
         if not isinstance(source_text, str) or not source_text.strip():
             reasons.append("source_text_missing")
-        if facts.get("source_text_complete") is not True:
-            reasons.append("source_text_incomplete")
         return tuple(reasons)
 
     @staticmethod
@@ -404,6 +402,9 @@ class LessonAnalysisPipeline:
             for item in facts.get("quality_warnings", [])
             if str(item).strip()
         ]
+        if facts.get("source_text_complete") is not True:
+            quality_warnings.append("教材原文完整性尚未確認，需教師審查。")
+            quality_warnings = list(dict.fromkeys(quality_warnings))
         confidence = min(float(facts.get("confidence", 0.0)), float(activity.get("confidence", 0.0)))
         if quality_warnings:
             confidence *= 0.85

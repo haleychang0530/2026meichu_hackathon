@@ -118,26 +118,18 @@ class LessonAnalysisPipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("第一句保留標點。", lesson.source_text)
         self.assertIn("第二句也要完整保存？", lesson.source_text)
 
-    async def test_incomplete_source_text_is_repaired_once_then_requires_manual_review(self) -> None:
-        facts, _ = _fixture_parts()
+    async def test_incomplete_source_text_remains_pending_with_quality_warning(self) -> None:
+        facts, activity = _fixture_parts()
         incomplete = copy.deepcopy(facts)
         incomplete["source_text_complete"] = False
-        generator = RecordingGenerator([incomplete, incomplete])
-        pipeline = LessonAnalysisPipeline(generator, RecordingRetriever())
-        with tempfile.TemporaryDirectory() as directory:
-            image_path = Path(directory) / "normalized.jpg"
-            image_path.write_bytes(b"normalized-image-placeholder")
-            with self.assertRaises(ProviderError) as caught:
-                await pipeline.analyze(
-                    PreparedImage(image_path, "image/jpeg", 64, 64, image_path.stat().st_size),
-                    "00000000-0000-4000-8000-000000000009",
-                )
+        generator = RecordingGenerator([incomplete, activity])
+        pipeline, retriever, lesson = await self._run(generator)
 
-        self.assertEqual(caught.exception.code.value, "VLM_INVALID_OUTPUT")
-        self.assertFalse(caught.exception.retryable)
-        self.assertEqual(caught.exception.details["stage"], "facts")
-        self.assertIn("source_text_incomplete", caught.exception.details["reasons"])
+        self.assertEqual(lesson.review_status, "pending")
         self.assertEqual(len(generator.calls), 2)
+        self.assertEqual(lesson.source_text, incomplete["source_text"])
+        self.assertEqual(len(retriever.queries), 1)
+        self.assertLess(lesson.confidence, min(incomplete["confidence"], activity["confidence"]))
 
     async def test_invalid_json_gets_exactly_one_traceable_repair(self) -> None:
         facts, activity = _fixture_parts()
