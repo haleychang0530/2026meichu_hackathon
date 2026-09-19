@@ -84,6 +84,9 @@ Important variables:
 - `CORE_PROVIDER=real|fixture`
 - `CORE_ALLOWED_ORIGINS` (defaults to the Agent B Vite origins on port 5173)
 - `VLM_BASE_URL` and `VLM_MODEL_REVISION`
+- `VLM_OUTPUT_VALIDATION_ENABLED` (defaults to `true`; set `false` only for
+  temporary model-output inspection, which bypasses Core schema, semantic,
+  safety, repair, and language-segment gates)
 - `SPEECH_BASE_URL` (Agent B contract default `http://127.0.0.1:8200`)
 - `RAG_MANIFEST_PATH`, `RAG_INDEX_ROOT`, `RAG_EMBEDDING_BACKEND`, and
   `RAG_EMBEDDING_DIMENSION`

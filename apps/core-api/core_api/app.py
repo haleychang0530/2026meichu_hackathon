@@ -126,6 +126,7 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         primary if hasattr(primary, "generate") else None,
         retriever,
         language_normalizer=normalizer,
+        validate_model_output=settings.vlm_output_validation_enabled,
     )
     analyzer = LessonAnalyzer(preparer, primary, fixture, pipeline=pipeline)
     health = HealthAggregator(settings, database, primary, rag_manager)
@@ -394,10 +395,14 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
                 utterance_id=f"utt_{lesson_id}_activity",
             ).utterance.model_dump(mode="json")
             candidate = current.model_copy(update=patch)
-        safety_reasons = accessible_activity_issues(
-            candidate.accessible_activity,
-            candidate.answer_evidence,
-            {"answer_leak_free": True, "no_position_hint": True, "no_sighted_only_clue": True},
+        safety_reasons = (
+            accessible_activity_issues(
+                candidate.accessible_activity,
+                candidate.answer_evidence,
+                {"answer_leak_free": True, "no_position_hint": True, "no_sighted_only_clue": True},
+            )
+            if settings.vlm_output_validation_enabled
+            else ()
         )
         if safety_reasons:
             raise AppError(

@@ -163,6 +163,28 @@ class AppTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(unsafe.status_code, 400, unsafe.text)
         self.assertEqual(unsafe.json()["code"], "VALIDATION_ERROR")
 
+    async def test_disabled_output_validation_allows_unchecked_teacher_review(self) -> None:
+        settings = replace(self.settings, vlm_output_validation_enabled=False)
+        app = create_app(settings)
+        created = await self._request(
+            app,
+            "POST",
+            "/api/lessons/analyze",
+            files={"image": ("page.jpg", jpeg_bytes(), "image/jpeg")},
+            data={"language": "nan-TW", "use_fixture_on_failure": "true"},
+        )
+        lesson_id = created.json()["lesson_id"]
+
+        unchecked = await self._request(
+            app,
+            "PATCH",
+            f"/api/lessons/{lesson_id}",
+            json={"accessible_activity": "請看圖，答案是左邊的角色。"},
+        )
+
+        self.assertEqual(unchecked.status_code, 200, unchecked.text)
+        self.assertEqual(unchecked.json()["accessible_activity"], "請看圖，答案是左邊的角色。")
+
     async def test_offline_provider_falls_back_only_when_requested(self) -> None:
         app = create_app(self.settings, provider=OfflineProvider())
         fallback = await self._request(
