@@ -16,7 +16,12 @@ from .models import (
 )
 
 
-def select_student_session(row: SessionRow, last_event_id: int) -> SessionView:
+def select_student_session(
+    row: SessionRow,
+    last_event_id: int,
+    *,
+    current_prompt: str | None = None,
+) -> SessionView:
     """Return the strict student projection and nothing teacher-only."""
 
     return SessionView(
@@ -25,7 +30,7 @@ def select_student_session(row: SessionRow, last_event_id: int) -> SessionView:
         state=row.state,  # type: ignore[arg-type]
         phase=row.phase,  # type: ignore[arg-type]
         progress=row.progress,
-        current_prompt=row.current_prompt,
+        current_prompt=row.current_prompt if current_prompt is None else current_prompt,
         can_answer=row.state == "LISTENING" and row.phase != "complete",
         revision=row.revision,
         last_event_id=last_event_id,

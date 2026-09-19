@@ -82,6 +82,8 @@ class TeachingAgent:
         hint_level: int,
         language_ratio_zh: float,
         mastery: dict[str, dict[str, Any]],
+        *,
+        hinted_phase: str | None = None,
     ) -> str:
         vocabulary = lesson.vocabulary
         first = vocabulary[0] if vocabulary else None
@@ -97,20 +99,50 @@ class TeachingAgent:
         if phase == "comprehension":
             return f"請回答活動：{lesson.accessible_activity}"
         if phase == "hint":
-            if hint_level <= 1:
-                return "提示：先想想這一課的情境，再用一句話回答。"
-            if hint_level == 2:
-                joined = "、".join(concepts) or "課文詞語"
-                return f"再提示：課文裡有「{joined}」，請說出和活動有關的詞語。"
-            if first is not None:
-                return f"最後提示：可以從「{first.meaning}」這個意思開始回答。"
-            return "最後提示：請用你聽到的關鍵詞再回答一次。"
+            hint = self._hint_text(lesson, hint_level)
+            if hinted_phase in {"demonstration", "read_aloud", "comprehension", "review"}:
+                activity_prompt = self.prompt_for(
+                    lesson,
+                    hinted_phase,
+                    0,
+                    language_ratio_zh,
+                    mastery,
+                )
+                return f"目前題目：{activity_prompt} {hint}"
+            return hint
+
         if phase == "review":
             weak = self._weakest_concept(lesson, mastery)
             if weak is None:
                 return "我們來複習剛才的重點，請說出一個關鍵詞。"
             return f"來複習「{weak}」：請說出它的台語或意思。"
         return "本課完成。"
+
+    def _hint_text(self, lesson: Lesson, hint_level: int) -> str:
+        concepts = [item.hanji for item in lesson.vocabulary[:3]]
+        if hint_level <= 1:
+            return "提示：先想想這一課的情境，再用一句話回答。"
+        if hint_level == 2:
+            joined = "、".join(concepts) or "課文詞語"
+            return f"再提示：課文裡有「{joined}」，請說出和活動有關的詞語。"
+        first = lesson.vocabulary[0] if lesson.vocabulary else None
+        if first is not None:
+            return f"最後提示：可以從「{first.meaning}」這個意思開始回答。"
+        return "最後提示：請用你聽到的關鍵詞再回答一次。"
+
+    def prompt_for_session(self, lesson: Lesson, row: SessionRow) -> str | None:
+        """Return a student prompt that can repair older persisted hint states."""
+
+        if row.phase != "hint":
+            return row.current_prompt
+        return self.prompt_for(
+            lesson,
+            "hint",
+            row.hint_level,
+            row.language_ratio_zh,
+            {},
+            hinted_phase=self.effective_phase(row),
+        )
 
     @staticmethod
     def _weakest_concept(lesson: Lesson, mastery: dict[str, dict[str, Any]]) -> str | None:
@@ -144,6 +176,7 @@ class TeachingAgent:
         hint_level = row.hint_level
         paused = row.paused
         feedback: str | None = None
+        hinted_phase = self.effective_phase(row) if action == "request_hint" or row.phase == "hint" else None
 
         if action == "pause":
             paused = True
@@ -186,7 +219,14 @@ class TeachingAgent:
             else:
                 feedback = "已進入下一個活動。"
 
-        prompt = self.prompt_for(lesson, phase, hint_level, row.language_ratio_zh, {})
+        prompt = self.prompt_for(
+            lesson,
+            phase,
+            hint_level,
+            row.language_ratio_zh,
+            {},
+            hinted_phase=hinted_phase if phase == "hint" else None,
+        )
         updates = {
             "state": state,
             "phase": phase,
@@ -315,7 +355,14 @@ class TeachingAgent:
             progress = row.progress
             next_hint_level = min(3, row.hint_level + 1)
             state = "SPEAKING"
-            next_prompt = self.prompt_for(lesson, next_phase, next_hint_level, zh_ratio, mastery_by_concept)
+            next_prompt = self.prompt_for(
+                lesson,
+                next_phase,
+                next_hint_level,
+                zh_ratio,
+                mastery_by_concept,
+                hinted_phase=active_phase,
+            )
             feedback = (
                 "有抓到部分重點，我給你一個提示。"
                 if outcome == "partial"

@@ -393,7 +393,7 @@ export class MockAdapter implements FrontendAdapter {
       phase: this.phase,
       prompt: '請聽提示，說出你想介紹的水果。這裡沒有顯示標準答案。',
       feedback: this.lastFeedback,
-      progressLabel: `目前進度 ${progressValue}%`,
+      progressLabel: '目前進度',
       progressValue,
       revision: this.revision,
       lastEventId: this.lastEventId,

@@ -123,9 +123,13 @@ class SessionService:
         )
 
     async def get_student_session(self, session_id: str) -> SessionView:
-        row, _lesson = await self._session_and_lesson(session_id)
+        row, lesson = await self._session_and_lesson(session_id)
         last_event_id = await asyncio.to_thread(self.database.get_last_event_id, session_id)
-        return select_student_session(row, last_event_id)
+        return select_student_session(
+            row,
+            last_event_id,
+            current_prompt=self.teaching_agent.prompt_for_session(lesson, row),
+        )
 
     async def submit_action(
         self,
