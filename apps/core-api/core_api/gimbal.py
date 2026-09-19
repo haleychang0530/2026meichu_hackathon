@@ -193,8 +193,6 @@ class GimbalController:
         with self._lock:
             if not self.port:
                 raise GimbalError("尚未設定 GIMBAL_PORT；請指定 ESP32 的 COM 埠。")
-            if self._detector is None:
-                self._detector = PageDetector(self.model_path)
             if self._serial is None:
                 self._serial = SerialLink(self.port, self.baud)
             sequence = self._next_sequence()
@@ -248,6 +246,8 @@ class GimbalController:
             except (UnidentifiedImageError, OSError) as exc:
                 raise ValueError("預覽影格不是有效圖片。") from exc
 
+            if self._detector is None:
+                self._detector = PageDetector(self.model_path)
             detected = self._detector.detect(image)
             if detected is None:
                 self._stable = 0

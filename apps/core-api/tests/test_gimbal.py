@@ -55,6 +55,16 @@ def controller(detections: list[Detection | None]) -> tuple[GimbalController, Fa
 
 
 class GimbalLoopTests(unittest.TestCase):
+    def test_start_pings_esp_without_loading_model(self) -> None:
+        gimbal = GimbalController("COM_TEST", 115200, "missing-model.pt")
+        serial = FakeSerial()
+        gimbal._serial = serial
+        result = gimbal.start()
+        self.assertEqual(result.state, "searching")
+        self.assertEqual(gimbal.test().state, "testing")
+        self.assertIsNone(gimbal._detector)
+        self.assertEqual(serial.commands, [("PING", ()), ("TEST", ())])
+
     def test_three_centered_frames_enable_capture_without_movement(self) -> None:
         page = Detection(0.2, 0.2, 0.6, 0.6, 0.8, "model")
         gimbal, serial = controller([page, page, page])
