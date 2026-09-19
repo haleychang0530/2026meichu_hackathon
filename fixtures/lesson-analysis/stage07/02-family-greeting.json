@@ -3,9 +3,10 @@
   "fixture_id": "stage07-family-greeting",
   "input_profile": { "page_type": "dialogue_with_illustration", "quality": "good", "media": "synthetic-metadata-only" },
   "facts": {
-    "schema_version": "stage07-facts.v1",
+    "schema_version": "stage07-facts.v2",
     "topic": "家庭問候",
     "source_text": "阿爸食飽未？食飽矣。",
+    "source_text_complete": true,
     "vocabulary": [
       { "hanji": "食飽未", "tailo": "chia̍h pá bōe", "meaning": "吃飽了嗎" },
       { "hanji": "食飽矣", "tailo": "chia̍h pá ah", "meaning": "吃飽了" }

@@ -3,9 +3,10 @@
   "fixture_id": "stage07-weather-clothing",
   "input_profile": { "page_type": "matching_activity", "quality": "glare-warning", "media": "synthetic-metadata-only" },
   "facts": {
-    "schema_version": "stage07-facts.v1",
+    "schema_version": "stage07-facts.v2",
     "topic": "天氣與衣物",
     "source_text": "天氣寒冷，愛穿外套。",
+    "source_text_complete": true,
     "vocabulary": [
       { "hanji": "寒冷", "tailo": "hân-líng", "meaning": "寒冷" },
       { "hanji": "外套", "tailo": "guā-thò", "meaning": "外套" }

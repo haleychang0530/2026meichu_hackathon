@@ -3,9 +3,10 @@
   "fixture_id": "stage07-market-picture",
   "input_profile": { "page_type": "picture_question", "quality": "good", "media": "synthetic-metadata-only" },
   "facts": {
-    "schema_version": "stage07-facts.v1",
+    "schema_version": "stage07-facts.v2",
     "topic": "去市場",
     "source_text": "阿媽欲去市場買菜。",
+    "source_text_complete": true,
     "vocabulary": [
       { "hanji": "市場", "tailo": "tshī-tiûnn", "meaning": "市場" },
       { "hanji": "欲", "tailo": "beh", "meaning": "要" }

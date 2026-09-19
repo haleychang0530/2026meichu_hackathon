@@ -315,7 +315,13 @@ class LessonAnalysisPipeline:
     def _facts_issues(facts: Any) -> tuple[str, ...]:
         if not isinstance(facts, dict):
             return ("facts_not_object",)
-        return ()
+        reasons: list[str] = []
+        source_text = facts.get("source_text")
+        if not isinstance(source_text, str) or not source_text.strip():
+            reasons.append("source_text_missing")
+        if facts.get("source_text_complete") is not True:
+            reasons.append("source_text_incomplete")
+        return tuple(reasons)
 
     @staticmethod
     def _activity_issues(activity: Any, facts: dict[str, Any]) -> tuple[str, ...]:
@@ -406,11 +412,19 @@ class LessonAnalysisPipeline:
             for item in facts.get("answer_evidence", [])
             if str(item).strip()
         ]
+        source_text = facts["source_text"]
+        if not isinstance(source_text, str) or not source_text.strip():
+            raise StageOutputError("facts", ["source_text_missing"])
+
         return Lesson(
             schema_version="0.1.0",
             lesson_id=f"lesson_{uuid.uuid4().hex[:16]}",
             topic=str(facts["topic"]).strip(),
-            source_text=str(facts["source_text"]).strip(),
+            # Keep the validated facts text verbatim; strip only transport
+            # whitespace around the JSON value, never internal line breaks or
+            # lesson punctuation. The internal completeness flag is not a
+            # public Lesson field; the gate above is what Stage 08 relies on.
+            source_text=source_text.strip(),
             vocabulary=vocabulary,
             scene=str(facts["scene"]).strip(),
             original_activity=str(facts["original_activity"]).strip(),

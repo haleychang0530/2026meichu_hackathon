@@ -99,6 +99,11 @@ until a teacher/parent review action approves it. For a visual question,
 teacher review only; it is not used as student prompt content or indexed into
 Local RAG. The laptop binds `evidence[]` and `rag_index_revision` from the
 active Local RAG revision after MI300 facts extraction; MI300 remains stateless.
+The internal Stage 07 facts response must confirm `source_text_complete=true`;
+the laptop then copies the complete `source_text` into the pending Lesson and
+SQLite without exposing the internal flag as a public contract field. Stage 08
+must consume that persisted Lesson text rather than reconstructing the lesson
+from activity or RAG evidence.
 
 ## 4. Observer summary — accepted v0.1 shape
 

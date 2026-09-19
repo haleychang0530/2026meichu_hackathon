@@ -29,6 +29,9 @@ The Stage 04/05/06/07 baseline plus Stage 08 implements:
   Hanji candidates, deterministic MMS-compatible POJ, and `needs_review` gates
 - two-step lesson analysis: page facts first, then teaching objective and
   accessible activity, with laptop-only Local RAG citation binding
+- facts extraction requires an explicit complete-source-text confirmation;
+  validated `source_text` is copied verbatim into the pending Lesson and
+  persisted in laptop SQLite for the Teaching Agent
 - one traceable JSON repair attempt per invalid facts/activity output; a second
   failure returns `VLM_INVALID_OUTPUT` with `manual_review` and no raw model
   output
@@ -172,7 +175,10 @@ With `CORE_PROVIDER=real`, the laptop owns the complete orchestration:
    and bounded Local RAG evidence to the stateless MI300 gateway.
 3. `LessonAnalysisPipeline` validates the facts response, queries the laptop
    Local RAG index, and requests the accessible activity in a second call.
-4. The laptop validates activity safety, binds citations from the active RAG
+4. The laptop rejects facts that do not confirm a complete original
+   `source_text`; after one repair attempt the unresolved case is returned as
+   `VLM_INVALID_OUTPUT`/`manual_review`.
+5. The laptop validates activity safety, binds citations from the active RAG
    revision, persists the structured Lesson, and always returns
    `review_status=pending`.
 
@@ -322,8 +328,9 @@ persistent vector retrieval, keyword fallback, and the 20-query RAG smoke set.
 Stage 06 adds golden normalization, textbook-priority, OOV/conflict review
 gates, MMS vocabulary validation, hybrid ranking, metadata filtering, context
 budgets, empty-evidence behavior, and citation replay. Stage 07 adds the
-facts/activity two-step pipeline, one-repair boundary, safety checks, citation
-binding, and five metadata-only representative fixture reviews. Stage 08 adds
+facts/activity two-step pipeline, complete-source-text gating, one-repair
+boundary, safety checks, citation binding, and five metadata-only representative
+fixture reviews. Stage 08 adds
 SQLite session migrations, the complete teaching state machine, correct/
 partial/retry fixtures, selector privacy checks, optimistic revision and
 idempotency tests, SSE reconnect/backfill tests, restart persistence, and a
