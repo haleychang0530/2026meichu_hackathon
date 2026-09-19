@@ -139,19 +139,24 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
   }
 
   return (
-    <AppShell currentLabel="教材">
+    <AppShell currentLabel="準備教材">
       <main id="main-content" className="page capture-page" tabIndex={-1}>
+        <div className="capture-top-actions" aria-label="教材頁導覽">
+          <button className="button secondary" type="button" onClick={() => navigateTo('/setup')}>返回首頁</button>
+        </div>
         <p className="eyebrow">準備教材</p>
         <h1 data-page-title tabIndex={-1}>從一頁教材開始</h1>
         {!view && !error ? <LoadingState label="載入教材入口……" /> : null}
         {error ? (
           <>
             <ErrorState error={error} onRetry={load} />
-            <section className="card callout" aria-labelledby="offline-heading">
-              <h2 id="offline-heading">先使用離線合成教材</h2>
-              <p>服務暫時無法使用時，可以先用範例教材體驗流程。</p>
-              <button className="button" type="button" onClick={() => void useFixture()}>使用離線合成教材</button>
-            </section>
+            {import.meta.env.VITE_DATA_MODE !== 'real' ? (
+              <section className="card callout" aria-labelledby="offline-heading">
+                <h2 id="offline-heading">先使用離線合成教材</h2>
+                <p>服務暫時無法使用時，可以先用範例教材體驗流程。</p>
+                <button className="button" type="button" onClick={() => void useFixture()}>使用離線合成教材</button>
+              </section>
+            ) : null}
           </>
         ) : null}
 
@@ -195,10 +200,10 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
                 error={analysisError}
                 onRetry={() => {
                   setAnalysisError(null);
-                  setAnalysisMessage('請重新拍攝或選擇教材圖片後再試。');
+                  setAnalysisMessage('請重新拍攝或上傳現有教材後再試。');
                 }}
               />
-              <button className="button secondary" type="button" onClick={() => void useFixture()}>改用離線合成教材</button>
+              {import.meta.env.VITE_DATA_MODE !== 'real' ? <button className="button secondary" type="button" onClick={() => void useFixture()}>改用離線合成教材</button> : null}
             </>
           ) : null}
         </section>
@@ -229,7 +234,6 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
                 <button className="button" type="button" disabled={busy || !view.canConfirm} onClick={confirmLesson}>
                   {busy ? '準備課程中……' : view.canConfirm ? '確認教材並開始' : '請先完成教材分析'}
                 </button>
-                <button className="button secondary" type="button" onClick={() => navigateTo('/setup')}>返回首頁</button>
               </div>
             </section>
           </>

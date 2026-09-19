@@ -366,6 +366,27 @@ code { padding: .1rem .3rem; border-radius: .3rem; background: #edf2f7; font-fam
   color: #2a210f;
   background: #fff8e8;
 }
+.student-shell .site-header {
+  min-height: 5.25rem;
+  color: #2a210f;
+  background: #fff8e8;
+  border-bottom: 1px solid #e9d9b8;
+}
+.student-shell .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  color: #2a210f;
+  font-size: 1.45rem;
+  letter-spacing: .02em;
+}
+.student-shell .header-context {
+  padding: .55rem .9rem;
+  border-radius: 2rem;
+  color: #2a210f;
+  background: #fff;
+  font-weight: 800;
+}
 .student-shell a { color: #135c5a; }
 .student-shell a:focus-visible,
 .student-shell button:focus-visible,
@@ -487,4 +508,74 @@ code { padding: .1rem .3rem; border-radius: .3rem; background: #edf2f7; font-fam
   .student-shell .status-banner,
   .student-shell .prompt { border: 2px solid CanvasText; }
   .observer-shell .hero-art { display: none; }
+}
+
+/* The refreshed navigation and hero presentation from the latest UI push. */
+.observer-shell .home-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 1fr);
+  gap: clamp(1rem, 3vw, 2.5rem);
+}
+.observer-shell .hero-art {
+  position: static;
+  min-height: 0;
+  isolation: auto;
+}
+.observer-shell .hero-art::before { display: none; }
+.observer-shell .hero-logo {
+  width: 100%;
+  max-width: 34rem;
+  aspect-ratio: 1;
+  background: #c08000;
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+}
+.capture-top-actions,
+.student-top-actions,
+.observer-top-actions {
+  position: sticky;
+  z-index: 5;
+  top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+.capture-top-actions .button.secondary,
+.student-top-actions .button.secondary,
+.observer-top-actions .button.secondary {
+  min-height: 2.75rem;
+  padding: .35rem .7rem;
+  border: 1px solid #c08000;
+  border-radius: 0;
+  color: #2a210f;
+  background: #fff;
+  box-shadow: 0 3px 12px rgb(42 33 15 / 12%);
+}
+.capture-top-actions .button:focus-visible,
+.student-top-actions .button:focus-visible,
+.observer-top-actions .button:focus-visible {
+  outline: 3px solid #ffaf11;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgb(255 175 17 / 28%);
+}
+
+@media (max-width: 760px) {
+  .observer-shell .home-hero { grid-template-columns: 1fr; min-height: 0; }
+  .observer-shell .hero-art { order: -1; }
+  .observer-shell .hero-logo { width: min(70%, 17rem); }
+}
+@media (max-width: 700px) {
+  .capture-top-actions,
+  .student-top-actions,
+  .observer-top-actions { justify-content: flex-start; }
+}
+@media (forced-colors: active) {
+  .capture-top-actions .button,
+  .student-top-actions .button,
+  .observer-top-actions .button { border-color: CanvasText; }
 }

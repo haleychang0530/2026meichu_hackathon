@@ -174,25 +174,18 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
     <div className={`app-shell ${isStudentView ? 'student-shell' : 'observer-shell'}`} onFocusCapture={handleFocusCapture}>
       <a className="skip-link" href="#main-content">跳到主要內容</a>
       <header className="site-header">
+        <a className="brand" href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>
+          <img className="brand-icon" src={basicIcon} alt="" />
+          <span>hear tAIgi</span>
+        </a>
         {isStudentView ? (
-          <span className="brand">
-            <img className="brand-icon" src={basicIcon} alt="" />
-            <span>hear tAIgi</span>
-          </span>
-        ) : (
-          <a className="brand" href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>
-            <img className="brand-icon" src={basicIcon} alt="" />
-            <span>hear tAIgi</span>
-          </a>
-        )}
-        {isStudentView ? (
-          <span className="current-page-label" aria-current="page">學生模式</span>
+          <span className="header-context" aria-current="page">我的課程</span>
         ) : (
           <nav aria-label="主要導覽">
-            <a href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>設定</a>
-            <a href="/capture" onClick={(event) => handleInternalLink(event, '/capture')}>教材</a>
-            <a href="/health" onClick={(event) => handleInternalLink(event, '/health')}>健康檢查</a>
-            <span aria-current="page">{currentLabel}</span>
+            <a href="/setup" aria-current={currentLabel === '首頁' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/setup')}>首頁</a>
+            <a href="/capture" aria-current={currentLabel === '準備教材' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/capture')}>準備教材</a>
+            <a href="/health" aria-current={currentLabel === '系統狀態' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/health')}>系統狀態</a>
+            {currentLabel === '教師／家長模式' ? <a href={window.location.pathname} aria-current="page">教師／家長</a> : null}
           </nav>
         )}
       </header>

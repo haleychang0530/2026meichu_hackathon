@@ -440,6 +440,12 @@ export function StudentPage({
     navigateTo(`/session/${encodeURIComponent(sessionId)}/observer`);
   }
 
+  async function returnToCapture(): Promise<void> {
+    narration.stop();
+    await speechClient.cancel();
+    navigateTo('/capture');
+  }
+
   const currentView = view;
   const interactionGroup = currentView
     ? currentView.state === 'COMPLETE'
@@ -483,6 +489,10 @@ export function StudentPage({
   return (
     <AppShell currentLabel="學生模式">
       <main id="main-content" className="page student-page" tabIndex={-1} aria-busy={Boolean(busyLabel)}>
+        <div className="student-top-actions" aria-label="課程導覽">
+          <button className="button secondary" type="button" onClick={() => void returnToCapture()}>返回上一頁</button>
+          <button className="button secondary" type="button" onClick={() => void switchToObserver()}>教師／家長模式</button>
+        </div>
         {!currentView && !error ? <LoadingState label="載入學生活動……" /> : null}
         {error ? <ErrorState error={error} onRetry={() => void refreshSnapshot()} showTechnicalDetails={false} /> : null}
         {speechError ? (
@@ -518,7 +528,7 @@ export function StudentPage({
               ) : (
                 <div className="button-grid" aria-label="目前可用操作">
                   <button className="button" type="button" disabled={Boolean(busyLabel) || speechState === 'SPEAKING'} onClick={() => void playPrompt()}>
-                    播放提示
+                    聽完整課文
                   </button>
                   {interactionGroup === 'practice' ? (
                     <>
@@ -528,7 +538,7 @@ export function StudentPage({
                         disabled={speechState === 'LISTENING' ? Boolean(busyLabel) : !canBeginAnswer}
                         onClick={() => void (speechState === 'LISTENING' ? stopVoiceAnswer() : beginVoiceAnswer())}
                       >
-                        {speechState === 'LISTENING' ? '停止錄音並辨識' : '回答這題（語音）'}
+                        {speechState === 'LISTENING' ? '停止並查看回答' : '回答這題（語音）'}
                       </button>
                       <button className="button secondary" type="button" disabled={!canBeginAnswer} onClick={() => void beginKeyboardAnswer()}>
                         鍵盤回答
@@ -542,7 +552,7 @@ export function StudentPage({
                       disabled={speechState === 'LISTENING' ? Boolean(busyLabel) : !canBeginAnswer}
                       onClick={() => void (speechState === 'LISTENING' ? stopVoiceAnswer() : beginVoiceAnswer())}
                     >
-                      {speechState === 'LISTENING' ? '停止錄音並辨識' : '繼續回答'}
+                      {speechState === 'LISTENING' ? '停止並查看回答' : '繼續回答'}
                     </button>
                   ) : null}
                   {showNext ? (
@@ -574,7 +584,7 @@ export function StudentPage({
               {inputError ? <p className="field-error" role="alert">{inputError}</p> : null}
               <div className="button-row">
                 <button className="button primary-large" type="button" disabled={Boolean(busyLabel) || !draftTranscript.trim() || !transcriptMode || currentView.state === 'COMPLETE'} onClick={() => void submitDraft()}>
-                  送出這個回答
+                  送出回答
                 </button>
                 <button className="button secondary" type="button" disabled={Boolean(busyLabel) || currentView.state === 'COMPLETE'} onClick={() => void rerecord()}>
                   清除並重錄
@@ -582,11 +592,6 @@ export function StudentPage({
               </div>
             </section> : null}
 
-            <nav className="demo-mode-switch" aria-label="Demo 模式切換">
-              <button className="button secondary" type="button" onClick={() => void switchToObserver()}>
-                切換至教師／家長模式
-              </button>
-            </nav>
           </>
         ) : null}
       </main>

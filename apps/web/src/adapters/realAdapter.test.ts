@@ -131,7 +131,7 @@ describe('RealAdapter', () => {
         expect(init?.body).toBeInstanceOf(FormData);
         const form = init?.body as FormData;
         expect(form.get('language')).toBe('nan-TW');
-        expect(form.get('use_fixture_on_failure')).toBe('true');
+        expect(form.get('use_fixture_on_failure')).toBe('false');
         const image = form.get('image');
         expect(image).toBeInstanceOf(Blob);
         expect((image as File).name).toBe('lesson.jpg');
@@ -201,13 +201,14 @@ describe('RealAdapter', () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await new RealAdapter().confirmLesson('lesson_market_001');
+    const baseUrl = import.meta.env.VITE_CORE_API_BASE_URL || '';
+    const result = await new RealAdapter(baseUrl).confirmLesson('lesson_market_001');
 
     expect(result.sessionId).toBe('session_demo_001');
     expect(calls.map((call) => `${call.init?.method || 'GET'} ${call.url}`)).toEqual([
-      'GET /api/lessons/lesson_market_001',
-      'PATCH /api/lessons/lesson_market_001',
-      'POST /api/sessions',
+      `GET ${baseUrl}/api/lessons/lesson_market_001`,
+      `PATCH ${baseUrl}/api/lessons/lesson_market_001`,
+      `POST ${baseUrl}/api/sessions`,
     ]);
   });
 

@@ -5,6 +5,7 @@ import { StatusBanner } from '../components/StatusBanner';
 import { ErrorState, LoadingState } from '../components/States';
 import type { SetupViewModel } from '../types/viewModels';
 import { navigateTo } from '../app/routing';
+import logoLarge from '../assets/logo_large.png';
 
 export function SetupPage({ adapter }: { readonly adapter: FrontendAdapter }) {
   const [view, setView] = useState<SetupViewModel | null>(null);
@@ -19,7 +20,7 @@ export function SetupPage({ adapter }: { readonly adapter: FrontendAdapter }) {
   useEffect(load, [adapter]);
 
   return (
-    <AppShell currentLabel="設定">
+    <AppShell currentLabel="首頁">
       <main id="main-content" className="page home-page" tabIndex={-1}>
         <section className="home-hero" aria-labelledby="home-heading">
           <div className="hero-copy">
@@ -31,7 +32,14 @@ export function SetupPage({ adapter }: { readonly adapter: FrontendAdapter }) {
               {import.meta.env.VITE_DATA_MODE !== 'real' ? <button className="button secondary primary-large" type="button" onClick={() => navigateTo('/session/demo-session/student')}>體驗範例課程</button> : null}
             </div>
           </div>
-          <div className="hero-art" aria-hidden="true"><div className="hero-book"><span>聽</span><span>說</span><span>學</span></div><div className="sound-ring ring-one" /><div className="sound-ring ring-two" /></div>
+          <div className="hero-art">
+            <div
+              className="hero-logo"
+              role="img"
+              aria-label="hear tAIgi 產品標誌"
+              style={{ maskImage: `url(${logoLarge})`, WebkitMaskImage: `url(${logoLarge})` }}
+            />
+          </div>
         </section>
         {!view && !error ? <LoadingState /> : null}
         {error ? <ErrorState error={error} onRetry={load} /> : null}
@@ -43,7 +51,7 @@ export function SetupPage({ adapter }: { readonly adapter: FrontendAdapter }) {
               <p>{view.description}</p>
               <div className="button-row">
                 <button className="button" type="button" onClick={() => navigateTo(view.nextRoute)}>選擇教材</button>
-                <button className="button secondary" type="button" onClick={() => navigateTo('/session/demo-session/student')}>直接進入學生 Mock</button>
+                {import.meta.env.VITE_DATA_MODE !== 'real' ? <button className="button secondary" type="button" onClick={() => navigateTo('/session/demo-session/student')}>直接進入學生 Mock</button> : null}
               </div>
             </section>
             <section className="card" aria-labelledby="state-heading">
@@ -60,7 +68,11 @@ export function SetupPage({ adapter }: { readonly adapter: FrontendAdapter }) {
                 <li className="step-card"><h2><span className="step-number">03</span> 開始聽說</h2><p>孩子聽課文、回答問題，再收到清楚的回饋。</p></li>
               </ol>
             </section>
-            <p className="home-note">{view.health.status === 'ready' ? '系統已準備好。' : '部分服務暫時無法使用；你可以查看系統狀態或使用範例課程。'}</p>
+            <p className="home-note">{view.health.status === 'ready'
+              ? '系統已準備好。'
+              : import.meta.env.VITE_DATA_MODE === 'real'
+                ? '部分服務暫時無法使用；請查看系統狀態。'
+                : '部分服務暫時無法使用；你可以查看系統狀態或使用範例課程。'}</p>
           </>
         ) : null}
       </main>

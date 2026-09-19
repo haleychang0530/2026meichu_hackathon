@@ -89,7 +89,7 @@ export function HealthPage({ adapter }: { readonly adapter: FrontendAdapter }) {
   ];
 
   return (
-    <AppShell currentLabel="健康檢查">
+    <AppShell currentLabel="系統狀態">
       <main id="main-content" className="page" tabIndex={-1}>
         <p className="eyebrow">STAGE 10 · RELEASE GATE</p>
         <h1 data-page-title tabIndex={-1}>展示健康檢查</h1>
