@@ -9,6 +9,7 @@
   "tags": [
     { "name": "health" },
     { "name": "lessons" },
+    { "name": "gimbal" },
     { "name": "utterances" },
     { "name": "sessions" },
     { "name": "admin" }
@@ -38,6 +39,59 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/gimbal/start": {
+      "post": {
+        "tags": ["gimbal"],
+        "operationId": "startGimbal",
+        "responses": {
+          "200": { "$ref": "#/components/responses/GimbalResult" },
+          "503": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/gimbal/observe": {
+      "post": {
+        "tags": ["gimbal"],
+        "operationId": "observeGimbal",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["image"],
+                "properties": { "image": { "type": "string", "contentEncoding": "binary" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/GimbalResult" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "503": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/gimbal/test": {
+      "post": {
+        "tags": ["gimbal"],
+        "operationId": "testGimbal",
+        "responses": {
+          "200": { "$ref": "#/components/responses/GimbalResult" },
+          "503": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/gimbal/stop": {
+      "post": {
+        "tags": ["gimbal"],
+        "operationId": "stopGimbal",
+        "responses": {
+          "200": { "$ref": "#/components/responses/GimbalResult" },
+          "503": { "$ref": "#/components/responses/Error" }
         }
       }
     },
@@ -348,6 +402,38 @@
       }
     },
     "schemas": {
+      "GimbalResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema_version", "state", "message"],
+        "properties": {
+          "schema_version": { "const": "0.1.0" },
+          "state": { "type": "string", "enum": ["searching", "testing", "aligning", "settling", "ready", "limit", "not_found", "stopped"] },
+          "message": { "type": "string" },
+          "pan": { "type": ["integer", "null"] },
+          "tilt": { "type": ["integer", "null"] },
+          "direction": { "type": ["string", "null"], "enum": ["left", "right", "up", "down", null] },
+          "sequence": { "type": ["integer", "null"] },
+          "box": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["x", "y", "width", "height", "confidence", "source"],
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" },
+                  "width": { "type": "number" },
+                  "height": { "type": "number" },
+                  "confidence": { "type": "number" },
+                  "source": { "type": "string", "enum": ["model", "contour"] }
+                }
+              }
+            ]
+          }
+        }
+      },
       "Lesson": { "$ref": "../../schemas/v0.1/lesson.schema.json" },
       "Utterance": { "$ref": "../../schemas/v0.1/utterance.schema.json" },
       "TurnResult": { "$ref": "../../schemas/v0.1/turn-result.schema.json" },
@@ -361,6 +447,11 @@
       "SessionEvent": { "$ref": "../../schemas/v0.1/session-event.schema.json" }
     },
     "responses": {
+      "GimbalResult": {
+        "description": "Local gimbal state after one command or preview observation.",
+        "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GimbalResult" } } }
+      },
       "Lesson": {
         "description": "Canonical teacher-reviewable lesson. `answer_evidence` is teacher/parent-only and must never be returned by student routes.",
         "headers": { "X-Request-ID": { "$ref": "#/components/headers/RequestId" } },

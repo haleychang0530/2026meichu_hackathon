@@ -579,3 +579,9 @@ code { padding: .1rem .3rem; border-radius: .3rem; background: #edf2f7; font-fam
   .student-top-actions .button,
   .observer-top-actions .button { border-color: CanvasText; }
 }
+
+/* Preview overlays use the same pixel space as the browser-owned video. */
+.camera-video-layer { position: relative; width: 100%; }
+.camera-video-layer .camera-preview { width: 100%; height: auto; max-height: none; }
+.gimbal-page-box { position: absolute; box-sizing: border-box; border: 3px solid #56e39f; box-shadow: 0 0 0 2px #102a43; pointer-events: none; }
+.gimbal-page-box.contour { border-color: #ffcc66; }
