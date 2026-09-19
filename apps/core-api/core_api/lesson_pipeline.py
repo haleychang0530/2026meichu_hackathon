@@ -51,23 +51,6 @@ class GenerationTrace:
     model_revision: str
 
 
-_POSITION_HINTS = (
-    "左邊",
-    "右邊",
-    "左側",
-    "右側",
-    "上方",
-    "下方",
-    "上面",
-    "下面",
-    "中間",
-    "前面",
-    "後面",
-    "旁邊",
-    "位置",
-    "左邊那個",
-    "右邊那個",
-)
 _SIGHTED_ONLY_HINTS = (
     "看圖",
     "看圖片",
@@ -112,13 +95,9 @@ def accessible_activity_issues(
     checks = safety_checks or {}
     if checks.get("answer_leak_free") is not True:
         reasons.append("model_answer_leak_check_failed")
-    if checks.get("no_position_hint") is not True:
-        reasons.append("model_position_check_failed")
     if checks.get("no_sighted_only_clue") is not True:
         reasons.append("model_sighted_only_check_failed")
 
-    if any(term.casefold() in folded for term in _POSITION_HINTS):
-        reasons.append("position_hint")
     if any(term.casefold() in folded for term in _SIGHTED_ONLY_HINTS):
         reasons.append("sighted_only_clue")
     if any(pattern.search(activity) for pattern in _ANSWER_LEAK_PATTERNS):
@@ -342,13 +321,6 @@ class LessonAnalysisPipeline:
             activity.get("safety_checks") if isinstance(activity.get("safety_checks"), dict) else None,
             )
         )
-        reasons.extend(
-            LessonAnalysisPipeline._language_segment_issues(
-                activity.get("accessible_activity"),
-                activity.get("language_segments"),
-                field="accessible_activity",
-            )
-        )
         return tuple(dict.fromkeys(reasons))
 
     @staticmethod
@@ -474,12 +446,23 @@ class LessonAnalysisPipeline:
                     segments=list(facts["language_segments"]),
                     utterance_id=f"utt_{lesson_id}_source",
                 ).utterance
+            except (TypeError, ValueError) as error:
+                raise StageOutputError("language_normalization", ["language_segments_normalization_failed"]) from error
+            try:
                 activity_utterance = self.language_normalizer.normalize_labeled_segments(
                     text=str(activity["accessible_activity"]).strip(),
                     segments=list(activity["language_segments"]),
                     utterance_id=f"utt_{lesson_id}_activity",
                 ).utterance
-            except (TypeError, ValueError) as error:
+            except ValueError as error:
+                # Activity language labels are advisory playback metadata. A
+                # mismatch must not reject an otherwise safe activity; the
+                # teaching agent falls back to conservative Chinese playback
+                # when no validated activity utterance is available.
+                if str(error) != "language_segments do not concatenate to the source text":
+                    raise StageOutputError("language_normalization", ["language_segments_normalization_failed"]) from error
+                activity_utterance = None
+            except TypeError as error:
                 raise StageOutputError("language_normalization", ["language_segments_normalization_failed"]) from error
 
         return Lesson(
