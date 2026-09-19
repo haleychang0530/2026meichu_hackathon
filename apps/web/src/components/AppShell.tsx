@@ -1,7 +1,8 @@
-import { useEffect, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { navigateTo } from '../app/routing';
 import { useNarration } from '../accessibility/NarrationProvider';
 import type { NarrationDetail } from '../accessibility/narrator';
+import basicIcon from '../assets/basic_icon.png';
 
 interface AppShellProps {
   readonly children: ReactNode;
@@ -45,17 +46,53 @@ const detailLabels: Record<NarrationDetail, string> = {
 
 function AccessibilityChoice() {
   const { chooseMode } = useNarration();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const firstChoiceRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const background = Array.from(document.querySelectorAll<HTMLElement>('.app-shell > :not(.accessibility-gate)'));
+    background.forEach((element) => { element.inert = true; });
+    firstChoiceRef.current?.focus({ preventScroll: true });
+    return () => {
+      background.forEach((element) => { element.inert = false; });
+      if (previousFocus?.isConnected) {
+        previousFocus.focus({ preventScroll: true });
+      } else {
+        document.querySelector<HTMLElement>('[data-page-title]')?.focus({ preventScroll: true });
+      }
+    };
+  }, []);
+
+  function trapFocus(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ) || []).filter((element) => !element.hasAttribute('disabled') && !element.getAttribute('aria-hidden'));
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   return (
-    <div className="accessibility-gate" role="dialog" aria-modal="true" aria-labelledby="accessibility-choice-heading">
+    <div ref={dialogRef} className="accessibility-gate" role="dialog" aria-modal="true" aria-labelledby="accessibility-choice-heading" aria-describedby="accessibility-choice-description" onKeyDown={trapFocus}>
       <section className="accessibility-choice">
+        <p className="eyebrow">第一次使用設定</p>
         <h2 id="accessibility-choice-heading">請選擇一種朗讀方式</h2>
-        <p>已開啟螢幕閱讀器請選第一個；否則可使用 App 旁白。</p>
+        <p id="accessibility-choice-description">選擇適合你的朗讀方式，之後可在頁首調整。</p>
         <div className="button-row">
-          <button className="button" type="button" onClick={() => chooseMode('system')}>
-            使用系統螢幕閱讀器
+          <button ref={firstChoiceRef} className="button" type="button" onClick={() => chooseMode('system')}>
+            使用 Narrator／NVDA
           </button>
           <button className="button secondary" type="button" onClick={() => chooseMode('app')}>
-            使用 App 旁白
+            使用內建旁白
           </button>
         </div>
       </section>
@@ -69,6 +106,7 @@ function NarrationControls() {
     status,
     rate,
     detail,
+    queueLength,
     lastText,
     available,
     stop,
@@ -83,9 +121,10 @@ function NarrationControls() {
   return (
     <section className="narration-panel" aria-labelledby="narration-heading">
       <div>
-        <h2 id="narration-heading">App 旁白控制</h2>
+        <p className="eyebrow">App 旁白</p>
+        <h2 id="narration-heading">中文 UI 朗讀控制</h2>
         <p role="status" aria-live="polite">
-          {available ? `狀態：${status === 'speaking' ? '朗讀中' : status === 'paused' ? '已暫停' : '待機'}。` : '此瀏覽器無法使用 App 旁白，請改用系統螢幕閱讀器。'}
+          {available ? `狀態：${status === 'speaking' ? '朗讀中' : status === 'paused' ? '已暫停' : '待機'}；佇列 ${queueLength} 段。` : '此瀏覽器沒有可用的 Web Speech voice；畫面文字仍完整保留。'}
         </p>
       </div>
       <div className="narration-controls" aria-label="App 旁白操作">
@@ -110,14 +149,19 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
   const narration = useNarration();
   const isStudentView = currentLabel === '學生模式';
   const runtimeLabel = import.meta.env.VITE_DATA_MODE === 'real'
-    ? 'Real adapter · Core Backend is the source of truth'
-    : 'Mock mode · keyboard, speech, and session recovery are simulated locally';
+    ? '即時服務模式'
+    : '本機展示模式：課程與語音以範例資料模擬';
 
   useEffect(() => {
     if (narration.mode === 'app') {
       narration.announce(currentLabel, { priority: 3, key: 'page', interrupt: true });
     }
   }, [currentLabel, narration.mode]);
+
+  useEffect(() => {
+    if (narration.mode === null) return;
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-page-title]')?.focus({ preventScroll: true }));
+  }, [narration.mode]);
 
   function handleFocusCapture(event: FocusEvent<HTMLDivElement>): void {
     if (narration.mode !== 'app') return;
@@ -127,13 +171,18 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
   }
 
   return (
-    <div className="app-shell" onFocusCapture={handleFocusCapture}>
+    <div className={`app-shell ${isStudentView ? 'student-shell' : 'observer-shell'}`} onFocusCapture={handleFocusCapture}>
+      <a className="skip-link" href="#main-content">跳到主要內容</a>
       <header className="site-header">
         {isStudentView ? (
-          <span className="brand">聽見母語</span>
+          <span className="brand">
+            <img className="brand-icon" src={basicIcon} alt="" />
+            <span>hear tAIgi</span>
+          </span>
         ) : (
           <a className="brand" href="/setup" onClick={(event) => handleInternalLink(event, '/setup')}>
-            聽見母語
+            <img className="brand-icon" src={basicIcon} alt="" />
+            <span>hear tAIgi</span>
           </a>
         )}
         {isStudentView ? (
@@ -149,7 +198,7 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
       </header>
       {narration.mode === null ? <AccessibilityChoice /> : <NarrationControls />}
       {children}
-      {isStudentView ? null : <footer className="site-footer">{runtimeLabel}</footer>}
+      {isStudentView ? null : <footer className="site-footer"><details><summary>展示資訊</summary><p>{runtimeLabel}</p></details></footer>}
     </div>
   );
 }
