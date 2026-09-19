@@ -69,6 +69,25 @@ class EvidenceItem(StrictModel):
     locator: str = Field(min_length=1)
 
 
+class UtteranceSegment(StrictModel):
+    lang: Literal["nan-TW", "zh-TW"]
+    hanji: str = Field(min_length=1)
+    tailo_citation: str | None
+    poj_citation: str | None
+    zh_gloss: str | None
+    source: Literal["textbook", "dictionary", "generated"]
+    pronunciation_status: Literal["verified", "converted", "needs_review"]
+
+
+class Utterance(StrictModel):
+    schema_version: Literal["0.1.0"] = SCHEMA_VERSION
+    id: str = Field(pattern=r"^utt_[A-Za-z0-9_-]+$")
+    segments: list[UtteranceSegment] = Field(min_length=1)
+    tts_provider: Literal["mms-tts-nan", "windows", "prerecorded"] | None
+    audio_url: str | None = None
+    audio_cache_key: str | None = None
+
+
 class Lesson(StrictModel):
     schema_version: Literal["0.1.0"]
     lesson_id: str = Field(pattern=r"^lesson_[A-Za-z0-9_-]+$")
@@ -79,6 +98,10 @@ class Lesson(StrictModel):
     original_activity: str = Field(min_length=1)
     learning_objective: str = Field(min_length=1)
     accessible_activity: str = Field(min_length=1)
+    # Additive language-aware playback contracts. The original strings above
+    # remain the canonical display/fallback fields for older clients.
+    source_utterance: Utterance | None = None
+    accessible_activity_utterance: Utterance | None = None
     # Teacher/parent-only visual answer basis. This is additive in v0.1 so
     # older lessons remain readable while Stage 07 always populates it.
     answer_evidence: list[str] = Field(default_factory=list)
@@ -107,25 +130,6 @@ class NormalizeUtteranceRequest(StrictModel):
     text: str = Field(min_length=1)
     lang: Literal["nan-TW", "zh-TW"]
     tailo_citation: str | None = None
-
-
-class UtteranceSegment(StrictModel):
-    lang: Literal["nan-TW", "zh-TW"]
-    hanji: str = Field(min_length=1)
-    tailo_citation: str | None
-    poj_citation: str | None
-    zh_gloss: str | None
-    source: Literal["textbook", "dictionary", "generated"]
-    pronunciation_status: Literal["verified", "converted", "needs_review"]
-
-
-class Utterance(StrictModel):
-    schema_version: Literal["0.1.0"] = SCHEMA_VERSION
-    id: str = Field(pattern=r"^utt_[A-Za-z0-9_-]+$")
-    segments: list[UtteranceSegment] = Field(min_length=1)
-    tts_provider: Literal["mms-tts-nan", "windows", "prerecorded"] | None
-    audio_url: str | None = None
-    audio_cache_key: str | None = None
 
 
 class ServiceHealth(StrictModel):
@@ -213,6 +217,7 @@ class SessionView(StrictModel):
     phase: TeachingPhase = "introduction"
     progress: float = Field(ge=0, le=1)
     current_prompt: str | None
+    current_utterance: Utterance | None = None
     can_answer: bool = False
     revision: int = Field(default=0, ge=0)
     last_event_id: int = Field(default=0, ge=0)
@@ -236,6 +241,8 @@ class TurnResult(StrictModel):
     matched_concepts: list[str]
     feedback: str = Field(min_length=1)
     next_prompt: str = Field(min_length=1)
+    feedback_utterance: Utterance | None = None
+    next_utterance: Utterance | None = None
     progress: float = Field(ge=0, le=1)
     latency_ms: LatencyMetrics
     asr_device: Literal["npu", "cpu"]
@@ -259,9 +266,12 @@ class StudentActionResult(StrictModel):
     state: SessionState
     progress: float = Field(ge=0, le=1)
     current_prompt: str | None
+    current_utterance: Utterance | None = None
     action: ControlAction
     feedback: str | None
     next_prompt: str | None
+    feedback_utterance: Utterance | None = None
+    next_utterance: Utterance | None = None
     can_answer: bool
     phase: TeachingPhase = "introduction"
     revision: int = Field(default=0, ge=0)

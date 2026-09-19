@@ -11,6 +11,28 @@
   "original_activity": "看圖片，說說看誰正在買菜。",
   "learning_objective": "辨識人物與買菜動作，練習市場詞彙。",
   "accessible_activity": "聽三個角色與動作線索，判斷哪一位角色正在買菜，不直接描述圖中答案。",
+  "source_utterance": {
+    "schema_version": "0.1.0",
+    "id": "utt_success_source",
+    "segments": [
+      { "lang": "zh-TW", "hanji": "阿媽欲去", "tailo_citation": null, "poj_citation": null, "zh_gloss": null, "source": "generated", "pronunciation_status": "verified" },
+      { "lang": "nan-TW", "hanji": "市場", "tailo_citation": "tshī-tiûnn", "poj_citation": "chhī-tiûnn", "zh_gloss": "市場", "source": "dictionary", "pronunciation_status": "verified" },
+      { "lang": "zh-TW", "hanji": "買菜。", "tailo_citation": null, "poj_citation": null, "zh_gloss": null, "source": "generated", "pronunciation_status": "verified" }
+    ],
+    "tts_provider": "mms-tts-nan",
+    "audio_url": null,
+    "audio_cache_key": null
+  },
+  "accessible_activity_utterance": {
+    "schema_version": "0.1.0",
+    "id": "utt_success_activity",
+    "segments": [
+      { "lang": "zh-TW", "hanji": "聽三個角色與動作線索，判斷哪一位角色正在買菜，不直接描述圖中答案。", "tailo_citation": null, "poj_citation": null, "zh_gloss": null, "source": "generated", "pronunciation_status": "verified" }
+    ],
+    "tts_provider": "windows",
+    "audio_url": null,
+    "audio_cache_key": null
+  },
   "answer_evidence": [
     "教師檢視依據：畫面中的阿媽與菜販互動，題目要辨識正在買菜的人。"
   ],

@@ -6,4 +6,6 @@ source_text 必須是頁面上原始課文的完整逐字內容：依教材閱�
 
 請辨識：主題、完整可讀課文、生詞、人物／物件／動作情境、原始題目，以及若頁面有看圖題時可供教師檢視的 answer_evidence。answer_evidence 是後端教師資料，描述題目答案所依據的可觀察事實，不是給學生的提示。若沒有題目或無法確認，回傳空陣列並列出 quality_warnings。
 
+請另外回傳 language_segments，逐段標註 source_text 要使用的語言：lang 只能是 zh-TW 或 nan-TW，content 必須保留原文漢字。依序串接全部 content（只允許統一空白）必須與 source_text 完全相同。這一步只做語言邊界判斷，不要產生臺羅或 POJ；臺羅與 POJ 由筆電上的 golden dictionary 與正規化器處理。無法判定時標 nan-TW，讓筆電標記 needs_review 並走中文備援，不要猜讀音。
+
 只根據影像，不要引用外部知識；品質差、遮擋、反光、裁切或字句不確定時降低 confidence 並列出警告。accessible_activity 不在此步驟產生。

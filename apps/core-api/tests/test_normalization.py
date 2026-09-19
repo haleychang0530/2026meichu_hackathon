@@ -103,6 +103,36 @@ class LanguageNormalizationTests(unittest.TestCase):
         self.assertIsNone(segment.poj_citation)
         self.assertEqual(result.utterance.tts_provider, "windows")
 
+    def test_labeled_prompt_uses_local_longest_match_and_keeps_mi300_without_poj(self) -> None:
+        result = self.normalizer.normalize_labeled_segments(
+            text="我會帶你讀學校",
+            segments=[
+                {"lang": "zh-TW", "content": "我會帶你讀"},
+                {"lang": "nan-TW", "content": "學校"},
+            ],
+        )
+        self.assertEqual([item.lang for item in result.utterance.segments], ["zh-TW", "nan-TW"])
+        self.assertEqual(result.utterance.segments[1].tailo_citation, "ha̍k-hāu")
+        self.assertEqual(result.utterance.segments[1].poj_citation, "ha̍k-hāu")
+        self.assertEqual(result.utterance.tts_provider, "mms-tts-nan")
+        self.assertIn("language_segment_concatenation", [step.name for step in result.audit.steps])
+
+    def test_labeled_oov_is_explicit_review_and_has_no_poj(self) -> None:
+        result = self.normalizer.normalize_labeled_segments(
+            text="請說未收錄詞",
+            segments=[{"lang": "nan-TW", "content": "請說未收錄詞"}],
+        )
+        self.assertTrue(any(item.pronunciation_status == "needs_review" for item in result.utterance.segments))
+        self.assertIsNone(result.utterance.tts_provider)
+        self.assertTrue(any(item.poj_citation is None for item in result.utterance.segments))
+
+    def test_labeled_segments_must_concatenate_to_original_text(self) -> None:
+        with self.assertRaisesRegex(ValueError, "do not concatenate"):
+            self.normalizer.normalize_labeled_segments(
+                text="我會帶你讀學校",
+                segments=[{"lang": "zh-TW", "content": "我會帶你讀"}],
+            )
+
 
 class NormalizeApiTests(unittest.IsolatedAsyncioTestCase):
     async def test_normalize_endpoint_returns_canonical_utterance(self) -> None:

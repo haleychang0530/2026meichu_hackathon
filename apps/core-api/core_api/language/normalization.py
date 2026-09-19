@@ -296,3 +296,136 @@ class LanguageNormalizer:
                 candidates,
             ),
         )
+
+    def normalize_labeled_segments(
+        self,
+        *,
+        text: str,
+        segments: list[dict[str, Any]],
+        utterance_id: str | None = None,
+    ) -> NormalizationResult:
+        """Normalize MI300's language labels on the laptop.
+
+        MI300 is allowed to identify which spans are Chinese or Taiwanese, but
+        it is not trusted to invent final 臺羅/POJ.  This method first checks
+        that the labeled spans concatenate to the original text, then performs
+        longest-match tokenization against the checked-in golden dictionary.
+        Unknown or ambiguous Taiwanese spans remain ``needs_review`` and have
+        no POJ citation, which makes the speech layer use the Chinese fallback.
+        """
+
+        expected = _normalize_text(text)
+        if not expected:
+            raise ValueError("text must contain a non-whitespace character")
+        if not isinstance(segments, list) or not segments:
+            raise ValueError("language_segments must contain at least one segment")
+        normalized_candidates: list[tuple[str, str]] = []
+        for index, item in enumerate(segments):
+            if not isinstance(item, dict):
+                raise ValueError(f"language segment {index} must be an object")
+            lang = item.get("lang")
+            content = item.get("content")
+            if lang not in {"nan-TW", "zh-TW"}:
+                raise ValueError(f"language segment {index} has unsupported lang")
+            if not isinstance(content, str) or not _normalize_text(content):
+                raise ValueError(f"language segment {index} has empty content")
+            normalized_candidates.append((lang, content))
+
+        joined = _normalize_text("".join(content for _lang, content in normalized_candidates))
+        if joined != expected:
+            raise ValueError("language_segments do not concatenate to the source text")
+
+        steps: list[NormalizationStep] = [
+            NormalizationStep(
+                name="language_segment_concatenation",
+                tool_version=NORMALIZER_VERSION,
+                input={"source_text": text, "segment_count": len(normalized_candidates)},
+                output={"normalized_source_text": expected, "normalized_joined_text": joined, "matched": True},
+            )
+        ]
+        output_segments: list[UtteranceSegment] = []
+        review_reasons: list[str] = []
+        tailo_candidates: list[str] = []
+        for index, (lang, content) in enumerate(normalized_candidates):
+            if lang == "zh-TW":
+                result = self.normalize(text=content, lang="zh-TW")
+                output_segments.extend(result.utterance.segments)
+                steps.extend(result.audit.steps)
+                review_reasons.extend(f"segment_{index}_{reason}" for reason in result.audit.needs_review_reasons)
+                tailo_candidates.extend(result.audit.tailo_candidates)
+                continue
+
+            for fragment, result in self._normalize_nan_longest_match(content):
+                output_segments.extend(result.utterance.segments)
+                steps.extend(result.audit.steps)
+                review_reasons.extend(
+                    f"segment_{index}_{fragment}_{reason}"
+                    for reason in result.audit.needs_review_reasons
+                )
+                tailo_candidates.extend(result.audit.tailo_candidates)
+
+        if not output_segments:
+            raise ValueError("language_segments produced no normalized speech segments")
+        nan_segments = [segment for segment in output_segments if segment.lang == "nan-TW"]
+        ready_nan = [
+            segment for segment in nan_segments
+            if segment.pronunciation_status in {"verified", "converted"}
+            and segment.poj_citation
+        ]
+        any_nan_ready = bool(ready_nan)
+        provider: Literal["mms-tts-nan", "windows"] | None
+        if not nan_segments:
+            provider = "windows"
+        elif any_nan_ready:
+            provider = "mms-tts-nan"
+        else:
+            provider = None
+
+        digest = hashlib.sha256(
+            f"{expected}\0{json.dumps(normalized_candidates, ensure_ascii=False)}".encode("utf-8")
+        ).hexdigest()[:20]
+        utterance = Utterance(
+            schema_version=SCHEMA_VERSION,
+            id=utterance_id or f"utt_{digest}",
+            segments=output_segments,
+            tts_provider=provider,
+        )
+        return NormalizationResult(
+            utterance,
+            NormalizationAudit(
+                NORMALIZER_VERSION,
+                tuple(steps),
+                tuple(dict.fromkeys(review_reasons)),
+                tuple(dict.fromkeys(tailo_candidates)),
+            ),
+        )
+
+    def _normalize_nan_longest_match(
+        self,
+        text: str,
+    ) -> list[tuple[str, NormalizationResult]]:
+        value = _normalize_text(text)
+        keys = sorted(self.by_hanji, key=lambda item: (-len(item), item))
+        output: list[tuple[str, NormalizationResult]] = []
+        unknown: list[str] = []
+        cursor = 0
+
+        def flush_unknown() -> None:
+            if not unknown:
+                return
+            fragment = _normalize_text("".join(unknown))
+            unknown.clear()
+            if fragment:
+                output.append(("oov", self.normalize(text=fragment, lang="nan-TW")))
+
+        while cursor < len(value):
+            match = next((key for key in keys if value.startswith(key, cursor)), None)
+            if match is None:
+                unknown.append(value[cursor])
+                cursor += 1
+                continue
+            flush_unknown()
+            output.append((match, self.normalize(text=match, lang="nan-TW")))
+            cursor += len(match)
+        flush_unknown()
+        return output

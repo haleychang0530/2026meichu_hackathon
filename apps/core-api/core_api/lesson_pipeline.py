@@ -13,6 +13,7 @@ from jsonschema import Draft202012Validator, SchemaError
 
 from .errors import ProviderError
 from .image_pipeline import PreparedImage
+from .language import LanguageNormalizer
 from .models import ErrorCode, EvidenceItem, Lesson, VocabularyItem
 from .providers import StructuredGeneration
 from .rag import HybridRetriever, RetrievalBundle
@@ -142,9 +143,11 @@ class LessonAnalysisPipeline:
         retriever: HybridRetriever,
         *,
         prompt_root: Path | None = None,
+        language_normalizer: LanguageNormalizer | None = None,
     ) -> None:
         self.generator = generator
         self.retriever = retriever
+        self.language_normalizer = language_normalizer
         self.prompt_root = prompt_root or (REPOSITORY_ROOT / "prompts" / "lesson-analysis")
         self.facts_prompt = (self.prompt_root / "facts.prompt.txt").read_text(encoding="utf-8")
         self.activity_prompt = (self.prompt_root / "activity.prompt.txt").read_text(encoding="utf-8")
@@ -321,17 +324,62 @@ class LessonAnalysisPipeline:
             reasons.append("source_text_missing")
         if facts.get("source_text_complete") is not True:
             reasons.append("source_text_incomplete")
+        reasons.extend(
+            LessonAnalysisPipeline._language_segment_issues(
+                facts.get("source_text"),
+                facts.get("language_segments"),
+                field="source_text",
+            )
+        )
         return tuple(reasons)
 
     @staticmethod
     def _activity_issues(activity: Any, facts: dict[str, Any]) -> tuple[str, ...]:
         if not isinstance(activity, dict):
             return ("activity_not_object",)
-        return accessible_activity_issues(
+        reasons = list(
+            accessible_activity_issues(
             str(activity.get("accessible_activity", "")),
             [str(item) for item in facts.get("answer_evidence", [])],
             activity.get("safety_checks") if isinstance(activity.get("safety_checks"), dict) else None,
+            )
         )
+        reasons.extend(
+            LessonAnalysisPipeline._language_segment_issues(
+                activity.get("accessible_activity"),
+                activity.get("language_segments"),
+                field="accessible_activity",
+            )
+        )
+        return tuple(dict.fromkeys(reasons))
+
+    @staticmethod
+    def _language_segment_issues(
+        text: Any,
+        segments: Any,
+        *,
+        field: str,
+    ) -> tuple[str, ...]:
+        if not isinstance(text, str) or not text.strip():
+            return (f"{field}_missing",)
+        if not isinstance(segments, list) or not segments:
+            return (f"{field}_language_segments_missing",)
+        contents: list[str] = []
+        reasons: list[str] = []
+        for index, item in enumerate(segments):
+            if not isinstance(item, dict):
+                reasons.append(f"{field}_language_segment_{index}_invalid")
+                continue
+            if item.get("lang") not in {"zh-TW", "nan-TW"}:
+                reasons.append(f"{field}_language_segment_{index}_lang_invalid")
+            content = item.get("content")
+            if not isinstance(content, str) or not content.strip():
+                reasons.append(f"{field}_language_segment_{index}_content_missing")
+            else:
+                contents.append(content)
+        if _compact("".join(contents)) != _compact(text):
+            reasons.append(f"{field}_language_segments_not_exact")
+        return tuple(dict.fromkeys(reasons))
 
     @staticmethod
     def _candidate(generation: StructuredGeneration) -> Any:
@@ -415,10 +463,27 @@ class LessonAnalysisPipeline:
         source_text = facts["source_text"]
         if not isinstance(source_text, str) or not source_text.strip():
             raise StageOutputError("facts", ["source_text_missing"])
+        lesson_id = f"lesson_{uuid.uuid4().hex[:16]}"
+        source_utterance = None
+        activity_utterance = None
+        if self.language_normalizer is not None:
+            try:
+                source_utterance = self.language_normalizer.normalize_labeled_segments(
+                    text=source_text,
+                    segments=list(facts["language_segments"]),
+                    utterance_id=f"utt_{lesson_id}_source",
+                ).utterance
+                activity_utterance = self.language_normalizer.normalize_labeled_segments(
+                    text=str(activity["accessible_activity"]).strip(),
+                    segments=list(activity["language_segments"]),
+                    utterance_id=f"utt_{lesson_id}_activity",
+                ).utterance
+            except (TypeError, ValueError) as error:
+                raise StageOutputError("language_normalization", ["language_segments_normalization_failed"]) from error
 
         return Lesson(
             schema_version="0.1.0",
-            lesson_id=f"lesson_{uuid.uuid4().hex[:16]}",
+            lesson_id=lesson_id,
             topic=str(facts["topic"]).strip(),
             # Keep the validated facts text verbatim; strip only transport
             # whitespace around the JSON value, never internal line breaks or
@@ -430,6 +495,8 @@ class LessonAnalysisPipeline:
             original_activity=str(facts["original_activity"]).strip(),
             learning_objective=str(activity["learning_objective"]).strip(),
             accessible_activity=str(activity["accessible_activity"]).strip(),
+            source_utterance=source_utterance,
+            accessible_activity_utterance=activity_utterance,
             answer_evidence=answer_evidence,
             evidence=self._bundle_evidence(bundle),
             confidence=max(0.0, min(confidence, 1.0)),
@@ -448,6 +515,19 @@ class LessonAnalysisPipeline:
         payload["rag_index_revision"] = bundle.index_revision
         payload["review_status"] = "pending"
         payload.setdefault("answer_evidence", [])
+        if self.language_normalizer is not None:
+            if payload.get("source_utterance") is None:
+                payload["source_utterance"] = self.language_normalizer.normalize_labeled_segments(
+                    text=lesson.source_text,
+                    segments=[{"lang": "nan-TW", "content": lesson.source_text}],
+                    utterance_id=f"utt_{lesson.lesson_id}_source",
+                ).utterance.model_dump(mode="json")
+            if payload.get("accessible_activity_utterance") is None:
+                payload["accessible_activity_utterance"] = self.language_normalizer.normalize_labeled_segments(
+                    text=lesson.accessible_activity,
+                    segments=[{"lang": "zh-TW", "content": lesson.accessible_activity}],
+                    utterance_id=f"utt_{lesson.lesson_id}_activity",
+                ).utterance.model_dump(mode="json")
         return Lesson.model_validate(payload)
 
     @classmethod

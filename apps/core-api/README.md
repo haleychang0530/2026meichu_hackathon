@@ -315,6 +315,18 @@ literary/colloquial readings, and textbook/dictionary conflicts return
 `needs_review` with no POJ or TTS provider. See
 `data/language/manual-review.json` for the human confirmation queue.
 
+Stage 08 adds `LanguageNormalizer.normalize_labeled_segments(...)` for the
+two-step lesson pipeline. MI300 returns only ordered `language_segments`
+(`lang`=`zh-TW`/`nan-TW`, `content`=Hanji); the laptop verifies that the
+segments cover the original text exactly, tokenizes Taiwanese spans with the
+golden lexicon, and emits canonical `Utterance.segments[]`. MI300 never
+returns the final Tailo/POJ used by MMS. Session responses retain their
+natural `current_prompt`/`next_prompt` strings and additionally return
+`current_utterance`, `next_utterance`, and `feedback_utterance` where
+available. The student UI should use the utterance only for speech routing;
+`needs_review` spans have no POJ and are spoken with the Chinese browser or
+Windows fallback.
+
 ## Test
 
 ```powershell

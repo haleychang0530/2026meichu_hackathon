@@ -13,6 +13,7 @@ from .models import (
     SessionView,
     StudentActionResult,
     TurnResult,
+    Utterance,
 )
 
 
@@ -21,6 +22,7 @@ def select_student_session(
     last_event_id: int,
     *,
     current_prompt: str | None = None,
+    current_utterance: Utterance | None = None,
 ) -> SessionView:
     """Return the strict student projection and nothing teacher-only."""
 
@@ -31,6 +33,7 @@ def select_student_session(
         phase=row.phase,  # type: ignore[arg-type]
         progress=row.progress,
         current_prompt=row.current_prompt if current_prompt is None else current_prompt,
+        current_utterance=current_utterance,
         can_answer=row.state == "LISTENING" and row.phase != "complete",
         revision=row.revision,
         last_event_id=last_event_id,
@@ -43,6 +46,10 @@ def select_student_action(
     feedback: str | None,
     next_prompt: str | None,
     last_event_id: int,
+    *,
+    current_utterance: Utterance | None = None,
+    feedback_utterance: Utterance | None = None,
+    next_utterance: Utterance | None = None,
 ) -> StudentActionResult:
     """Keep answers, evidence, confidence, and review controls out of actions."""
 
@@ -52,9 +59,12 @@ def select_student_action(
         state=row.state,  # type: ignore[arg-type]
         progress=row.progress,
         current_prompt=row.current_prompt,
+        current_utterance=current_utterance,
         action=action,  # type: ignore[arg-type]
         feedback=feedback,
         next_prompt=next_prompt,
+        feedback_utterance=feedback_utterance,
+        next_utterance=next_utterance,
         can_answer=row.state == "LISTENING" and row.phase != "complete",
         phase=row.phase,  # type: ignore[arg-type]
         revision=row.revision,
