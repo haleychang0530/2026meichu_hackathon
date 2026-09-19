@@ -241,7 +241,7 @@ export interface components {
             /** @constant */
             schema_version: "0.1.0";
             /** @enum {string} */
-            code: "VALIDATION_ERROR" | "IMAGE_QUALITY_LOW" | "LESSON_NOT_FOUND" | "SESSION_NOT_FOUND" | "SESSION_REVISION_CONFLICT" | "IDEMPOTENCY_CONFLICT" | "VLM_TIMEOUT" | "VLM_OFFLINE" | "VLM_INVALID_OUTPUT" | "RAG_NO_RESULT" | "ASR_UNAVAILABLE" | "ASR_FAILED" | "TTS_UNAVAILABLE" | "TTS_FAILED" | "CIRCUIT_OPEN" | "INTERNAL_ERROR";
+            code: "VALIDATION_ERROR" | "IMAGE_QUALITY_LOW" | "LESSON_NOT_FOUND" | "LESSON_NOT_APPROVED" | "SESSION_NOT_FOUND" | "SESSION_REVISION_CONFLICT" | "IDEMPOTENCY_CONFLICT" | "VLM_TIMEOUT" | "VLM_OFFLINE" | "VLM_INVALID_OUTPUT" | "RAG_NO_RESULT" | "ASR_UNAVAILABLE" | "ASR_FAILED" | "TTS_UNAVAILABLE" | "TTS_FAILED" | "CIRCUIT_OPEN" | "INTERNAL_ERROR";
             message: string;
             retryable: boolean;
             /** @enum {string|null} */
@@ -270,11 +270,34 @@ export interface components {
             /** Format: date-time */
             checked_at: string;
         };
+        utterance_segment: {
+            /** @enum {string} */
+            lang: "nan-TW" | "zh-TW";
+            hanji: string;
+            tailo_citation: string | null;
+            poj_citation: string | null;
+            zh_gloss: string | null;
+            /** @enum {string} */
+            source: "textbook" | "dictionary" | "generated";
+            /** @enum {string} */
+            pronunciation_status: "verified" | "converted" | "needs_review";
+        };
         vocabulary_item: {
             hanji: string;
             tailo: string;
             meaning: string;
             audio_key: string | null;
+        };
+        utterance: {
+            /** @constant */
+            schema_version: "0.1.0";
+            id: string;
+            segments: components["schemas"]["utterance_segment"][];
+            /** @enum {string|null} */
+            tts_provider: "mms-tts-nan" | "windows" | "prerecorded" | null;
+            /** Format: uri-reference */
+            audio_url: string | null;
+            audio_cache_key: string | null;
         };
         evidence_item: {
             source_id: string;
@@ -297,6 +320,10 @@ export interface components {
             original_activity: string;
             learning_objective: string;
             accessible_activity: string;
+            /** @description Additive language-aware source playback contract; the text field remains required for compatibility. */
+            source_utterance?: components["schemas"]["utterance"] | null;
+            /** @description Additive language-aware accessible-activity playback contract. */
+            accessible_activity_utterance?: components["schemas"]["utterance"] | null;
             /** @description Teacher/parent-only evidence for the answer or visual reasoning. Never expose to student routes. */
             answer_evidence?: string[];
             evidence: components["schemas"]["evidence_item"][];
@@ -317,6 +344,29 @@ export interface components {
                     title: string;
                     excerpt: string;
                     locator: string;
+                };
+                utterance_segment: {
+                    /** @enum {string} */
+                    lang: "nan-TW" | "zh-TW";
+                    hanji: string;
+                    tailo_citation: string | null;
+                    poj_citation: string | null;
+                    zh_gloss: string | null;
+                    /** @enum {string} */
+                    source: "textbook" | "dictionary" | "generated";
+                    /** @enum {string} */
+                    pronunciation_status: "verified" | "converted" | "needs_review";
+                };
+                utterance: {
+                    /** @constant */
+                    schema_version: "0.1.0";
+                    id: string;
+                    segments: components["schemas"]["utterance_segment"][];
+                    /** @enum {string|null} */
+                    tts_provider: "mms-tts-nan" | "windows" | "prerecorded" | null;
+                    /** Format: uri-reference */
+                    audio_url: string | null;
+                    audio_cache_key: string | null;
                 };
             };
         };
@@ -376,9 +426,35 @@ export interface components {
             phase: "introduction" | "demonstration" | "read_aloud" | "comprehension" | "hint" | "review" | "complete";
             progress: number;
             current_prompt: string | null;
+            current_utterance?: components["schemas"]["utterance"] | null;
             can_answer: boolean;
             revision: number;
             last_event_id: number;
+            $defs: {
+                utterance_segment: {
+                    /** @enum {string} */
+                    lang: "nan-TW" | "zh-TW";
+                    hanji: string;
+                    tailo_citation: string | null;
+                    poj_citation: string | null;
+                    zh_gloss: string | null;
+                    /** @enum {string} */
+                    source: "textbook" | "dictionary" | "generated";
+                    /** @enum {string} */
+                    pronunciation_status: "verified" | "converted" | "needs_review";
+                };
+                utterance: {
+                    /** @constant */
+                    schema_version: "0.1.0";
+                    id: string;
+                    segments: components["schemas"]["utterance_segment"][];
+                    /** @enum {string|null} */
+                    tts_provider: "mms-tts-nan" | "windows" | "prerecorded" | null;
+                    /** Format: uri-reference */
+                    audio_url: string | null;
+                    audio_cache_key: string | null;
+                };
+            };
         };
         /** @enum {string} */
         input_mode: "voice" | "keyboard" | "pointer";
@@ -414,6 +490,8 @@ export interface components {
             matched_concepts: string[];
             feedback: string;
             next_prompt: string;
+            feedback_utterance?: components["schemas"]["utterance"] | null;
+            next_utterance?: components["schemas"]["utterance"] | null;
             progress: number;
             latency_ms: components["schemas"]["latency"];
             /** @enum {string} */
@@ -430,6 +508,29 @@ export interface components {
                     vlm: number | null;
                     tts: number | null;
                     total: number;
+                };
+                utterance_segment: {
+                    /** @enum {string} */
+                    lang: "nan-TW" | "zh-TW";
+                    hanji: string;
+                    tailo_citation: string | null;
+                    poj_citation: string | null;
+                    zh_gloss: string | null;
+                    /** @enum {string} */
+                    source: "textbook" | "dictionary" | "generated";
+                    /** @enum {string} */
+                    pronunciation_status: "verified" | "converted" | "needs_review";
+                };
+                utterance: {
+                    /** @constant */
+                    schema_version: "0.1.0";
+                    id: string;
+                    segments: components["schemas"]["utterance_segment"][];
+                    /** @enum {string|null} */
+                    tts_provider: "mms-tts-nan" | "windows" | "prerecorded" | null;
+                    /** Format: uri-reference */
+                    audio_url: string | null;
+                    audio_cache_key: string | null;
                 };
             };
         };
@@ -458,9 +559,12 @@ export interface components {
             state: components["schemas"]["session_state"];
             progress: number;
             current_prompt: string | null;
+            current_utterance?: components["schemas"]["utterance"] | null;
             action: components["schemas"]["action"];
             feedback: string | null;
             next_prompt: string | null;
+            feedback_utterance?: components["schemas"]["utterance"] | null;
+            next_utterance?: components["schemas"]["utterance"] | null;
             can_answer: boolean;
             phase: components["schemas"]["teaching_phase"];
             revision: number;
@@ -490,6 +594,29 @@ export interface components {
                 };
                 /** @enum {string} */
                 teaching_phase: "introduction" | "demonstration" | "read_aloud" | "comprehension" | "hint" | "review" | "complete";
+                utterance_segment: {
+                    /** @enum {string} */
+                    lang: "nan-TW" | "zh-TW";
+                    hanji: string;
+                    tailo_citation: string | null;
+                    poj_citation: string | null;
+                    zh_gloss: string | null;
+                    /** @enum {string} */
+                    source: "textbook" | "dictionary" | "generated";
+                    /** @enum {string} */
+                    pronunciation_status: "verified" | "converted" | "needs_review";
+                };
+                utterance: {
+                    /** @constant */
+                    schema_version: "0.1.0";
+                    id: string;
+                    segments: components["schemas"]["utterance_segment"][];
+                    /** @enum {string|null} */
+                    tts_provider: "mms-tts-nan" | "windows" | "prerecorded" | null;
+                    /** Format: uri-reference */
+                    audio_url: string | null;
+                    audio_cache_key: string | null;
+                };
             };
         };
         hint: {
@@ -802,6 +929,7 @@ export interface operations {
         responses: {
             201: components["responses"]["Session"];
             404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     getSession: {

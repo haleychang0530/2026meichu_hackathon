@@ -119,8 +119,9 @@ snapshot to device checks without changing Agent A's frozen schema.
 The TTS router accepts only Agent A's approved `poj_citation` for `nan-TW`
 segments whose pronunciation status is `verified` or `converted` and whose
 utterance provider is `mms-tts-nan`. Unsupported characters, Hanji, raw
-臺羅, and `needs_review` never reach MMS. Chinese UI/scaffolding is routed to
-browser Web Speech; the server can use only an approved WAV in
+臺羅, and `needs_review` never reach MMS. Chinese UI/scaffolding and
+unverified Taiwanese spans are routed to Chinese browser/Web Speech fallback;
+the server can use only an approved WAV in
 `fallback/prerecorded_manifest.json` when browser speech is unavailable.
 
 MMS WAVs are cached below `.runtime/audio-cache` by provider, model revision,

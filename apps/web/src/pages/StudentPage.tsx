@@ -272,7 +272,7 @@ export function StudentPage({
     if (!next) return;
     try {
       setSessionMessage('提示播放中；播放結束後才會開啟麥克風。');
-      await speechClient.play(promptToUtterance(next.prompt));
+      await speechClient.play(next.utterance ?? promptToUtterance(next.prompt));
       setSessionMessage(
         speechClient.mode === 'mock'
           ? '目前無法播放實際語音，你仍可使用鍵盤回答。'

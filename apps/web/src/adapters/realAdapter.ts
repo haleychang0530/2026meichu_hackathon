@@ -24,6 +24,7 @@ import type {
   StudentSessionViewModel,
   TeachingPhase,
 } from '../types/viewModels';
+import type { SpeechUtterance } from '../speech/gateway';
 
 type CoreHealthResponse = operations['getHealth']['responses'][200]['content']['application/json'];
 type CoreAnalyzeLessonResponse = operations['analyzeLesson']['responses'][200]['content']['application/json'];
@@ -210,6 +211,9 @@ function toStudentView(
     state: session.state as SessionState,
     phase: session.phase as TeachingPhase,
     prompt: session.current_prompt ?? '目前沒有可播放的提示。',
+    utterance: session.current_utterance
+      ? session.current_utterance as SpeechUtterance
+      : null,
     feedback,
     progressLabel: progress.label,
     progressValue: progress.value,
@@ -234,6 +238,11 @@ function toStudentActionView(
     state: actionResult.state as SessionState,
     phase: actionResult.phase as TeachingPhase,
     prompt: actionResult.current_prompt ?? actionResult.next_prompt ?? '目前沒有可播放的提示。',
+    utterance: actionResult.next_utterance
+      ? actionResult.next_utterance as SpeechUtterance
+      : actionResult.current_utterance
+        ? actionResult.current_utterance as SpeechUtterance
+        : null,
     feedback: actionResult.feedback ?? '操作已完成。',
     progressLabel: progress.label,
     progressValue: progress.value,
@@ -257,6 +266,7 @@ function toTurnStudentView(
     state: turn.phase === 'complete' ? 'COMPLETE' : 'SPEAKING',
     phase: turn.phase as TeachingPhase,
     prompt: turn.next_prompt,
+    utterance: turn.next_utterance ? turn.next_utterance as SpeechUtterance : null,
     feedback: turn.feedback,
     progressLabel: progress.label,
     progressValue: progress.value,

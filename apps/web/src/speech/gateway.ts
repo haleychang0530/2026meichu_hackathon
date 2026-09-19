@@ -196,7 +196,12 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
     try {
       if (!utterance.segments.length) {
         await this.playViaGateway(utterance);
-      } else if (utterance.segments.length === 1 && utterance.segments[0].lang === 'zh-TW' && browserSpeechSynthesis()) {
+      } else if (
+        utterance.segments.length === 1
+        && (utterance.segments[0].lang === 'zh-TW'
+          || utterance.segments[0].pronunciation_status === 'needs_review')
+        && browserSpeechSynthesis()
+      ) {
         await this.playInBrowser(utterance.segments[0]);
       } else if (utterance.segments.length === 1) {
         // Preserve the canonical request for the common single-segment path;
@@ -208,7 +213,10 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
         // localhost gateway and its MMS/cache/fallback router.  Each await is
         // intentional: no two speech sources can overlap.
         for (const [index, segment] of utterance.segments.entries()) {
-          if (segment.lang === 'zh-TW' && browserSpeechSynthesis()) {
+          if (
+            (segment.lang === 'zh-TW' || segment.pronunciation_status === 'needs_review')
+            && browserSpeechSynthesis()
+          ) {
             await this.playInBrowser(segment);
           } else {
             await this.playViaGateway(segmentUtterance(utterance, segment, index));

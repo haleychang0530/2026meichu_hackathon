@@ -528,6 +528,17 @@ class LanguageRouter:
             if language != "nan-TW":
                 raise SpeechWorkerError("Unsupported utterance language.", reason="unsupported_language")
 
+            if segment.get("pronunciation_status") not in {"verified", "converted"}:
+                routes.append(
+                    SpeechRoute(
+                        index,
+                        language,
+                        "web-speech",
+                        str(segment.get("hanji") or "").strip(),
+                        "needs_review_zh_fallback",
+                    ),
+                )
+                continue
             if utterance_provider != "mms-tts-nan":
                 routes.append(
                     SpeechRoute(
@@ -536,17 +547,6 @@ class LanguageRouter:
                         "prerecorded",
                         str(segment.get("hanji") or "").strip(),
                         "provider_not_mms",
-                    ),
-                )
-                continue
-            if segment.get("pronunciation_status") not in {"verified", "converted"}:
-                routes.append(
-                    SpeechRoute(
-                        index,
-                        language,
-                        "prerecorded",
-                        str(segment.get("hanji") or "").strip(),
-                        "needs_review",
                     ),
                 )
                 continue
