@@ -3,7 +3,7 @@
 ```text
 Stage: Agent A Stage 08 — source read first, Teaching Agent and session gate
 Status: done — implementation and local regression complete; PR pending
-Base: codex/agentA-stage07-source-text-integrity @ 6711ad0 (Stage 07 PR #23 open)
+Base: main @ 05ff063 (Stage 07 PR #23 merged)
 Branch: codex/agentA-stage08-source-read-first
 Pull request: pending creation; merge not performed
 Schema/OpenAPI version: public JSON Schema 0.1.0 / OpenAPI 3.1.0
@@ -158,19 +158,17 @@ Lesson fixture and no source-text completeness marker is exposed publicly.
 
 ## Next action
 
-1. Review and merge the Stage 07 source-text PR #23, then retarget or merge
-   this stacked Stage 08 PR according to the repository owner's chosen order.
-2. Agent B wires automatic TTS playback for the demonstration and follow-read
+1. Agent B wires automatic TTS playback for the demonstration and follow-read
    prompts and validates the real Speech Gateway path.
-3. Run a trusted live MI300 semantic-judgement smoke test and measure
+2. Run a trusted live MI300 semantic-judgement smoke test and measure
    end-to-end TTS/ASR/Teaching-Agent latency before deployment.
 
 ## Git state
 
 - Local implementation: complete and tested.
-- Branch: `codex/agentA-stage08-source-read-first` created from the pushed Stage
-  07 source-text branch.
-- Stage 07 dependency branch and PR #23 remain unmerged; this Stage 08 branch
-  does not modify them.
+- Branch: `codex/agentA-stage08-source-read-first` was created from the pushed
+  Stage 07 source-text branch, which is now included in `main` via PR #23.
+- Stage 07 dependency is complete on `main`; this Stage 08 branch does not
+  modify the Stage 07 branch.
 - Commit, push, and PR URL will be recorded here after the final diff audit.
 - Merge: not performed; explicit repository-owner authorization is required.
