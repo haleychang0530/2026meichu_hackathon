@@ -171,7 +171,8 @@ Lesson fixture and no source-text completeness marker is exposed publicly.
 - Stage 07 dependency is complete on `main`; this Stage 08 branch does not
   modify the Stage 07 branch.
 - Commits: `fada58f` implementation, `22ee636` tests, `edde06e` contracts and
-  handoff, `968033c` base alignment.
-- Push: `origin/codex/agentA-stage08-source-read-first` at `98ada0d`.
+  handoff, `968033c` base alignment, `98ada0d` implementation commit record,
+  and `0b9142d` PR handoff record.
+- Push: `origin/codex/agentA-stage08-source-read-first` at `0b9142d`.
 - Pull request: #24 is open against `main`; merge not performed.
 - Merge: not performed; explicit repository-owner authorization is required.
