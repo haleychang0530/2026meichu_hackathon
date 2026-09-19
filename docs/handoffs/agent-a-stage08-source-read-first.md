@@ -2,10 +2,10 @@
 
 ```text
 Stage: Agent A Stage 08 — source read first, Teaching Agent and session gate
-Status: done — implementation and local regression complete; PR pending
+Status: done — implementation, tests, push, and PR complete; merge not performed
 Base: main @ 05ff063 (Stage 07 PR #23 merged)
 Branch: codex/agentA-stage08-source-read-first
-Pull request: pending creation; merge not performed
+Pull request: #24 — https://github.com/haleychang0530/2026meichu_hackathon/pull/24
 Schema/OpenAPI version: public JSON Schema 0.1.0 / OpenAPI 3.1.0
 Runtime host: Ryzen AI 9 laptop only
 MI300 role: bounded stateless semantic judgement only for difficult unmatched answers
@@ -172,5 +172,6 @@ Lesson fixture and no source-text completeness marker is exposed publicly.
   modify the Stage 07 branch.
 - Commits: `fada58f` implementation, `22ee636` tests, `edde06e` contracts and
   handoff, `968033c` base alignment.
-- Push and PR URL will be recorded here after the final diff audit.
+- Push: `origin/codex/agentA-stage08-source-read-first` at `98ada0d`.
+- Pull request: #24 is open against `main`; merge not performed.
 - Merge: not performed; explicit repository-owner authorization is required.
