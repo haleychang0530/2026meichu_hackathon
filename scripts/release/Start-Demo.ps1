@@ -30,6 +30,24 @@ function Assert-Path([string]$Path, [string]$Description) {
     }
 }
 
+function Resolve-ServiceOrigin([string]$Value, [string]$Name) {
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        throw "$Name 未設定。real mode 必須使用當次 Manta forwarding 的 gateway origin。"
+    }
+    $candidate = $Value.Trim().TrimEnd('/')
+    $uri = $null
+    if (-not [Uri]::TryCreate($candidate, [UriKind]::Absolute, [ref]$uri)) {
+        throw "$Name 必須是完整的 HTTP(S) origin：$candidate"
+    }
+    if ($uri.Scheme -notin @('http', 'https') -or -not $uri.Host) {
+        throw "$Name 必須是完整的 HTTP(S) origin：$candidate"
+    }
+    if ($uri.UserInfo -or $uri.Query -or $uri.Fragment -or $uri.AbsolutePath -ne '/') {
+        throw "$Name 不得包含 credentials、path、query 或 fragment：$candidate"
+    }
+    return $candidate
+}
+
 function Test-PidAlive([int]$ProcessId) {
     return $null -ne (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)
 }
@@ -80,6 +98,12 @@ function Wait-Http([string]$Uri, [string]$Role, [int]$TimeoutSeconds = 30) {
     throw "$Role 在 $TimeoutSeconds 秒內沒有回應：$Uri"
 }
 
+if ($Mode -eq 'real') {
+    $Mi300BaseUrl = Resolve-ServiceOrigin $Mi300BaseUrl 'Mi300BaseUrl'
+} elseif (-not [string]::IsNullOrWhiteSpace($Mi300BaseUrl)) {
+    $Mi300BaseUrl = Resolve-ServiceOrigin $Mi300BaseUrl 'Mi300BaseUrl'
+}
+
 Assert-Path $corePython 'Core API Python runtime'
 Assert-Path (Join-Path $webDir 'package.json') 'Web package'
 if ($SpeechProfile -eq 'cpu') { Assert-Path $speechPython 'Speech CPU Python runtime' }
@@ -112,7 +136,7 @@ $coreEnvironment = @{
     RAG_INDEX_ROOT = (Join-Path $runtimeRoot 'rag-indexes')
     PYTHONUNBUFFERED = '1'
 }
-if ($Mi300BaseUrl) { $coreEnvironment.VLM_BASE_URL = $Mi300BaseUrl.TrimEnd('/') }
+if ($Mi300BaseUrl) { $coreEnvironment.VLM_BASE_URL = $Mi300BaseUrl }
 $speechEnvironment = @{
     SPEECH_ASR_BACKEND = if ($SpeechProfile -eq 'cpu') { 'breeze' } else { 'mock' }
     SPEECH_TTS_BACKEND = if ($SpeechProfile -eq 'cpu') { 'mms' } else { 'mock' }

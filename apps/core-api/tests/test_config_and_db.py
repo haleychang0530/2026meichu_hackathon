@@ -35,6 +35,29 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.provider_mode, "fixture")
         self.assertEqual(settings.allowed_origins, ("http://127.0.0.1:5173",))
 
+    def test_manta_forwarding_origin_is_normalized(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"VLM_BASE_URL": "  http://210.61.209.139:46944/  "},
+            clear=True,
+        ):
+            settings = Settings.from_env("development")
+        self.assertEqual(settings.vlm_base_url, "http://210.61.209.139:46944")
+
+    def test_vlm_base_url_rejects_endpoint_paths_and_credentials(self) -> None:
+        invalid_values = (
+            "210.61.209.139:46944",
+            "http://user:secret@210.61.209.139:46944",
+            "http://210.61.209.139:46944/internal/health",
+            "http://210.61.209.139:46944?forward=8100",
+        )
+        for value in invalid_values:
+            with self.subTest(value=value), patch.dict(
+                os.environ, {"VLM_BASE_URL": value}, clear=True
+            ):
+                with self.assertRaisesRegex(ValueError, "VLM_BASE_URL"):
+                    Settings.from_env("development")
+
     def test_rag_reliability_threshold_is_bounded(self) -> None:
         with patch.dict(os.environ, {"RAG_MIN_SCORE": "1.1"}, clear=True):
             with self.assertRaisesRegex(ValueError, "RAG_MIN_SCORE"):

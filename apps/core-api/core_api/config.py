@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 
 Profile = Literal["development", "demo", "test"]
@@ -42,6 +43,34 @@ def _default_data_dir() -> Path:
     if root:
         return Path(root) / "HearOurLanguage"
     return Path.home() / ".local" / "share" / "HearOurLanguage"
+
+
+def _http_base_url(name: str, value: str) -> str:
+    """Validate a service origin without leaking deployment details elsewhere.
+
+    Manta forwarding ports are assigned dynamically, so the Core API accepts the
+    current gateway origin through configuration.  Requiring an origin (rather
+    than an endpoint path) keeps the two internal VLM routes centralized in the
+    client and prevents accidental double paths such as ``.../internal/health``.
+    """
+
+    normalized = value.strip().rstrip("/")
+    if not normalized:
+        raise ValueError(f"{name} must be a non-empty HTTP(S) origin")
+    parsed = urlsplit(normalized)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError(f"{name} must be an absolute HTTP(S) origin")
+    if parsed.username or parsed.password:
+        raise ValueError(f"{name} must not contain credentials")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError(f"{name} contains an invalid port") from exc
+    if port is not None and not 1 <= port <= 65535:
+        raise ValueError(f"{name} port must be between 1 and 65535")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError(f"{name} must be an origin without path, query, or fragment")
+    return normalized
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,7 +162,9 @@ class Settings:
             provider_mode=provider,  # type: ignore[arg-type]
             data_dir=data_dir,
             allowed_origins=origins,
-            vlm_base_url=os.getenv("VLM_BASE_URL", defaults.vlm_base_url).rstrip("/"),
+            vlm_base_url=_http_base_url(
+                "VLM_BASE_URL", os.getenv("VLM_BASE_URL", defaults.vlm_base_url)
+            ),
             vlm_model_revision=os.getenv("VLM_MODEL_REVISION", defaults.vlm_model_revision),
             speech_base_url=speech_url.rstrip("/") if speech_url else None,
             connect_timeout_seconds=_float_env(
