@@ -7,6 +7,7 @@ import basicIcon from '../assets/basic_icon.png';
 interface AppShellProps {
   readonly children: ReactNode;
   readonly currentLabel: string;
+  readonly headerActions?: ReactNode;
 }
 
 function handleInternalLink(event: MouseEvent<HTMLAnchorElement>, path: string): void {
@@ -135,7 +136,7 @@ function NarrationControls() {
   );
 }
 
-export function AppShell({ children, currentLabel }: AppShellProps) {
+export function AppShell({ children, currentLabel, headerActions }: AppShellProps) {
   const narration = useNarration();
   const isStudent = currentLabel === '學生模式';
   const runtimeLabel = import.meta.env.VITE_DATA_MODE === 'real'
@@ -168,13 +169,16 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
           <img className="brand-icon" src={basicIcon} alt="" />
           <span>hear tAIgi</span>
         </a>
-        {isStudent ? <span className="header-context">我的課程</span> : (
-          <nav aria-label="主要導覽">
-            <a href="/setup" aria-current={currentLabel === '首頁' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/setup')}>首頁</a>
-            <a href="/capture" aria-current={currentLabel === '教材' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/capture')}>準備教材</a>
-            <a href="/health" aria-current={currentLabel === '健康檢查' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/health')}>系統狀態</a>
-            {currentLabel === '教師／家長模式' ? <a href={window.location.pathname} aria-current="page">教師／家長</a> : null}
-          </nav>
+        {isStudent ? headerActions || <span className="header-context">我的課程</span> : (
+          <div className="header-navigation">
+            <nav aria-label="主要導覽">
+              <a href="/setup" aria-current={currentLabel === '首頁' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/setup')}>首頁</a>
+              <a href="/capture" aria-current={currentLabel === '教材' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/capture')}>準備教材</a>
+              <a href="/health" aria-current={currentLabel === '健康檢查' ? 'page' : undefined} onClick={(event) => handleInternalLink(event, '/health')}>系統狀態</a>
+              {currentLabel === '教師／家長模式' ? <a href={window.location.pathname} aria-current="page">教師／家長</a> : null}
+            </nav>
+            {headerActions}
+          </div>
         )}
       </header>
       {narration.mode === null ? <AccessibilityChoice /> : <NarrationControls />}

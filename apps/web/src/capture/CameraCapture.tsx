@@ -23,6 +23,7 @@ export interface CameraCaptureProps {
 }
 
 type CameraStatus = 'idle' | 'starting' | 'ready' | 'permission_denied' | 'unavailable' | 'error';
+type ImageSource = 'camera' | 'file';
 
 function mediaDevicesAvailable(): boolean {
   return typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
@@ -31,7 +32,7 @@ function mediaDevicesAvailable(): boolean {
 function cameraErrorMessage(error: unknown): string {
   if (error instanceof DOMException) {
     if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
-      return '相機權限被拒絕；你仍可以用「選擇教材圖片」從檔案上傳。';
+      return '相機權限被拒絕；你仍可以用「上傳現有教材」從檔案上傳。';
     }
     if (error.name === 'NotFoundError' || error.name === 'OverconstrainedError') {
       return '找不到可用相機；請確認相機已連接，或改用檔案上傳。';
@@ -57,6 +58,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
   const mountedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingAssetRef = useRef<CaptureAsset | null>(null);
+  const pendingSourceRef = useRef<ImageSource | null>(null);
   const resetTokenRef = useRef(resetToken);
   const [devices, setDevices] = useState<readonly CameraOption[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
@@ -75,6 +77,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     stream?.getTracks().forEach((track) => track.stop());
     if (videoRef.current) videoRef.current.srcObject = null;
     setCameraStatus('idle');
+    setCameraMessage('預覽已停止；需要拍照時可重新開始預覽，也可以上傳現有教材。');
   }, []);
 
   const refreshDevices = useCallback(async () => {
@@ -124,6 +127,10 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+      if (operationRef.current !== operation) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       setCameraStatus('ready');
       setCameraMessage('相機已就緒。確認課本完整入鏡、文字清楚且沒有反光後再拍照。');
       await refreshDevices();
@@ -131,6 +138,9 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
       if (actualDeviceId) setSelectedDeviceId(actualDeviceId);
     } catch (error) {
       if (operationRef.current !== operation) return;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
       setCameraStatus(error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError')
         ? 'permission_denied'
         : 'error');
@@ -157,22 +167,24 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     stopPreview();
     releaseCaptureAsset(pendingAssetRef.current);
     pendingAssetRef.current = null;
+    pendingSourceRef.current = null;
     setPendingAsset(null);
     setQualityOverride(false);
     setProcessingMessage('分析工作已結束，預覽影像已清除；如需再試請重新拍攝或選擇檔案。');
     onImageSelected(null);
   }, [onImageSelected, resetToken, stopPreview]);
 
-  function replacePendingAsset(asset: CaptureAsset): void {
+  function replacePendingAsset(asset: CaptureAsset, source: ImageSource): void {
     releaseCaptureAsset(pendingAsset);
     pendingAssetRef.current = asset;
+    pendingSourceRef.current = source;
     setPendingAsset(asset);
     setQualityOverride(false);
     setProcessingMessage('');
     onImageSelected(null);
   }
 
-  async function prepareSource(source: Blob, fileName?: string, crop?: CropRect): Promise<void> {
+  async function prepareSource(source: Blob, origin: ImageSource, fileName?: string, crop?: CropRect): Promise<void> {
     if (!crop) setCropPreset('full');
     // A new processing attempt invalidates any previously accepted asset so
     // CapturePage cannot submit an older image while this one is being prepared.
@@ -187,7 +199,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         releaseCaptureAsset(asset);
         return;
       }
-      replacePendingAsset(asset);
+      replacePendingAsset(asset, origin);
     } catch (error) {
       if (mountedRef.current && processingOperationRef.current === processingOperation) {
         setProcessingMessage(processingErrorMessage(error));
@@ -203,7 +215,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     try {
       const frame = await captureVideoFrame(videoRef.current);
       if (!mountedRef.current) return;
-      await prepareSource(frame, 'camera-capture');
+      await prepareSource(frame, 'camera', 'camera-capture');
     } catch (error) {
       if (mountedRef.current) setProcessingMessage(processingErrorMessage(error));
     } finally {
@@ -218,7 +230,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     const crop: CropRect | undefined = preset === 'inset'
       ? { x: 0.03, y: 0.03, width: 0.94, height: 0.94 }
       : undefined;
-    void prepareSource(source, pendingAssetRef.current?.fileName, crop);
+    void prepareSource(source, pendingSourceRef.current || 'file', pendingAssetRef.current?.fileName, crop);
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>): void {
@@ -227,15 +239,17 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     if (!file) return;
     stopPreview();
     setProcessingMessage('');
-    void prepareSource(file, file.name);
+    void prepareSource(file, 'file', file.name);
   }
 
   function clearPendingAsset(): void {
+    const wasCameraPhoto = pendingSourceRef.current === 'camera';
     releaseCaptureAsset(pendingAsset);
     pendingAssetRef.current = null;
+    pendingSourceRef.current = null;
     setPendingAsset(null);
     setQualityOverride(false);
-    setProcessingMessage('已清除照片，可以重新拍攝或選擇檔案。');
+    setProcessingMessage(wasCameraPhoto ? '已清除照片，可以重新拍攝或上傳現有教材。' : '');
     onImageSelected(null);
   }
 
@@ -261,40 +275,20 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
       <p className="camera-status" role="status" aria-live="polite">{cameraMessage}</p>
       {processingMessage ? <p className="camera-status" role="status" aria-live="polite">{processingMessage}</p> : null}
 
-      <div className="camera-preview-wrap">
-        {hasCamera ? (
-          <video
-            ref={videoRef}
-            className="camera-preview"
-            playsInline
-            muted
-            aria-label="教材相機即時預覽"
-          />
-        ) : (
-          <div className="camera-placeholder" role="img" aria-label="尚未開始相機預覽">
-            <strong>尚未開始預覽</strong>
-            <span>也可以直接選擇預先拍好的教材圖片。</span>
-          </div>
-        )}
-      </div>
-
-      <div className="camera-controls" aria-label="相機控制">
+      <div className="camera-controls camera-preview-action" aria-label="教材來源操作">
         <button
           className="button"
           type="button"
-          disabled={disabled || cameraStatus === 'starting'}
-          onClick={() => void startPreview(selectedDeviceId || undefined)}
+          disabled={disabled}
+          onClick={() => {
+            if (hasCamera) stopPreview();
+            else void startPreview(selectedDeviceId || undefined);
+          }}
         >
-          {cameraStatus === 'starting' ? '啟動中……' : '開始預覽'}
-        </button>
-        <button className="button secondary" type="button" disabled={disabled || !hasCamera} onClick={stopPreview}>
-          停止預覽
-        </button>
-        <button className="button" type="button" disabled={disabled || cameraStatus !== 'ready' || processing} onClick={() => void capturePhoto()}>
-          拍照
+          {hasCamera ? '停止預覽' : '開始預覽'}
         </button>
         <label className="button secondary file-button">
-          選擇教材圖片
+          上傳現有教材
           <input
             ref={fileInputRef}
             type="file"
@@ -320,6 +314,31 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
           {devices.map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}
         </select>
       </div>
+
+      <div className="camera-preview-wrap">
+        {hasCamera ? (
+          <video
+            ref={videoRef}
+            className="camera-preview"
+            playsInline
+            muted
+            aria-label="教材相機即時預覽"
+          />
+        ) : (
+          <div className="camera-placeholder" role="img" aria-label="尚未開始相機預覽">
+            <strong>尚未開始預覽</strong>
+            <span>也可以直接上傳現有教材。</span>
+          </div>
+        )}
+      </div>
+
+      {cameraStatus === 'ready' ? (
+        <div className="camera-controls" aria-label="拍照操作">
+          <button className="button" type="button" disabled={disabled || processing} onClick={() => void capturePhoto()}>
+            拍照
+          </button>
+        </div>
+      ) : null}
 
       {cameraStatus === 'permission_denied' || cameraStatus === 'unavailable' || cameraStatus === 'error' ? (
         <p className="camera-fallback" role="alert">相機不可用不會阻擋流程；請使用上方的檔案上傳備援。</p>

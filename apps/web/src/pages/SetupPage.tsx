@@ -4,6 +4,7 @@ import { AppShell } from '../components/AppShell';
 import { ErrorState, LoadingState } from '../components/States';
 import type { SetupViewModel } from '../types/viewModels';
 import { navigateTo } from '../app/routing';
+import logoLarge from '../assets/logo_large.png';
 
 export function SetupPage({ adapter }: { readonly adapter: FrontendAdapter }) {
   const [view, setView] = useState<SetupViewModel | null>(null);
@@ -30,7 +31,7 @@ export function SetupPage({ adapter }: { readonly adapter: FrontendAdapter }) {
               {import.meta.env.VITE_DATA_MODE !== 'real' ? <button className="button secondary primary-large" type="button" onClick={() => navigateTo('/session/demo-session/student')}>體驗範例課程</button> : null}
             </div>
           </div>
-          <div className="hero-art" aria-hidden="true"><div className="hero-book"><span>聽</span><span>說</span><span>學</span></div><div className="sound-ring ring-one" /><div className="sound-ring ring-two" /></div>
+          <div className="hero-art"><div className="hero-logo" role="img" aria-label="hear tAIgi 產品標誌" style={{ maskImage: `url(${logoLarge})`, WebkitMaskImage: `url(${logoLarge})` }} /></div>
         </section>
         {!view && !error ? <LoadingState /> : null}
         {error ? <ErrorState error={error} onRetry={load} /> : null}

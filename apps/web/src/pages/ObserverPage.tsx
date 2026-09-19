@@ -163,6 +163,10 @@ export function ObserverPage({ adapter, sessionId }: { readonly adapter: Fronten
   return (
     <AppShell currentLabel="教師／家長模式">
       <main id="main-content" className="page observer-page" tabIndex={-1} aria-busy={busyAction !== null}>
+        <div className="observer-top-actions" aria-label="觀察操作">
+          <button className="button secondary" type="button" onClick={load} disabled={busyAction !== null}>重新整理觀察摘要</button>
+          <button className="button secondary" type="button" onClick={() => void switchToStudent()}>回到學生模式</button>
+        </div>
         <p className="eyebrow">STAGE 09 · 教師／家長觀察</p>
         <h1 data-page-title tabIndex={-1}>觀察與介入</h1>
         <p className="lead">在同一筆 server-side session 上查看教材、引用、回合與健康狀態；學生模式不會收到這些教師／家長欄位。</p>
@@ -290,12 +294,6 @@ export function ObserverPage({ adapter, sessionId }: { readonly adapter: Fronten
               </div>
             </section>
 
-            <section className="card mode-switch" aria-labelledby="observer-switch-heading">
-              <h2 id="observer-switch-heading">切換檢視</h2>
-              <p>切換前會停止 App 旁白；學生與教師／家長模式仍讀取同一筆 session，頁面標題會接收焦點。</p>
-              <button className="button" type="button" onClick={() => void switchToStudent()}>回到學生模式</button>
-              <button className="button secondary" type="button" onClick={load} disabled={busyAction !== null}>重新整理觀察摘要</button>
-            </section>
           </>
         ) : null}
       </main>

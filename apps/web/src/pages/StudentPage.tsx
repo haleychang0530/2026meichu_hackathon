@@ -414,6 +414,12 @@ export function StudentPage({
     navigateTo(`/session/${encodeURIComponent(sessionId)}/observer`);
   }
 
+  async function returnToCapture(): Promise<void> {
+    narration.stop();
+    await speechClient.cancel();
+    navigateTo('/capture');
+  }
+
   const currentView = view;
   const canBeginAnswer = Boolean(
     currentView
@@ -432,6 +438,10 @@ export function StudentPage({
   return (
     <AppShell currentLabel="學生模式">
       <main id="main-content" className="page" tabIndex={-1} aria-busy={Boolean(busyLabel)}>
+        <div className="student-top-actions" aria-label="課程導覽">
+          <button className="button secondary" type="button" onClick={() => void returnToCapture()}>返回上一頁</button>
+          <button className="button secondary" type="button" onClick={() => void switchToObserver()}>教師／家長模式</button>
+        </div>
         <p className="eyebrow">一起來聽台語、說台語</p>
         {!currentView && !error ? <LoadingState label="載入學生活動……" /> : null}
         {error ? <ErrorState error={error} onRetry={() => void refreshSnapshot()} /> : null}
@@ -514,11 +524,6 @@ export function StudentPage({
               </div>
             </section> : null}
 
-            <section className="card mode-switch" aria-labelledby="switch-heading">
-              <h2 id="switch-heading">切換檢視</h2>
-              <p>需要協助時，可以請教師或家長查看課程進度。</p>
-              <button className="button secondary" type="button" onClick={() => void switchToObserver()}>開啟教師／家長模式</button>
-            </section>
           </>
         ) : null}
       </main>

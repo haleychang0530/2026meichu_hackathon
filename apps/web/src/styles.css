@@ -217,17 +217,12 @@ h1 { letter-spacing: -.025em; }
 .site-footer summary { cursor: pointer; }
 
 .home-page { width: min(100% - 2rem, 78rem); }
-.home-hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(17rem, .8fr); gap: clamp(2rem, 6vw, 5rem); align-items: center; min-height: 30rem; }
+.home-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(20rem, 1fr); gap: clamp(1rem, 3vw, 2.5rem); align-items: center; min-height: 30rem; }
 .home-hero h1 { max-width: 16ch; font-size: clamp(2.6rem, 5vw, 4.7rem); line-height: 1.16; }
 .home-hero .lead { max-width: 35rem; }
 .home-hero .button-row { margin-top: 2rem; }
-.hero-art { position: relative; display: grid; place-items: center; min-height: 24rem; isolation: isolate; }
-.hero-art::before { content: ''; position: absolute; z-index: -2; width: min(100%, 24rem); aspect-ratio: 1; border-radius: 45% 55% 50% 45%; background: #ffde8d; transform: rotate(-12deg); }
-.hero-book { position: relative; display: flex; gap: .7rem; align-items: center; justify-content: center; width: min(70%, 18rem); aspect-ratio: 4 / 5; padding: 1.2rem; border: .55rem solid #2a210f; border-radius: 1.3rem; background: #fff; box-shadow: 1rem 1rem 0 #135c5a; transform: rotate(7deg); }
-.hero-book span { display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 50%; color: #2a210f; background: #ffaf11; font-size: 1.5rem; font-weight: 900; }
-.hero-book span:nth-child(2) { transform: translateY(-1.5rem); }
-.sound-ring { position: absolute; z-index: -1; width: 21rem; height: 21rem; border: 3px solid #135c5a; border-radius: 50%; opacity: .35; }
-.ring-two { width: 25rem; height: 25rem; opacity: .18; }
+.hero-art { display: grid; place-items: center; width: 100%; }
+.hero-logo { width: 100%; max-width: 34rem; aspect-ratio: 1; background: #c08000; mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat; }
 .home-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0 2rem; }
 .step-card { padding: 1.5rem; border: 1px solid #e9d9b8; border-radius: 1.2rem; background: #fff; }
 .step-card h2 { margin: .8rem 0 .4rem; font-size: 1.35rem; }
@@ -243,11 +238,8 @@ h1 { letter-spacing: -.025em; }
 
 @media (max-width: 760px) {
   .home-hero { grid-template-columns: 1fr; min-height: 0; }
-  .hero-art { min-height: 16rem; order: -1; }
-  .hero-book { width: 9rem; border-width: .35rem; }
-  .hero-book span { width: 2rem; height: 2rem; font-size: 1rem; }
-  .sound-ring { width: 15rem; height: 15rem; }
-  .ring-two { width: 17rem; height: 17rem; }
+  .hero-art { order: -1; }
+  .hero-logo { width: min(70%, 17rem); }
   .home-steps { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
@@ -259,7 +251,6 @@ h1 { letter-spacing: -.025em; }
 }
 @media (forced-colors: active) {
   .button, .card, .step-card, .site-header, .prompt { border: 2px solid CanvasText; }
-  .hero-art { display: none; }
 }
 
 /* Filled UI surfaces share the updated peach color; white cards stay white. */
@@ -285,8 +276,6 @@ h1 { letter-spacing: -.025em; }
 .teacher-only-note,
 .narration-panel,
 .header-context,
-.home-hero .hero-art::before,
-.hero-book span,
 .skip-link { background: #ffcc7a; color: #2a210f; }
 
 /* Clickable content controls use a flat fill and a dark underline. */
@@ -350,4 +339,64 @@ h1 { letter-spacing: -.025em; }
   .empty-state, .live-message) {
   border-left: .35rem solid #c08000;
   border-radius: 0;
+}
+.capture-page .capture-home-button {
+  min-height: 2.75rem;
+  padding: .35rem .7rem;
+  border: 1px solid #c08000;
+  border-radius: 0;
+  color: #2a210f;
+  background: #fff;
+  box-shadow: 0 3px 12px rgb(42 33 15 / 18%);
+}
+.capture-page .capture-home-button:focus-visible { box-shadow: 0 0 0 5px #ffaf11; }
+@media (forced-colors: active) {
+  .capture-page .capture-home-button { border: 1px solid CanvasText; }
+}
+
+.student-shell .student-card { border-top: 1px solid #ffaf11; }
+.student-shell :is(.student-status-grid span, .prompt, .live-message,
+  .fallback-message, .speech-status, .loading-state, .empty-state, .progress-track) {
+  background: #ffe8c4;
+}
+.student-shell :is(.live-message, .fallback-message, .speech-status) {
+  border-left: .35rem solid #c08000;
+}
+.capture-top-actions,
+.student-top-actions,
+.observer-top-actions {
+  position: sticky;
+  z-index: 5;
+  top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+.student-top-actions .button.secondary,
+.observer-top-actions .button.secondary {
+  min-height: 2.75rem;
+  padding: .35rem .7rem;
+  border: 1px solid #c08000;
+  border-radius: 0;
+  color: #2a210f;
+  background: #fff;
+  box-shadow: 0 3px 12px rgb(42 33 15 / 12%);
+}
+.student-top-actions .button.secondary:focus-visible,
+.observer-top-actions .button.secondary:focus-visible { box-shadow: 0 0 0 5px #ffaf11; }
+@media (forced-colors: active) {
+  .student-top-actions .button.secondary,
+  .observer-top-actions .button.secondary { border: 1px solid CanvasText; }
+}
+
+.header-navigation { display: grid; justify-items: end; gap: .35rem; }
+.observer-page :is(.live-message, .empty-state, .teacher-only-note,
+  .turn-item, .loading-state, .health-check, thead th) {
+  background: #ffe8c4;
+}
+@media (max-width: 700px) {
+  .header-navigation { width: 100%; justify-items: stretch; }
+  .observer-top-actions, .student-top-actions { justify-content: flex-start; }
 }
