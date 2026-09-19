@@ -5,6 +5,8 @@ param(
     [ValidateSet('mock', 'cpu')]
     [string]$SpeechProfile = 'mock',
     [string]$Mi300BaseUrl = $env:VLM_BASE_URL,
+    [string]$AsrModelPath = $env:BREEZE_ASR_MODEL_PATH,
+    [string]$TtsModelPath = $env:MMS_TTS_MODEL_PATH,
     [switch]$NoBrowser,
     [switch]$SkipRagReindex,
     [switch]$SkipHealthCheck
@@ -46,6 +48,31 @@ function Resolve-ServiceOrigin([string]$Value, [string]$Name) {
         throw "$Name 不得包含 credentials、path、query 或 fragment：$candidate"
     }
     return $candidate
+}
+
+function Resolve-ModelPath([string]$Path, [string]$Description) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        throw "$Description 不存在或不是資料夾：$Path"
+    }
+    return (Resolve-Path -LiteralPath $Path).Path
+}
+
+function Find-HuggingFaceSnapshot([string]$CacheKey, [string]$Revision) {
+    $roots = [System.Collections.Generic.List[string]]::new()
+    if ($env:HUGGINGFACE_HUB_CACHE) { $roots.Add($env:HUGGINGFACE_HUB_CACHE) }
+    if ($env:HF_HOME) { $roots.Add((Join-Path $env:HF_HOME 'hub')) }
+    if ($env:TRANSFORMERS_CACHE) { $roots.Add($env:TRANSFORMERS_CACHE) }
+    if ($env:USERPROFILE) {
+        $roots.Add((Join-Path $env:USERPROFILE '.cache\huggingface\hub'))
+    }
+    foreach ($root in ($roots | Select-Object -Unique)) {
+        $snapshot = Join-Path (Join-Path (Join-Path $root $CacheKey) 'snapshots') $Revision
+        if (Test-Path -LiteralPath $snapshot -PathType Container) {
+            return (Resolve-Path -LiteralPath $snapshot).Path
+        }
+    }
+    return $null
 }
 
 function Test-PidAlive([int]$ProcessId) {
@@ -111,6 +138,33 @@ $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if (-not $npm) { throw '找不到 npm.cmd，請先安裝 Node.js。' }
 
 New-Item -ItemType Directory -Force -Path $runtimeRoot, $logRoot, $coreDataRoot, $speechCacheRoot | Out-Null
+
+if ($SpeechProfile -eq 'cpu') {
+    $AsrModelPath = Resolve-ModelPath $AsrModelPath 'Breeze ASR model'
+    if (-not $AsrModelPath) {
+        $AsrModelPath = Find-HuggingFaceSnapshot `
+            'models--paulpengtw--faster-whisper-Breeze-ASR-26' `
+            '7bf9dadb2f7f2bb418e82b3f074549fda82f7f47'
+    }
+    if (-not $AsrModelPath) {
+        throw '找不到固定 revision 的 Breeze ASR 本機模型；請先執行 scripts\release\Provision-SpeechModels.ps1 -Model asr，或使用 -AsrModelPath 指定 snapshot 資料夾。'
+    }
+
+    $TtsModelPath = Resolve-ModelPath $TtsModelPath 'MMS TTS model'
+    if (-not $TtsModelPath) {
+        $TtsModelPath = Find-HuggingFaceSnapshot `
+            'models--facebook--mms-tts-nan' `
+            'f28526a6caaf9dc55e030da83008c933f6a1978b'
+    }
+    if (-not $TtsModelPath) {
+        throw '找不到固定 revision 的 MMS TTS 本機模型；請先執行 scripts\release\Provision-SpeechModels.ps1 -Model tts，或使用 -TtsModelPath 指定 snapshot 資料夾。'
+    }
+
+    & $speechPython -c 'import faster_whisper, torch, transformers' 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Speech CPU runtime 不完整；請執行 services\speech-local\.venv\Scripts\python.exe -m pip install -r services\speech-local\requirements.txt。'
+    }
+}
 if (Test-Path -LiteralPath $statePath) {
     $oldState = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
     $live = @($oldState.processes | Where-Object { Test-PidAlive ([int]$_.pid) })
@@ -145,6 +199,8 @@ $speechEnvironment = @{
     MMS_TTS_LOCAL_FILES_ONLY = if ($SpeechProfile -eq 'cpu') { '1' } else { '0' }
     MMS_TTS_CACHE_DIR = $speechCacheRoot
     MMS_TTS_FALLBACK_MANIFEST = (Join-Path $repoRoot 'services\speech-local\fallback\prerecorded_manifest.json')
+    BREEZE_ASR_MODEL_PATH = if ($AsrModelPath) { $AsrModelPath } else { '' }
+    MMS_TTS_MODEL_PATH = if ($TtsModelPath) { $TtsModelPath } else { '' }
     PYTHONUNBUFFERED = '1'
 }
 $webEnvironment = @{
@@ -170,7 +226,14 @@ try {
         '--tts-cache-dir', $speechCacheRoot,
         '--tts-fallback-manifest', $speechEnvironment.MMS_TTS_FALLBACK_MANIFEST
     )
-    if ($SpeechProfile -eq 'cpu') { $speechArgs += @('--asr-local-files-only', '--tts-local-files-only') }
+    if ($SpeechProfile -eq 'cpu') {
+        $speechArgs += @(
+            '--asr-model-path', $AsrModelPath,
+            '--tts-model-path', $TtsModelPath,
+            '--asr-local-files-only',
+            '--tts-local-files-only'
+        )
+    }
     $speechExecutable = if ($SpeechProfile -eq 'cpu') { $speechPython } else { (Get-Command python.exe -ErrorAction Stop).Source }
     $processes.Add((Start-ManagedProcess -Role 'speech' -FilePath $speechExecutable -ArgumentList $speechArgs -WorkingDirectory $speechDir -Environment $speechEnvironment))
 

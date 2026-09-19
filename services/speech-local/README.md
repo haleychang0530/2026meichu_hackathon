@@ -44,6 +44,20 @@ unless `--asr-model-path` points at an already prepared local model:
 `BREEZE_ASR_LOCAL_FILES_ONLY`, and `BREEZE_ASR_CPU_THREADS` are available as
 environment overrides. Model files and local runtime output are not tracked.
 
+For a reproducible local provision of both pinned snapshots, run from the
+repository root while network access is available:
+
+```powershell
+pwsh -File .\scripts\release\Provision-SpeechModels.ps1 -Model all
+```
+
+The release launcher discovers those snapshots automatically. Explicit paths
+can be supplied with `Start-Demo.ps1 -AsrModelPath ... -TtsModelPath ...` when
+the Hugging Face cache is on a different volume. The launcher checks the CPU
+runtime and both model directories before starting the real speech gateway, so
+an offline machine fails with an actionable provisioning message instead of a
+generic worker failure.
+
 Start the pinned MMS-TTS nan backend explicitly after installing the Torch and
 Transformers additions in `requirements.txt`:
 
