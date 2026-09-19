@@ -76,6 +76,15 @@ class SessionService:
                 status_code=404,
                 fallback="manual_review",
             )
+        if lesson.review_status != "approved":
+            raise AppError(
+                ErrorCode.LESSON_NOT_APPROVED,
+                "lesson must be approved before a student session can start",
+                status_code=409,
+                retryable=True,
+                fallback="manual_review",
+                details={"review_status": lesson.review_status},
+            )
         initial = self.teaching_agent.start_session(lesson)
         session_id = f"session_{uuid.uuid4().hex[:16]}"
         view = SessionView(
@@ -201,6 +210,15 @@ class SessionService:
             )
 
         row, lesson = await self._session_and_lesson(session_id)
+        if row.state != "LISTENING" or row.phase in {"introduction", "demonstration"}:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                "session is not ready to accept an answer",
+                status_code=409,
+                retryable=True,
+                fallback="retry_later",
+                details={"state": row.state, "phase": row.phase},
+            )
         mastery_rows = await asyncio.to_thread(self.database.get_mastery, session_id)
         started = time.perf_counter()
         decision = await self.teaching_agent.evaluate_turn(

@@ -85,17 +85,16 @@ class TeachingAgent:
         *,
         hinted_phase: str | None = None,
     ) -> str:
-        vocabulary = lesson.vocabulary
-        first = vocabulary[0] if vocabulary else None
-        concepts = [item.hanji for item in vocabulary[:3]]
         if phase == "introduction":
             return f"今天我們來學習「{lesson.topic}」。{lesson.scene}"
         if phase == "demonstration":
-            if first is None:
-                return "先聽一次示範，等一下請跟著說。"
-            return f"先聽示範：「{first.tailo}」，意思是「{first.meaning}」。請準備跟讀。"
+            return (
+                "我先完整朗讀一次原始課文，請先聽，不用回答：\n"
+                f"{lesson.source_text}\n"
+                "聽完後，我們再一起跟讀。"
+            )
         if phase == "read_aloud":
-            return f"請跟讀這句：{lesson.source_text}"
+            return f"現在請跟讀完整原始課文：\n{lesson.source_text}"
         if phase == "comprehension":
             return f"請回答活動：{lesson.accessible_activity}"
         if phase == "hint":
@@ -131,8 +130,19 @@ class TeachingAgent:
         return "最後提示：請用你聽到的關鍵詞再回答一次。"
 
     def prompt_for_session(self, lesson: Lesson, row: SessionRow) -> str | None:
-        """Return a student prompt that can repair older persisted hint states."""
+        """Return a student prompt that can repair older persisted session states."""
 
+        if row.phase in {"demonstration", "read_aloud"}:
+            # Older sessions may have persisted the pre-source-read prompt.
+            # Regenerate these phases from Lesson.source_text so a resumed
+            # session always exposes the complete, validated lesson text.
+            return self.prompt_for(
+                lesson,
+                row.phase,
+                row.hint_level,
+                row.language_ratio_zh,
+                {},
+            )
         if row.phase != "hint":
             return row.current_prompt
         return self.prompt_for(
@@ -194,6 +204,12 @@ class TeachingAgent:
             if phase == "complete":
                 state = "COMPLETE"
                 feedback = "這一課已完成。"
+            elif phase in {"introduction", "demonstration"}:
+                # The source-text demonstration must finish before the
+                # student can enter follow-read or submit a transcript.
+                paused = False
+                state = "SPEAKING"
+                feedback = "請先聽完完整課文，再開始跟讀。"
             else:
                 paused = False
                 state = "LISTENING"
@@ -202,6 +218,10 @@ class TeachingAgent:
             if phase == "complete":
                 state = "COMPLETE"
                 feedback = "這一課已完成。"
+            elif phase in {"introduction", "demonstration"}:
+                paused = False
+                state = "SPEAKING"
+                feedback = "請先完成完整課文聆聽，再使用提示。"
             else:
                 hint_level = min(3, row.hint_level + 1)
                 phase = "hint"
