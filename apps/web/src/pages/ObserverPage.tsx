@@ -163,7 +163,7 @@ export function ObserverPage({ adapter, sessionId }: { readonly adapter: Fronten
   return (
     <AppShell currentLabel="教師／家長模式">
       <main id="main-content" className="page observer-page" tabIndex={-1} aria-busy={busyAction !== null}>
-        <div className="observer-top-actions" aria-label="觀察操作">
+        <div className="observer-top-actions" role="group" aria-label="觀察操作">
           <button className="button secondary" type="button" onClick={load} disabled={busyAction !== null}>重新整理觀察摘要</button>
           <button className="button secondary" type="button" onClick={() => void switchToStudent()}>回到學生模式</button>
         </div>

@@ -24,11 +24,12 @@ export function SetupPage({ adapter }: { readonly adapter: FrontendAdapter }) {
       <main id="main-content" className="page home-page" tabIndex={-1}>
         <section className="home-hero" aria-labelledby="home-heading">
           <div className="hero-copy">
-            <p className="eyebrow">一頁教材，一段有聲的學習旅程</p>
-            <h1 id="home-heading" data-page-title tabIndex={-1}>讓一頁台語教材，<br />變成可以聽、可以說的課程</h1>
-            <p className="lead">把課文、圖片和活動轉成適合聽與說的教學，讓每個孩子都能用自己的節奏學習母語。</p>
+            {/* <p className="eyebrow">一頁教材，一段有聲的學習旅程</p> */}
+            <h1 id="home-heading" data-page-title tabIndex={-1}>讓世界，多一種被理解的方式</h1>
+            {/*<p className="lead">把課文、圖片和活動轉成適合聽與說的教學，讓每個孩子都能用自己的節奏學習母語。</p> */}
+            <p className="lead">一頁台語教材，變成可以聽、可以說的課程</p>
             <div className="button-row">
-              <button className="button primary-large" type="button" onClick={() => navigateTo(view?.nextRoute || '/capture')}>準備一頁教材 <span aria-hidden="true">→</span></button>
+              <button className="button primary-large" type="button" onClick={() => navigateTo(view?.nextRoute || '/capture')}>準備一頁教材 <span className="button-arrow" aria-hidden="true" /></button>
               {import.meta.env.VITE_DATA_MODE !== 'real' ? <button className="button secondary primary-large" type="button" onClick={() => navigateTo('/session/demo-session/student')}>體驗範例課程</button> : null}
             </div>
           </div>

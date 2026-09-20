@@ -33,6 +33,20 @@ ASR/TTS warmup，最後開啟 `http://127.0.0.1:5173/health`。mock frontend 會
 明確標示「Mock adapter」，不把模擬狀態冒充 live MI300；同時可在產生的
 `health.json` 看到 Core `/api/health` 的 `vlm-mi300: degraded / fixture`。
 
+Ubuntu 24.04 可直接使用原生 Bash 啟動器，不需 PowerShell：
+
+```bash
+scripts/release/setup-linux.sh
+scripts/release/start-demo-linux.sh --mode mock --speech-profile mock
+```
+
+停止服務使用 `scripts/release/stop-demo-linux.sh`。真實 CPU 語音環境依序執行
+`scripts/release/setup-linux.sh --with-cpu-speech` 與
+`scripts/release/provision-speech-models-linux.sh`，再以 `--speech-profile cpu` 啟動。
+Linux runtime、logs、RAG index、模型 cache 與可攜式 Node toolchain 都位於 Git
+忽略目錄。Linux process state 會記錄 kernel boot ID；若電腦斷電或重新啟動，
+啟動器會忽略舊 PID，停止器也不會對新 boot 中碰巧重複使用的 PID 發送 signal。
+
 CPU-only profile（不啟用 NPU）如下：
 
 ```powershell

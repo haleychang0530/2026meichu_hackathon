@@ -49,6 +49,9 @@ class AppTests(unittest.IsolatedAsyncioTestCase):
             data_dir=Path(self.temporary.name),
             fixture_path=FIXTURE_PATH,
             speech_base_url=None,
+            # App tests for safety/review behavior exercise the enabled path;
+            # the production/default inspection profile is disabled.
+            vlm_output_validation_enabled=True,
         )
 
     async def asyncTearDown(self) -> None:

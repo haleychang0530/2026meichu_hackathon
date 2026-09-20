@@ -277,7 +277,13 @@ def judge_turn(core_url: str, lesson_id: str, transcript: str) -> str:
     return str(result.get("result", "unknown"))
 
 
-def speech_cycle(speech_url: str, utterance: dict[str, object], recording: bytes) -> str:
+def speech_cycle(
+    speech_url: str,
+    utterance: dict[str, object],
+    recording: bytes,
+    *,
+    speech_profile: str = "mock",
+) -> str:
     tts_payload = {"schema_version": "0.1.0", "utterance": utterance, "format": "wav"}
     status, _headers, tts_audio = http_call(
         "POST",
@@ -288,11 +294,15 @@ def speech_cycle(speech_url: str, utterance: dict[str, object], recording: bytes
     )
     if status >= 400 or not tts_audio.startswith(b"RIFF"):
         raise GateError(f"tts_failed:{status}")
+    # The CPU profile has no browser Web Speech adapter for zh-TW scaffolding.
+    # Feed the in-memory nan-TW TTS result back into ASR so the release gate
+    # exercises both real local workers without persisting an audio artifact.
+    asr_recording = tts_audio if speech_profile == "cpu" else recording
     boundary = f"stage10-audio-{uuid.uuid4().hex}"
     status, _headers, body = http_call(
         "POST",
         f"{speech_url}/v1/audio/transcriptions",
-        body=multipart_audio(recording, boundary=boundary),
+        body=multipart_audio(asr_recording, boundary=boundary),
         content_type=f"multipart/form-data; boundary={boundary}",
         headers={"X-Request-ID": str(uuid.uuid4())},
     )
@@ -312,6 +322,19 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     utterance = json.loads(UTTERANCE_PATH.read_text(encoding="utf-8"))
     if not isinstance(utterance, dict):
         raise GateError("utterance_fixture_invalid")
+    if args.speech_profile == "cpu":
+        # Chinese UI narration is intentionally routed to browser Web Speech;
+        # the local MMS worker may synthesize only the approved nan-TW segment.
+        segments = utterance.get("segments")
+        nan_segments = [
+            segment for segment in segments
+            if isinstance(segment, dict) and segment.get("lang") == "nan-TW"
+        ] if isinstance(segments, list) else []
+        if not nan_segments:
+            raise GateError("cpu_utterance_has_no_nan_segment")
+        utterance = dict(utterance)
+        utterance["segments"] = nan_segments
+        utterance["tts_provider"] = "mms-tts-nan"
     recording = make_recording_wav()
     warmup_status, _headers, _body = http_call(
         "POST",
@@ -330,7 +353,12 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     for index in range(args.rounds):
         cycle_start = time.perf_counter()
         try:
-            transcript = speech_cycle(args.speech_url, utterance, recording)
+            transcript = speech_cycle(
+                args.speech_url,
+                utterance,
+                recording,
+                speech_profile=args.speech_profile,
+            )
             if args.skip_core:
                 judge = "local_nonempty_transcript"
             else:

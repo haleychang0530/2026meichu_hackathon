@@ -40,6 +40,18 @@
     {"id":"golden-035","hanji":"車","tailo":"tshia","poj":"chhia","zh_gloss":"車輛","example":"車來矣。","status":"verified","review_reasons":[]},
     {"id":"golden-036","hanji":"轉","tailo":"tńg","poj":"tńg","zh_gloss":"返回","example":"我欲轉去厝。","status":"verified","review_reasons":[]},
     {"id":"golden-037","hanji":"行","tailo":"kiânn","poj":"kiânn","zh_gloss":"走路","example":"咱行去市場。","status":"needs_review","review_reasons":["multiple_pronunciations","literary_colloquial_reading"]},
-    {"id":"golden-038","hanji":"行","tailo":"hâng","poj":"hâng","zh_gloss":"行業、排行語素","example":"這个字佇無仝語境有無仝讀音。","status":"needs_review","review_reasons":["multiple_pronunciations","literary_colloquial_reading"]}
+    {"id":"golden-038","hanji":"行","tailo":"hâng","poj":"hâng","zh_gloss":"行業、排行語素","example":"這个字佇無仝語境有無仝讀音。","status":"needs_review","review_reasons":["multiple_pronunciations","literary_colloquial_reading"]},
+    {"id":"golden-039","hanji":"第1課 來去踅夜市","tailo":"Tē-it khò, lâi-khì se̍h iā-tshī","poj":"tē-it khò lâi-khì se̍h iā-chhī","zh_gloss":"第一課：去逛夜市","example":"第1課 來去踅夜市","status":"verified","review_reasons":[]},
+    {"id":"golden-040","hanji":"烘番麥","tailo":"hang huan-be̍h","poj":"hang hoan-be̍h","zh_gloss":"爆米花","example":"烘番麥","status":"verified","review_reasons":[]},
+    {"id":"golden-041","hanji":"滷味","tailo":"lóo-bī","poj":"ló͘-bī","zh_gloss":"滷味","example":"滷味","status":"verified","review_reasons":[]},
+    {"id":"golden-042","hanji":"臭豆腐","tailo":"tshàu-tāu-hū","poj":"chhàu-tāu-hū","zh_gloss":"臭豆腐","example":"臭豆腐","status":"verified","review_reasons":[]},
+    {"id":"golden-043","hanji":"蚵仔煎","tailo":"ô-á-tsian","poj":"ô-á-chian","zh_gloss":"蚵仔煎","example":"蚵仔煎","status":"verified","review_reasons":[]},
+    {"id":"golden-044","hanji":"牛排","tailo":"gû-pâi","poj":"gû-pâi","zh_gloss":"牛排","example":"牛排","status":"verified","review_reasons":[]},
+    {"id":"golden-045","hanji":"豆花","tailo":"tāu-hue","poj":"tāu-hoe","zh_gloss":"豆花","example":"豆花","status":"verified","review_reasons":[]},
+    {"id":"golden-046","hanji":"雞卵糕","tailo":"ke-nn̄g-ko","poj":"ke-nn̄g-ko","zh_gloss":"雞蛋糕","example":"雞卵糕","status":"verified","review_reasons":[]},
+    {"id":"golden-047","hanji":"番薯球","tailo":"han-tsî-kiû","poj":"han-chî-kiû","zh_gloss":"地瓜球","example":"番薯球","status":"verified","review_reasons":[]},
+    {"id":"golden-048","hanji":"夜市美食 講看覓，你上愛佗一項？","tailo":"Iā-tshī bí-si̍t, kóng khuànn-māi, lí siōng ài tó tsi̍t hāng?","poj":"iā-chhī bí-si̍t kóng khoànn-māi lí siōng ài tó chi̍t hāng","zh_gloss":"夜市美食，說說看，你最喜歡哪一項？","example":"夜市美食 講看覓，你上愛佗一項？","status":"verified","review_reasons":[]},
+    {"id":"golden-049","hanji":"鹹酥雞芳芳酥酥閣紲喙，毋過嘛著愛 撐節，無會造成身體的負擔。","tailo":"Kiâm-soo-ke phang-phang soo-soo koh suà-tshuì, m̄-koh mā tio̍h ài tsún-tsat, bô ē tsō-sîng sin-thé ê hū-tam.","poj":"kiâm-so͘-ke phang-phang so͘-so͘ koh soà-chhùi m̄-koh mā tio̍h ài chún-chat bô ē chō-sêng sin-thé ê hū-tam","zh_gloss":"鹹酥雞香香酥酥又涮嘴，不過也要節制，才不會造成身體的負擔。","example":"鹹酥雞芳芳酥酥閣紲喙，毋過嘛著愛 撐節，無會造成身體的負擔。","status":"verified","review_reasons":[]},
+    {"id":"golden-050","hanji":"鹹酥雞","tailo":"kiâm-soo-ke","poj":"kiâm-so͘-ke","zh_gloss":"鹹酥雞","example":"鹹酥雞芳芳酥酥閣紲喙，毋過嘛著愛 撐節，無會造成身體的負擔。","status":"verified","review_reasons":[]}
   ]
 }

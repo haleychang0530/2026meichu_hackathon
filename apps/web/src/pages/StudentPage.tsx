@@ -489,7 +489,7 @@ export function StudentPage({
   return (
     <AppShell currentLabel="學生模式">
       <main id="main-content" className="page student-page" tabIndex={-1} aria-busy={Boolean(busyLabel)}>
-        <div className="student-top-actions" aria-label="課程導覽">
+        <div className="student-top-actions" role="group" aria-label="課程操作">
           <button className="button secondary" type="button" onClick={() => void returnToCapture()}>返回上一頁</button>
           <button className="button secondary" type="button" onClick={() => void switchToObserver()}>教師／家長模式</button>
         </div>
@@ -507,7 +507,7 @@ export function StudentPage({
         ) : null}
         {currentView ? (
           <>
-            <header className="student-page-intro" aria-labelledby="student-heading">
+            <header className="student-page-intro">
               <p className="eyebrow">學生學習</p>
               <h1 id="student-heading" data-page-title tabIndex={-1}>{studentHeading}</h1>
               {showSeparatePhase ? <p className="phase-label">目前階段：{phaseLabels[currentView.phase]}</p> : null}
@@ -526,7 +526,7 @@ export function StudentPage({
                   {currentView.feedback || '本課完成。'}
                 </p>
               ) : (
-                <div className="button-grid" aria-label="目前可用操作">
+                <div className="button-grid" role="group" aria-label="目前可用操作">
                   <button className="button" type="button" disabled={Boolean(busyLabel) || speechState === 'SPEAKING'} onClick={() => void playPrompt()}>
                     聽完整課文
                   </button>

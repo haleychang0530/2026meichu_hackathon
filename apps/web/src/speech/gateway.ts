@@ -140,6 +140,12 @@ function segmentUtterance(
   };
 }
 
+function hasMmsPojCitation(segment: SpeechUtterance['segments'][number]): boolean {
+  return segment.lang === 'nan-TW'
+    && typeof segment.poj_citation === 'string'
+    && segment.poj_citation.trim().length > 0;
+}
+
 export class HttpSpeechGatewayClient implements SpeechGatewayClient {
   readonly mode: SpeechMode = 'real';
   private readonly baseUrl: string;
@@ -198,8 +204,7 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
         await this.playViaGateway(utterance);
       } else if (
         utterance.segments.length === 1
-        && (utterance.segments[0].lang === 'zh-TW'
-          || utterance.segments[0].pronunciation_status === 'needs_review')
+        && utterance.segments[0].lang === 'zh-TW'
         && browserSpeechSynthesis()
       ) {
         await this.playInBrowser(utterance.segments[0]);
@@ -214,7 +219,8 @@ export class HttpSpeechGatewayClient implements SpeechGatewayClient {
         // intentional: no two speech sources can overlap.
         for (const [index, segment] of utterance.segments.entries()) {
           if (
-            (segment.lang === 'zh-TW' || segment.pronunciation_status === 'needs_review')
+            (segment.lang === 'zh-TW'
+              || (segment.pronunciation_status === 'needs_review' && !hasMmsPojCitation(segment)))
             && browserSpeechSynthesis()
           ) {
             await this.playInBrowser(segment);

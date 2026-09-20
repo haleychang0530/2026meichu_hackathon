@@ -51,9 +51,10 @@ class LanguageNormalizationTests(unittest.TestCase):
         )
         segment = result.utterance.segments[0]
         self.assertEqual(segment.tailo_citation, "khì")
-        self.assertIsNone(segment.poj_citation)
+        self.assertEqual(segment.poj_citation, "khì")
         self.assertEqual(segment.source, "textbook")
         self.assertEqual(segment.pronunciation_status, "needs_review")
+        self.assertEqual(result.utterance.tts_provider, "mms-tts-nan")
         self.assertIn("textbook_dictionary_conflict", result.audit.needs_review_reasons)
 
     def test_oov_and_multiple_readings_do_not_emit_tts_input(self) -> None:
@@ -61,11 +62,15 @@ class LanguageNormalizationTests(unittest.TestCase):
         ambiguous = self.normalizer.normalize(text="行", lang="nan-TW")
         self.assertEqual(oov.audit.needs_review_reasons, ("oov",))
         self.assertGreaterEqual(len(ambiguous.audit.tailo_candidates), 2)
-        for result in (oov, ambiguous):
-            segment = result.utterance.segments[0]
-            self.assertEqual(segment.pronunciation_status, "needs_review")
-            self.assertIsNone(segment.poj_citation)
-            self.assertIsNone(result.utterance.tts_provider)
+        oov_segment = oov.utterance.segments[0]
+        self.assertEqual(oov_segment.pronunciation_status, "needs_review")
+        self.assertIsNone(oov_segment.poj_citation)
+        self.assertIsNone(oov.utterance.tts_provider)
+
+        ambiguous_segment = ambiguous.utterance.segments[0]
+        self.assertEqual(ambiguous_segment.pronunciation_status, "needs_review")
+        self.assertEqual(ambiguous_segment.poj_citation, "kiânn")
+        self.assertEqual(ambiguous.utterance.tts_provider, "mms-tts-nan")
 
     def test_unsupported_mms_character_requires_review(self) -> None:
         result = self.normalizer.normalize(

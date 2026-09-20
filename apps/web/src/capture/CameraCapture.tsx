@@ -65,7 +65,6 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
   const [cameraMessage, setCameraMessage] = useState('按下「開始預覽」後，瀏覽器才會申請相機權限。');
   const [pendingAsset, setPendingAsset] = useState<CaptureAsset | null>(null);
-  const [qualityOverride, setQualityOverride] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
   const [cropPreset, setCropPreset] = useState<'full' | 'inset'>('full');
@@ -171,7 +170,6 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     pendingAssetRef.current = null;
     pendingSourceRef.current = null;
     setPendingAsset(null);
-    setQualityOverride(false);
     setProcessingMessage('分析工作已結束，預覽影像已清除；如需再試請重新拍攝或上傳現有教材。');
     onImageSelected(null);
   }, [onImageSelected, resetToken, stopPreview]);
@@ -181,7 +179,6 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     pendingAssetRef.current = asset;
     pendingSourceRef.current = source;
     setPendingAsset(asset);
-    setQualityOverride(false);
     setProcessingMessage('');
     onImageSelected(null);
   }
@@ -249,22 +246,20 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     pendingAssetRef.current = null;
     pendingSourceRef.current = null;
     setPendingAsset(null);
-    setQualityOverride(false);
     setProcessingMessage('已清除照片，可以重新拍攝或上傳現有教材。');
     onImageSelected(null);
   }
 
   function acceptPendingAsset(): void {
     if (!pendingAsset || pendingAsset.quality.status === 'rejected') return;
-    if (pendingAsset.quality.status === 'warning' && !qualityOverride) return;
     onImageSelected(pendingAsset);
     setProcessingMessage('照片已準備好；按下「開始分析教材」開始教材理解。');
   }
 
   const hasCamera = cameraStatus === 'ready' || cameraStatus === 'starting';
+  const hasQualityWarning = pendingAsset?.quality.status === 'warning';
   const canAccept = pendingAsset
-    && pendingAsset.quality.status !== 'rejected'
-    && (pendingAsset.quality.status === 'good' || qualityOverride);
+    && pendingAsset.quality.status !== 'rejected';
 
   return (
     <section className="card camera-card" aria-labelledby="camera-heading">
@@ -276,7 +271,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
       <p className="camera-status" role="status" aria-live="polite">{cameraMessage}</p>
       {processingMessage ? <p className="camera-status" role="status" aria-live="polite">{processingMessage}</p> : null}
 
-      <div className="camera-controls camera-preview-action" aria-label="教材來源操作">
+      <div className="camera-controls camera-preview-action" role="group" aria-label="教材來源操作">
         <button
           className="button"
           type="button"
@@ -318,7 +313,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
       </div>
 
       {cameraStatus === 'ready' ? (
-        <div className="camera-controls" aria-label="拍照操作">
+        <div className="camera-controls" role="group" aria-label="拍照操作">
           <button className="button" type="button" disabled={disabled || processing} onClick={() => void capturePhoto()}>
             拍照
           </button>
@@ -366,11 +361,10 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
               ) : <p>方向已校正，EXIF 已移除，且圖片已限制在可上傳大小內。</p>}
             </div>
           </div>
-          {pendingAsset.quality.status === 'warning' ? (
-            <label className="quality-override">
-              <input type="checkbox" checked={qualityOverride} onChange={(event) => setQualityOverride(event.target.checked)} />
-              我已確認文字仍可閱讀，仍要使用這張照片
-            </label>
+          {hasQualityWarning ? (
+            <p id="photo-quality-guidance" className="quality-guidance">
+              系統偵測到影像品質提醒；如果預覽中的文字仍清楚，請直接按「仍要使用此照片」。若不清楚，請按「重拍／重新選擇」。
+            </p>
           ) : null}
           <div className="crop-control">
             <label htmlFor="crop-preset">裁切方式</label>
@@ -386,7 +380,13 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
             <span>完整頁面預設可避免裁掉台羅與小字；裁切後仍會重新檢查解析度。</span>
           </div>
           <div className="button-row">
-            <button className="button" type="button" disabled={disabled || !canAccept} onClick={acceptPendingAsset}>
+            <button
+              className="button"
+              type="button"
+              disabled={disabled || !canAccept}
+              aria-describedby={hasQualityWarning ? 'photo-quality-guidance' : undefined}
+              onClick={acceptPendingAsset}
+            >
               {pendingAsset.quality.status === 'warning' ? '仍要使用此照片' : '使用此照片'}
             </button>
             <button className="button secondary" type="button" disabled={disabled || processing} onClick={clearPendingAsset}>

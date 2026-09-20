@@ -295,10 +295,10 @@ rename a field or reinterpret a response without recording the change here.
 
 `POST /api/utterances/normalize` now implements the already-reserved v0.1
 operation. The request and response fields are unchanged. Agent B may pass a
-`nan-TW` segment's `poj_citation` directly to `facebook/mms-tts-nan` only when
-`pronunciation_status` is `verified` or `converted` and `tts_provider` is
-`mms-tts-nan`. A `needs_review` segment always has `poj_citation: null` and no
-TTS provider.
+`nan-TW` segment's valid `poj_citation` directly to `facebook/mms-tts-nan`
+when `tts_provider` is `mms-tts-nan`; `pronunciation_status=needs_review` does
+not block a valid POJ citation. Segments without a valid POJ use the existing
+Chinese/browser fallback.
 
 The MMS-facing POJ profile is lower-case, punctuation-free, and uses `nn` for
 nasalization because the pinned official model vocabulary contains `n` but not
@@ -350,9 +350,8 @@ The following additive response fields are available to clients:
 Existing `current_prompt`/`next_prompt` strings remain populated and are the
 visual blue prompt. The student UI must not render language labels, Tailo,
 POJ, or the JSON structure. It passes the additive utterance to Speech: zh
-segments use browser/Windows speech, approved nan segments use MMS, and
-`needs_review` nan segments use a Chinese browser/Windows fallback. A
-`needs_review` segment never reaches MMS.
+segments use browser/Windows speech, nan segments with a valid POJ use MMS,
+and nan segments without a valid POJ use a Chinese browser/Windows fallback.
 
 The internal prompt schemas are `stage07-facts.v3` and
 `stage07-activity.v2`; the public schema/OpenAPI directory remains `v0.1`.

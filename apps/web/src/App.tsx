@@ -8,7 +8,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { ObserverPage } from './pages/ObserverPage';
 import { SetupPage } from './pages/SetupPage';
 import { StudentPage } from './pages/StudentPage';
-import { NarrationProvider } from './accessibility/NarrationProvider';
+import { NARRATION_FEATURE_ENABLED, NarrationProvider } from './accessibility/NarrationProvider';
 
 export function App() {
   const adapter = useMemo(createAdapter, []);
@@ -30,6 +30,7 @@ export function App() {
       not_found: '找不到頁面',
     };
     document.title = `${titles[route.kind]}｜hear tAIgi`;
+    if (!NARRATION_FEATURE_ENABLED) return;
     try {
       if (!window.localStorage.getItem('hear-our-language.accessibility-mode')) return;
     } catch {
