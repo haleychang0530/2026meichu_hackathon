@@ -40,11 +40,11 @@ not require Torch or Transformers.
 
 ## Routing and safety
 
-- `nan-TW` reaches MMS only when the utterance provider is
-  `mms-tts-nan`, the segment is `verified` or `converted`, and
-  `poj_citation` passes the pinned model vocabulary gate.
-- Hanji, raw 臺羅, `needs_review`, punctuation, upper-case text, and unknown
-  characters never reach MMS.
+- `nan-TW` reaches MMS when the utterance provider is `mms-tts-nan` and
+  `poj_citation` passes the pinned model vocabulary gate; `needs_review` does
+  not block a valid POJ citation.
+- Hanji, raw 臺羅, missing/invalid POJ, punctuation, upper-case text, and
+  unknown characters never reach MMS.
 - `zh-TW` UI/scaffolding is routed to browser Web Speech (Windows voice when
   available).  The server only uses an owner-approved prerecorded entry when
   browser speech is unavailable.

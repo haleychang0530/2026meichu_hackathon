@@ -370,6 +370,25 @@ def _memory_snapshot() -> dict[str, int | None]:
                 process_rss = int(counters.WorkingSetSize)
         except (AttributeError, OSError, TypeError):
             pass
+    elif os.name == "posix":
+        try:
+            memory_values: dict[str, int] = {}
+            with open("/proc/meminfo", encoding="utf-8") as handle:
+                for line in handle:
+                    key, raw_value = line.split(":", 1)
+                    memory_values[key] = int(raw_value.strip().split()[0]) * 1024
+            total = memory_values.get("MemTotal")
+            available = memory_values.get("MemAvailable")
+        except (OSError, ValueError, IndexError):
+            pass
+        try:
+            with open("/proc/self/status", encoding="utf-8") as handle:
+                for line in handle:
+                    if line.startswith("VmRSS:"):
+                        process_rss = int(line.split()[1]) * 1024
+                        break
+        except (OSError, ValueError, IndexError):
+            pass
     if process_rss is None:
         try:
             import resource

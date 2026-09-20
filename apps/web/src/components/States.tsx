@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { asAdapterError } from '../adapters/errors';
 
 export function LoadingState({ label = '資料載入中……' }: { readonly label?: string }) {
@@ -13,10 +14,12 @@ export function ErrorState({
   readonly onRetry?: () => void;
   readonly showTechnicalDetails?: boolean;
 }) {
+  // Each rendered error region needs a unique name when multiple failures are visible together.
+  const errorHeadingId = useId();
   const normalized = asAdapterError(error);
   return (
-    <section className="error-state" role="alert" aria-labelledby="error-heading">
-      <h2 id="error-heading">目前無法完成這個步驟</h2>
+    <section className="error-state" role="alert" aria-labelledby={errorHeadingId}>
+      <h2 id={errorHeadingId}>目前無法完成這個步驟</h2>
       <p>{normalized.message}</p>
       {showTechnicalDetails ? (
         <p className="error-meta">錯誤碼：{normalized.code}；fallback：{normalized.fallback || 'none'}</p>

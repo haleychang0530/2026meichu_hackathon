@@ -125,12 +125,16 @@ export function HealthPage({ adapter }: { readonly adapter: FrontendAdapter }) {
             </section>
             <section className="card" aria-labelledby="release-flow-heading">
               <h2 id="release-flow-heading">展示流程</h2>
-              <p>啟動器會先檢查服務；操作者可從這裡直接進入正常、降級或 observer 流程。</p>
-              <div className="button-grid release-actions">
+              <p>啟動器會先檢查服務；操作者可從這裡進入教材準備流程。Real mode 會在教材確認後建立真實 session，再提供學生與 observer 入口。</p>
+              <div className="button-grid release-actions" role="group" aria-label="展示流程操作">
                 <button className="button" type="button" onClick={() => navigateTo('/setup')}>回到展示首頁</button>
                 <button className="button secondary" type="button" onClick={() => navigateTo('/capture')}>拍攝／選擇教材</button>
-                <button className="button secondary" type="button" onClick={() => navigateTo('/session/demo-session/student')}>學生模式</button>
-                <button className="button secondary" type="button" onClick={() => navigateTo('/session/demo-session/observer')}>教師／家長 observer</button>
+                {isMockRuntime ? (
+                  <>
+                    <button className="button secondary" type="button" onClick={() => navigateTo('/session/demo-session/student')}>學生模式</button>
+                    <button className="button secondary" type="button" onClick={() => navigateTo('/session/demo-session/observer')}>教師／家長 observer</button>
+                  </>
+                ) : null}
               </div>
             </section>
             <section className="card" aria-labelledby="fallback-heading">

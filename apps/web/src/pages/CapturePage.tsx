@@ -141,7 +141,7 @@ export function CapturePage({ adapter }: { readonly adapter: FrontendAdapter }) 
   return (
     <AppShell currentLabel="準備教材">
       <main id="main-content" className="page capture-page" tabIndex={-1}>
-        <div className="capture-top-actions" aria-label="教材頁導覽">
+        <div className="capture-top-actions" role="group" aria-label="教材頁操作">
           <button className="button secondary" type="button" onClick={() => navigateTo('/setup')}>返回首頁</button>
         </div>
         <p className="eyebrow">準備教材</p>

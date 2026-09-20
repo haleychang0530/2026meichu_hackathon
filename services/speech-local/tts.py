@@ -528,17 +528,6 @@ class LanguageRouter:
             if language != "nan-TW":
                 raise SpeechWorkerError("Unsupported utterance language.", reason="unsupported_language")
 
-            if segment.get("pronunciation_status") not in {"verified", "converted"}:
-                routes.append(
-                    SpeechRoute(
-                        index,
-                        language,
-                        "web-speech",
-                        str(segment.get("hanji") or "").strip(),
-                        "needs_review_zh_fallback",
-                    ),
-                )
-                continue
             if utterance_provider != "mms-tts-nan":
                 routes.append(
                     SpeechRoute(
@@ -554,13 +543,23 @@ class LanguageRouter:
             try:
                 normalized = normalize_poj_text(poj)
             except SpeechWorkerError as exc:
+                fallback_provider = (
+                    "web-speech"
+                    if segment.get("pronunciation_status") == "needs_review"
+                    else "prerecorded"
+                )
+                fallback_reason = (
+                    "needs_review_zh_fallback"
+                    if fallback_provider == "web-speech"
+                    else exc.reason
+                )
                 routes.append(
                     SpeechRoute(
                         index,
                         language,
-                        "prerecorded",
+                        fallback_provider,
                         str(segment.get("hanji") or "").strip(),
-                        exc.reason,
+                        fallback_reason,
                     )
                 )
             else:
@@ -732,11 +731,6 @@ class MMSNanTTSWorker:
                 raise SpeechWorkerError(
                     "MMS-TTS requires the approved mms-tts-nan provider.",
                     reason="provider_not_approved",
-                )
-            if segment.get("pronunciation_status") not in {"verified", "converted"}:
-                raise SpeechWorkerError(
-                    "This pronunciation requires language review before TTS.",
-                    reason="needs_review",
                 )
             normalized = normalize_poj_text(segment.get("poj_citation"))
             chunks.append(self.synthesize_poj(normalized, token=token))

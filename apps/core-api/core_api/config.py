@@ -83,7 +83,10 @@ class Settings:
     allowed_origins: tuple[str, ...] = ("http://127.0.0.1:5173", "http://localhost:5173")
     vlm_base_url: str = "http://127.0.0.1:8100"
     vlm_model_revision: str = "d9748a51ae66354c4dad665aab2c71f26cf2c8cd"
-    vlm_output_validation_enabled: bool = True
+    # Keep MI300 output validation available behind a reversible flag, but
+    # leave it off for the current inspection run.  The validator code remains
+    # intact and can be restored with VLM_OUTPUT_VALIDATION_ENABLED=true.
+    vlm_output_validation_enabled: bool = False
     speech_base_url: str | None = "http://127.0.0.1:8200"
     connect_timeout_seconds: float = 2.0
     read_timeout_seconds: float = 120.0

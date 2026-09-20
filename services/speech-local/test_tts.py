@@ -121,21 +121,22 @@ class MmsWorkerTests(unittest.TestCase):
             self.assertEqual(calls, [("chiah-peng", 1.0)])
             self.assertEqual(worker.model_revision, f"mms-tts-nan-transformers+torch@{MMS_TTS_MODEL_REVISION[:12]}")
 
-    def test_mms_worker_rejects_unapproved_segment_and_non_poj_input(self) -> None:
+    def test_mms_worker_accepts_needs_review_when_poj_is_valid(self) -> None:
         worker = MMSNanTTSWorker(
             cache=AudioCache(tempfile.mkdtemp()),
             synthesizer=lambda _text, _token, _speed: np.asarray([0.1], dtype=np.float32),
         )
-        with self.assertRaises(SpeechWorkerError) as raised:
-            worker.synthesize(
-                utterance=utterance(nan_segment(status="needs_review")),
-                token=CancellationToken(),
-            )
-        self.assertEqual(raised.exception.reason, "needs_review")
+        audio = worker.synthesize(
+            utterance=utterance(nan_segment(status="needs_review")),
+            token=CancellationToken(),
+        )
+        self.assertTrue(audio.startswith(b"RIFF"))
 
 
 class RoutingAndFallbackTests(unittest.TestCase):
     def test_router_preserves_order_and_routes_each_language(self) -> None:
+        needs_review_without_poj = nan_segment(status="needs_review")
+        needs_review_without_poj["poj_citation"] = None
         plan = LanguageRouter().plan(
             utterance(
                 {
@@ -145,11 +146,15 @@ class RoutingAndFallbackTests(unittest.TestCase):
                 },
                 nan_segment(),
                 nan_segment(status="needs_review"),
+                needs_review_without_poj,
             )
         )
-        self.assertEqual([item.index for item in plan], [0, 1, 2])
-        self.assertEqual([item.provider for item in plan], ["web-speech", "mms-tts-nan", "web-speech"])
-        self.assertEqual(plan[2].reason, "needs_review_zh_fallback")
+        self.assertEqual([item.index for item in plan], [0, 1, 2, 3])
+        self.assertEqual(
+            [item.provider for item in plan],
+            ["web-speech", "mms-tts-nan", "mms-tts-nan", "web-speech"],
+        )
+        self.assertEqual(plan[3].reason, "needs_review_zh_fallback")
 
     def test_approved_manifest_audio_is_read_only_and_hash_checked(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
