@@ -16,7 +16,9 @@ from tests.support import FIXTURE_PATH
 class SettingsTests(unittest.TestCase):
     def test_demo_and_test_default_to_fixture(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(Settings.from_env("development").provider_mode, "real")
+            settings = Settings.from_env("development")
+            self.assertEqual(settings.provider_mode, "real")
+            self.assertFalse(settings.vlm_output_validation_enabled)
             self.assertEqual(Settings.from_env("demo").provider_mode, "fixture")
             self.assertEqual(Settings.from_env("test").provider_mode, "fixture")
 

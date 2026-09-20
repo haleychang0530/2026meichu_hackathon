@@ -1,6 +1,6 @@
 import { useEffect, useRef, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { navigateTo } from '../app/routing';
-import { useNarration } from '../accessibility/NarrationProvider';
+import { NARRATION_FEATURE_ENABLED, useNarration } from '../accessibility/NarrationProvider';
 import type { NarrationDetail } from '../accessibility/narrator';
 import basicIcon from '../assets/basic_icon.png';
 
@@ -36,6 +36,11 @@ function focusLabel(target: HTMLElement): string {
     return target.getAttribute('placeholder')?.trim() || target.value || target.tagName;
   }
   return target.textContent?.replace(/\s+/g, ' ').trim().slice(0, 160) || target.tagName;
+}
+
+function isButtonTarget(target: HTMLElement): boolean {
+  if (target instanceof HTMLButtonElement || target.getAttribute('role') === 'button') return true;
+  return target instanceof HTMLInputElement && ['button', 'image', 'reset', 'submit'].includes(target.type);
 }
 
 const detailLabels: Record<NarrationDetail, string> = {
@@ -86,17 +91,38 @@ function AccessibilityChoice() {
       <section className="accessibility-choice">
         <p className="eyebrow">第一次使用設定</p>
         <h2 id="accessibility-choice-heading">請選擇一種朗讀方式</h2>
-        <p id="accessibility-choice-description">選擇適合你的朗讀方式，之後可在頁首調整。</p>
+        <p id="accessibility-choice-description" className="accessibility-choice-description">如果你看不見畫面或需要鍵盤導覽，請優先使用系統螢幕閱讀器。瀏覽器的「朗讀」功能只能念出文字，不能完整取代螢幕閱讀器的焦點、按鈕和表單導覽。兩種模式都可以在之後切換。</p>
         <div className="button-row">
-          <button ref={firstChoiceRef} className="button" type="button" onClick={() => chooseMode('system')}>
-            使用 Narrator／NVDA
+          <button ref={firstChoiceRef} className="button" type="button" aria-describedby="system-reader-choice-help" onClick={() => chooseMode('system')}>
+            使用系統螢幕閱讀器（推薦）
           </button>
-          <button className="button secondary" type="button" onClick={() => chooseMode('app')}>
-            使用內建旁白
+          <button className="button secondary" type="button" aria-describedby="app-narration-choice-help" onClick={() => chooseMode('app')}>
+            使用內建網頁旁白
           </button>
+        </div>
+        <div className="accessibility-choice-help">
+          <p id="system-reader-choice-help"><strong>系統螢幕閱讀器：</strong>例如 Windows Narrator、NVDA 或 macOS VoiceOver；網站不會再播放另一套 UI 旁白。</p>
+          <p id="app-narration-choice-help"><strong>內建網頁旁白：</strong>使用瀏覽器的 Web Speech 語音念中文介面，適合沒有螢幕閱讀器時的展示或備援。</p>
         </div>
       </section>
     </div>
+  );
+}
+
+function SystemReaderNotice() {
+  const { chooseMode } = useNarration();
+
+  return (
+    <section className="narration-panel system-reader-panel" aria-labelledby="system-reader-heading">
+      <div>
+        <p className="eyebrow">系統螢幕閱讀器</p>
+        <p id="system-reader-heading" className="narration-panel-title">已停用內建旁白，避免重複朗讀</p>
+        <p>請使用 Narrator、NVDA 或 VoiceOver 讀取這個網頁。瀏覽器「朗讀」可以作為快速聆聽，但不會取代螢幕閱讀器的焦點和表單導覽。</p>
+      </div>
+      <div className="narration-controls" role="group" aria-label="系統螢幕閱讀器操作">
+        <button className="button secondary" type="button" onClick={() => chooseMode('app')}>改用內建網頁旁白</button>
+      </div>
+    </section>
   );
 }
 
@@ -122,12 +148,12 @@ function NarrationControls() {
     <section className="narration-panel" aria-labelledby="narration-heading">
       <div>
         <p className="eyebrow">App 旁白</p>
-        <h2 id="narration-heading">中文 UI 朗讀控制</h2>
+        <p id="narration-heading" className="narration-panel-title">中文 UI 朗讀控制</p>
         <p role="status" aria-live="polite">
           {available ? `狀態：${status === 'speaking' ? '朗讀中' : status === 'paused' ? '已暫停' : '待機'}；佇列 ${queueLength} 段。` : '此瀏覽器沒有可用的 Web Speech voice；畫面文字仍完整保留。'}
         </p>
       </div>
-      <div className="narration-controls" aria-label="App 旁白操作">
+      <div className="narration-controls" role="group" aria-label="App 旁白操作">
         <button className="button secondary" type="button" onClick={stop}>停止旁白</button>
         <button className="button secondary" type="button" onClick={status === 'paused' ? resume : pause} disabled={status === 'idle'}>
           {status === 'paused' ? '繼續旁白' : '暫停旁白'}
@@ -164,10 +190,12 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
   }, [narration.mode]);
 
   function handleFocusCapture(event: FocusEvent<HTMLDivElement>): void {
-    if (narration.mode !== 'app') return;
     const target = event.target;
     if (!(target instanceof HTMLElement) || target === event.currentTarget) return;
-    narration.announce(focusLabel(target), { priority: 1, key: 'focus' });
+    if (!isButtonTarget(target)) return;
+    const label = focusLabel(target);
+    if (!label || label === target.tagName) return;
+    narration.announceFocus(label);
   }
 
   return (
@@ -189,7 +217,9 @@ export function AppShell({ children, currentLabel }: AppShellProps) {
           </nav>
         )}
       </header>
-      {narration.mode === null ? <AccessibilityChoice /> : <NarrationControls />}
+      {NARRATION_FEATURE_ENABLED
+        ? narration.mode === null ? <AccessibilityChoice /> : narration.mode === 'app' ? <NarrationControls /> : <SystemReaderNotice />
+        : null}
       {children}
       {isStudentView ? null : <footer className="site-footer"><details><summary>展示資訊</summary><p>{runtimeLabel}</p></details></footer>}
     </div>

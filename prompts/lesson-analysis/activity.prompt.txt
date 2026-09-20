@@ -4,4 +4,47 @@
 
 請另外回傳 language_segments，逐段標註 accessible_activity 要使用的語言：lang 只能是 zh-TW 或 nan-TW，content 必須保留 accessible_activity 中的原文漢字。依序串接全部 content（只允許統一空白）必須與 accessible_activity 完全相同。這一步只做語言邊界判斷，不要產生臺羅或 POJ；臺羅與 POJ 由筆電上的 golden dictionary 與正規化器處理。無法判定時標 nan-TW，讓筆電標記 needs_review 並走中文備援，不要猜讀音。
 
+正確範例（僅示範 language_segments 格式，不要產生臺羅或 POJ）：
+
+{
+  "accessible_activity": "「市場」的台語是「市場」，跟著我念。",
+  "language_segments": [
+    {
+      "lang": "zh-TW",
+      "content": "「市場」的台語是「"
+    },
+    {
+      "lang": "nan-TW",
+      "content": "市場"
+    },
+    {
+      "lang": "zh-TW",
+      "content": "」，跟著我念。"
+    }
+  ]
+}
+
+錯誤範例（content欄位含有台羅）：
+{
+  "accessible_activity": "「市場」的台語是「市場」，跟著我念。",
+  "language_segments": [
+    {
+      "lang": "zh-TW",
+      "content": "「市場」的台語是「"
+    },
+    {
+      "lang": "nan-TW",
+      "content": "tshī-tiûnn"
+    },
+    {
+      "lang": "zh-TW",
+      "content": "」，跟著我念。"
+    }
+  ]
+}
+
+檢查：將 content 依序串接後為：
+「「市場」的台語是「市場」，跟著我念。」
+必須與 accessible_activity 完全一致。
+
 若 evidence 不足，不得虛構 citation 或把不可靠內容當成事實；活動仍須是 pending 供教師確認。請在 safety_checks 明確確認 answer_leak_free、no_position_hint、no_sighted_only_clue 都為 true。

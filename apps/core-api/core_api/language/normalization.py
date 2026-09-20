@@ -118,6 +118,13 @@ def tailo_to_mms_poj(tailo: str) -> tuple[str | None, tuple[str, ...]]:
     for source, target in {"uí": "úi", "uì": "ùi", "uî": "ûi", "uī": "ūi"}.items():
         value = value.replace(source, target)
     value = _replace_syllable_initials(value)
+    # 臺羅 writes a tone-marked long o as ``óo``/``òo``/``ôo``/``ōo``;
+    # POJ represents the same vowel with the combining dot below.
+    value = re.sub(
+        r"([òóôō])o",
+        lambda match: f"{match.group(1)}\u0358",
+        value,
+    )
     value = value.replace("oo", "o\u0358")
     value = _replace_ing(value)
     # 臺羅 ua/ue correspond to POJ oa/oe. Match only a following vowel so
@@ -264,14 +271,15 @@ class LanguageNormalizer:
         review_reasons = list(dict.fromkeys(review_reasons))
         if review_reasons:
             status = "needs_review"
-            # needs_review text must never be sent directly to MMS-TTS.
-            poj = None
+            # Keep a vocabulary-valid POJ citation even when the lexicon marks
+            # the span for review.  The speech layer can still send that
+            # citation to MMS; only spans without a valid POJ need fallback.
 
         steps.append(NormalizationStep(
             name="mms_vocabulary_gate",
             tool_version=MMS_POJ_PROFILE_VERSION,
             input={"poj": poj},
-            output={"accepted": poj is not None and not review_reasons},
+            output={"accepted": poj is not None},
         ))
         utterance = Utterance(
             schema_version=SCHEMA_VERSION,
@@ -285,7 +293,7 @@ class LanguageNormalizer:
                 source=source,
                 pronunciation_status=status,
             )],
-            tts_provider="mms-tts-nan" if poj is not None and status != "needs_review" else None,
+            tts_provider="mms-tts-nan" if poj is not None else None,
         )
         return NormalizationResult(
             utterance,
@@ -369,8 +377,7 @@ class LanguageNormalizer:
         nan_segments = [segment for segment in output_segments if segment.lang == "nan-TW"]
         ready_nan = [
             segment for segment in nan_segments
-            if segment.pronunciation_status in {"verified", "converted"}
-            and segment.poj_citation
+            if segment.poj_citation
         ]
         any_nan_ready = bool(ready_nan)
         provider: Literal["mms-tts-nan", "windows"] | None

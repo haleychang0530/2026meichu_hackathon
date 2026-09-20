@@ -116,12 +116,12 @@ The health response additionally exposes local-only metadata in the
 origin); `SpeechGatewayService.runtime_diagnostics()` supplies the same RAM
 snapshot to device checks without changing Agent A's frozen schema.
 
-The TTS router accepts only Agent A's approved `poj_citation` for `nan-TW`
-segments whose pronunciation status is `verified` or `converted` and whose
-utterance provider is `mms-tts-nan`. Unsupported characters, Hanji, raw
-臺羅, and `needs_review` never reach MMS. Chinese UI/scaffolding and
-unverified Taiwanese spans are routed to Chinese browser/Web Speech fallback;
-the server can use only an approved WAV in
+The TTS router accepts only Agent A's valid `poj_citation` for `nan-TW`
+segments whose utterance provider is `mms-tts-nan`. A valid POJ reaches MMS
+even when the segment's pronunciation status is `needs_review`; unsupported
+characters, missing POJ, Hanji, and raw 臺羅 do not. Chinese UI/scaffolding
+and Taiwanese spans without a valid POJ are routed to Chinese browser/Web
+Speech fallback; the server can use only an approved WAV in
 `fallback/prerecorded_manifest.json` when browser speech is unavailable.
 
 MMS WAVs are cached below `.runtime/audio-cache` by provider, model revision,

@@ -96,6 +96,7 @@ class Mi300ClientTests(unittest.IsolatedAsyncioTestCase):
                 Settings.from_env("test"),
                 provider_mode="real",
                 vlm_model_revision=revision,
+                vlm_output_validation_enabled=True,
                 max_attempts=3,
                 retry_backoff_seconds=0,
             )

@@ -26,7 +26,7 @@ The Stage 04/05/06/07 baseline plus Stage 08 implements:
 - bounded hybrid retrieval, reproducible evidence citations, and honest empty
   evidence below the reliability threshold
 - `POST /api/utterances/normalize` with textbook-臺羅 precedence, reviewed
-  Hanji candidates, deterministic MMS-compatible POJ, and `needs_review` gates
+  Hanji candidates, deterministic MMS-compatible POJ, and review metadata
 - two-step lesson analysis: page facts first, then teaching objective and
   accessible activity, with laptop-only Local RAG citation binding
 - facts extraction requires an explicit complete-source-text confirmation;
@@ -84,9 +84,9 @@ Important variables:
 - `CORE_PROVIDER=real|fixture`
 - `CORE_ALLOWED_ORIGINS` (defaults to the Agent B Vite origins on port 5173)
 - `VLM_BASE_URL` and `VLM_MODEL_REVISION`
-- `VLM_OUTPUT_VALIDATION_ENABLED` (defaults to `true`; set `false` only for
-  temporary model-output inspection, which bypasses Core schema, semantic,
-  safety, repair, and language-segment gates)
+- `VLM_OUTPUT_VALIDATION_ENABLED` (defaults to `false` for the current
+  inspection profile; set `true` to restore the reversible Core schema,
+  semantic, safety, repair, and language-segment gates)
 - `SPEECH_BASE_URL` (Agent B contract default `http://127.0.0.1:8200`)
 - `RAG_MANIFEST_PATH`, `RAG_INDEX_ROOT`, `RAG_EMBEDDING_BACKEND`, and
   `RAG_EMBEDDING_DIMENSION`
@@ -302,7 +302,7 @@ places provenance in `evidence[]`, and carries the revision once in
 The laptop environment does not require a network Taibun/THOKIT service. The
 fallback mandated by Stage 06 is implemented as a versioned, reviewed offline
 lexicon plus deterministic rules. `data/language/normalization-golden.json`
-contains 38 Hanji/臺羅/POJ/Chinese-gloss/example rows. The conversion target is
+contains 50 Hanji/臺羅/POJ/Chinese-gloss/example rows. The conversion target is
 the official `facebook/mms-tts-nan` vocabulary profile, so `poj_citation` is
 lower-case, punctuation-free, and uses `nn` instead of the unsupported `ⁿ`.
 
@@ -313,9 +313,9 @@ Run the traceable golden report from the repository root:
 ```
 
 The report records every row's input/output plus the lexicon, converter,
-pipeline, and MMS vocabulary versions. OOV, multiple readings,
-literary/colloquial readings, and textbook/dictionary conflicts return
-`needs_review` with no POJ or TTS provider. See
+pipeline, and MMS vocabulary versions. OOV and unsupported MMS characters
+return `needs_review` without a valid POJ; other review metadata may coexist
+with a valid POJ and still use the MMS provider. See
 `data/language/manual-review.json` for the human confirmation queue.
 
 Stage 08 adds `LanguageNormalizer.normalize_labeled_segments(...)` for the
@@ -327,8 +327,9 @@ returns the final Tailo/POJ used by MMS. Session responses retain their
 natural `current_prompt`/`next_prompt` strings and additionally return
 `current_utterance`, `next_utterance`, and `feedback_utterance` where
 available. The student UI should use the utterance only for speech routing;
-`needs_review` spans have no POJ and are spoken with the Chinese browser or
-Windows fallback.
+`nan-TW` spans with a valid POJ use MMS even when their review status is
+`needs_review`; spans without a valid POJ use the Chinese browser or Windows
+fallback.
 
 ## Test
 
