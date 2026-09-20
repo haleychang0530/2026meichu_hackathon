@@ -27,6 +27,7 @@
         "TTS_UNAVAILABLE",
         "TTS_FAILED",
         "CIRCUIT_OPEN",
+        "GIMBAL_UNAVAILABLE",
         "INTERNAL_ERROR"
       ]
     },

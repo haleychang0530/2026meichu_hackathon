@@ -310,6 +310,16 @@ class SpeechGatewayHttpTests(unittest.TestCase):
         self.assertNotIn("access-control-allow-origin", headers)
         self.assertEqual(json.loads(payload)["code"], "VALIDATION_ERROR")
 
+    def test_integration_web_origin_is_allowed(self) -> None:
+        status, headers, payload = self.request(
+            "GET",
+            "/local/health",
+            headers={"Origin": "http://127.0.0.1:5175"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["access-control-allow-origin"], "http://127.0.0.1:5175")
+        self.assertEqual(json.loads(payload)["schema_version"], "0.1.0")
+
 
 if __name__ == "__main__":
     unittest.main()

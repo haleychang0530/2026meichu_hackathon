@@ -112,6 +112,10 @@ p { line-height: 1.65; }
 .photo-review h3 { color: #102a43; }
 .photo-review-grid { display: grid; grid-template-columns: minmax(12rem, .9fr) minmax(16rem, 1.1fr); gap: 1.25rem; align-items: start; }
 .photo-preview { display: block; width: 100%; max-height: 24rem; object-fit: contain; border: 1px solid #cbd5e1; border-radius: .5rem; background: #102a43; }
+.photo-preview-column { min-width: 0; }
+.photo-preview-frame { position: relative; width: 100%; overflow: hidden; border: 1px solid #cbd5e1; border-radius: .5rem; background: #102a43; }
+.photo-preview-frame .photo-preview { width: 100%; height: auto; max-height: none; border: 0; border-radius: 0; background: transparent; }
+.photo-detection-caption { margin: .55rem 0 0; color: #126b43; font-weight: 750; }
 .quality-summary { padding: .75rem 1rem; border-left: .35rem solid #68b984; background: #f0fff4; }
 .quality-warning { border-color: #d69e2e; background: #fffaf0; }
 .quality-rejected { border-color: #c53030; background: #fff5f5; }
@@ -607,3 +611,9 @@ code { padding: .1rem .3rem; border-radius: .3rem; background: #edf2f7; font-fam
   .student-top-actions .button,
   .observer-top-actions .button { border-color: CanvasText; }
 }
+
+/* Preview overlays use the same pixel space as the browser-owned video. */
+.camera-video-layer { position: relative; width: 100%; }
+.camera-video-layer .camera-preview { width: 100%; height: auto; max-height: none; }
+.gimbal-page-box { position: absolute; box-sizing: border-box; border: 3px solid #56e39f; box-shadow: 0 0 0 2px #102a43; pointer-events: none; }
+.gimbal-page-box.contour { border-color: #ffcc66; }

@@ -110,3 +110,12 @@ npm --prefix apps/web run build
 The browser smoke path is `/setup` → choose a narration mode →
 `/session/demo-session/student` → `/session/demo-session/observer`; use the
 browser zoom controls to verify 200% reflow and visible focus.
+
+## Optional gimbal capture demo
+
+The browser remains the only webcam owner. On `/capture`, start preview and
+the alignment loop starts once the video stream is ready; use **重新對準** to
+retry after a failed alignment, then take the final photo.
+The gimbal client always calls the local Core API, including when the rest of
+the web app runs in mock mode. See [`docs/gimbal-demo.md`](../../docs/gimbal-demo.md)
+for firmware, model, and COM-port setup.

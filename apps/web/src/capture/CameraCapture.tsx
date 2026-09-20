@@ -9,6 +9,8 @@ import {
   releaseCaptureAsset,
 } from './imageProcessing';
 import type { CropRect } from './imageProcessing';
+import { gimbalClient, previewFrame } from './gimbalClient';
+import type { GimbalResult } from './gimbalClient';
 
 interface CameraOption {
   readonly deviceId: string;
@@ -24,6 +26,30 @@ export interface CameraCaptureProps {
 
 type CameraStatus = 'idle' | 'starting' | 'ready' | 'permission_denied' | 'unavailable' | 'error';
 type ImageSource = 'camera' | 'file';
+type AlignmentStatus = 'idle' | 'starting' | 'testing' | 'aligning' | 'ready' | 'failed';
+type PageBox = NonNullable<GimbalResult['box']>;
+
+function targetLabel(box: PageBox): string {
+  if (box.target === 'tablet') return '平板';
+  if (box.target === 'paper' || (box.source === 'contour' && !box.target)) return '紙張';
+  return '課本';
+}
+
+function cropDetectedBox(box: PageBox | null, crop?: CropRect): PageBox | null {
+  if (!box || !crop) return box;
+  const left = Math.max(box.x, crop.x);
+  const top = Math.max(box.y, crop.y);
+  const right = Math.min(box.x + box.width, crop.x + crop.width);
+  const bottom = Math.min(box.y + box.height, crop.y + crop.height);
+  if (right <= left || bottom <= top) return null;
+  return {
+    ...box,
+    x: (left - crop.x) / crop.width,
+    y: (top - crop.y) / crop.height,
+    width: (right - left) / crop.width,
+    height: (bottom - top) / crop.height,
+  };
+}
 
 function mediaDevicesAvailable(): boolean {
   return typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
@@ -50,6 +76,36 @@ function processingErrorMessage(error: unknown): string {
   return '圖片處理失敗，請重新拍攝或選擇另一張圖片。';
 }
 
+function waitForVideoReady(video: HTMLVideoElement, isCurrent: () => boolean): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const interval = window.setInterval(check, 50);
+    const timeout = window.setTimeout(() => finish(false), 3_000);
+
+    function finish(ready: boolean): void {
+      if (settled) return;
+      settled = true;
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+      video.removeEventListener('loadedmetadata', check);
+      video.removeEventListener('canplay', check);
+      resolve(ready);
+    }
+
+    function check(): void {
+      if (!isCurrent()) {
+        finish(false);
+        return;
+      }
+      if (video.videoWidth > 0 && video.videoHeight > 0) finish(true);
+    }
+
+    video.addEventListener('loadedmetadata', check);
+    video.addEventListener('canplay', check);
+    check();
+  });
+}
+
 export function CameraCapture({ disabled = false, onImageSelected, resetToken }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -60,16 +116,113 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
   const pendingAssetRef = useRef<CaptureAsset | null>(null);
   const pendingSourceRef = useRef<ImageSource | null>(null);
   const resetTokenRef = useRef(resetToken);
+  const alignmentRunRef = useRef(0);
+  const alignmentAbortRef = useRef<AbortController | null>(null);
+  const gimbalRequestedRef = useRef(false);
+  const pendingStopRef = useRef<Promise<void> | null>(null);
+  const previewSessionRef = useRef(0);
+  const autoAlignmentSessionRef = useRef(0);
   const [devices, setDevices] = useState<readonly CameraOption[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
   const [cameraMessage, setCameraMessage] = useState('按下「開始預覽」後，瀏覽器才會申請相機權限。');
   const [pendingAsset, setPendingAsset] = useState<CaptureAsset | null>(null);
+  const [pendingBox, setPendingBox] = useState<PageBox | null>(null);
+  const [qualityOverride, setQualityOverride] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
   const [cropPreset, setCropPreset] = useState<'full' | 'inset'>('full');
+  const [alignmentStatus, setAlignmentStatus] = useState<AlignmentStatus>('idle');
+  const [alignmentMessage, setAlignmentMessage] = useState('');
+  const [alignmentResult, setAlignmentResult] = useState<GimbalResult | null>(null);
+  const [lastAck, setLastAck] = useState<number | null>(null);
+
+  const endAlignment = useCallback(async () => {
+    alignmentRunRef.current += 1;
+    alignmentAbortRef.current?.abort();
+    alignmentAbortRef.current = null;
+    if (gimbalRequestedRef.current) {
+      gimbalRequestedRef.current = false;
+      const stopping = gimbalClient.stop().then(() => undefined).catch(() => undefined);
+      pendingStopRef.current = stopping;
+      await stopping;
+      if (pendingStopRef.current === stopping) pendingStopRef.current = null;
+    } else if (pendingStopRef.current) {
+      await pendingStopRef.current;
+    }
+  }, []);
+
+  const startAlignment = useCallback(async (session: number, video: HTMLVideoElement): Promise<void> => {
+    const isCurrentPreview = (): boolean => (
+      previewSessionRef.current === session
+      && streamRef.current !== null
+      && videoRef.current === video
+      && video.videoWidth > 0
+      && video.videoHeight > 0
+    );
+    if (!isCurrentPreview()) return;
+
+    setAlignmentStatus('starting');
+    await endAlignment();
+    if (!isCurrentPreview()) return;
+    const run = alignmentRunRef.current + 1;
+    alignmentRunRef.current = run;
+    const abort = new AbortController();
+    alignmentAbortRef.current = abort;
+    setAlignmentResult(null);
+    setLastAck(null);
+    setAlignmentStatus('starting');
+    setAlignmentMessage('正在連線 ESP32 與本機視覺模型……');
+    try {
+      gimbalRequestedRef.current = true;
+      const started = await gimbalClient.start(abort.signal);
+      if (alignmentRunRef.current !== run || !isCurrentPreview()) return;
+      setAlignmentResult(started);
+      setLastAck(started.sequence ?? null);
+      setAlignmentStatus('testing');
+      setAlignmentMessage('ESP32 收到測試指令，雲台正在上下左右小幅移動。');
+      const tested = await gimbalClient.test(abort.signal);
+      if (alignmentRunRef.current !== run || !isCurrentPreview()) return;
+      setAlignmentResult(tested);
+      setLastAck(tested.sequence ?? null);
+      setAlignmentStatus('aligning');
+      for (let attempt = 0; attempt < 18; attempt += 1) {
+        if (!isCurrentPreview() || alignmentRunRef.current !== run) return;
+        const frame = await previewFrame(video);
+        if (!isCurrentPreview() || alignmentRunRef.current !== run) return;
+        const result = await gimbalClient.observe(frame, abort.signal);
+        if (alignmentRunRef.current !== run || !isCurrentPreview()) return;
+        setAlignmentResult(result);
+        if (result.sequence != null) setLastAck(result.sequence);
+        setAlignmentMessage(result.message);
+        if (result.state === 'ready') {
+          setAlignmentStatus('ready');
+          return;
+        }
+        if (result.state === 'limit' || result.state === 'not_found') {
+          setAlignmentStatus('failed');
+          return;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+      }
+      if (alignmentRunRef.current === run) {
+        setAlignmentStatus('failed');
+        setAlignmentMessage('對準時間已到；可以手動拍照，或調整紙張後重新對準。');
+      }
+    } catch (error) {
+      if (alignmentRunRef.current !== run || abort.signal.aborted) return;
+      setAlignmentStatus('failed');
+      setAlignmentMessage(error instanceof Error ? error.message : '雲台對準失敗；可以手動拍照。');
+    } finally {
+      if (alignmentRunRef.current === run) alignmentAbortRef.current = null;
+    }
+  }, [endAlignment]);
 
   const stopPreview = useCallback(() => {
+    void endAlignment();
+    previewSessionRef.current += 1;
+    setAlignmentStatus('idle');
+    setAlignmentResult(null);
     operationRef.current += 1;
     const stream = streamRef.current;
     streamRef.current = null;
@@ -77,7 +230,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     if (videoRef.current) videoRef.current.srcObject = null;
     setCameraStatus('idle');
     setCameraMessage('預覽已停止；需要拍照時可重新開始預覽，也可以上傳現有教材。');
-  }, []);
+  }, [endAlignment]);
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -93,6 +246,9 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
   }, [selectedDeviceId]);
 
   const startPreview = useCallback(async (deviceId?: string) => {
+    await endAlignment();
+    setAlignmentStatus('idle');
+    setAlignmentResult(null);
     if (!mediaDevicesAvailable()) {
       setCameraStatus('unavailable');
       setCameraMessage('此瀏覽器沒有可用的相機介面；請使用檔案上傳。');
@@ -101,6 +257,8 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
 
     const operation = operationRef.current + 1;
     operationRef.current = operation;
+    const previewSession = previewSessionRef.current + 1;
+    previewSessionRef.current = previewSession;
     const previousStream = streamRef.current;
     streamRef.current = null;
     previousStream?.getTracks().forEach((track) => track.stop());
@@ -122,20 +280,45 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         return;
       }
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      const video = videoRef.current;
+      if (!video) throw new Error('找不到相機預覽元件。');
+      video.srcObject = stream;
+      await video.play();
+      const ready = await waitForVideoReady(
+        video,
+        () => operationRef.current === operation && streamRef.current === stream && videoRef.current === video,
+      );
+      if (!ready) {
+        if (operationRef.current !== operation) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        throw new Error('相機畫面尚未就緒。');
       }
       if (operationRef.current !== operation) {
         stream.getTracks().forEach((track) => track.stop());
-        if (videoRef.current?.srcObject === stream) videoRef.current.srcObject = null;
+        if (video.srcObject === stream) video.srcObject = null;
         return;
       }
       setCameraStatus('ready');
-      setCameraMessage('相機已就緒。確認課本完整入鏡、文字清楚且沒有反光後再拍照。');
-      await refreshDevices();
+      setCameraMessage('相機已就緒，正在自動對準；對準失敗仍可直接拍照。');
+      try {
+        await refreshDevices();
+      } catch {
+        // A usable current stream should still start alignment if device enumeration is unavailable.
+      }
       const actualDeviceId = stream.getVideoTracks()[0]?.getSettings().deviceId;
       if (actualDeviceId) setSelectedDeviceId(actualDeviceId);
+      if (
+        operationRef.current === operation
+        && previewSessionRef.current === previewSession
+        && streamRef.current === stream
+        && videoRef.current === video
+        && autoAlignmentSessionRef.current !== previewSession
+      ) {
+        autoAlignmentSessionRef.current = previewSession;
+        void startAlignment(previewSession, video);
+      }
     } catch (error) {
       if (operationRef.current !== operation) return;
       const stream = streamRef.current;
@@ -147,7 +330,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         : 'error');
       setCameraMessage(cameraErrorMessage(error));
     }
-  }, [refreshDevices]);
+  }, [endAlignment, refreshDevices, startAlignment]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -155,12 +338,13 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
       mountedRef.current = false;
       operationRef.current += 1;
       processingOperationRef.current += 1;
+      void endAlignment();
       const stream = streamRef.current;
       stream?.getTracks().forEach((track) => track.stop());
       if (videoRef.current) videoRef.current.srcObject = null;
       releaseCaptureAsset(pendingAssetRef.current);
     };
-  }, []);
+  }, [endAlignment]);
 
   useEffect(() => {
     if (resetToken === undefined || resetToken === resetTokenRef.current) return;
@@ -170,20 +354,24 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     pendingAssetRef.current = null;
     pendingSourceRef.current = null;
     setPendingAsset(null);
+    setPendingBox(null);
+    setQualityOverride(false);
     setProcessingMessage('分析工作已結束，預覽影像已清除；如需再試請重新拍攝或上傳現有教材。');
     onImageSelected(null);
   }, [onImageSelected, resetToken, stopPreview]);
 
-  function replacePendingAsset(asset: CaptureAsset, source: ImageSource): void {
+  function replacePendingAsset(asset: CaptureAsset, source: ImageSource, box: PageBox | null): void {
     releaseCaptureAsset(pendingAsset);
     pendingAssetRef.current = asset;
     pendingSourceRef.current = source;
     setPendingAsset(asset);
+    setPendingBox(box);
+    setQualityOverride(false);
     setProcessingMessage('');
     onImageSelected(null);
   }
 
-  async function prepareSource(source: Blob, origin: ImageSource, fileName?: string, crop?: CropRect): Promise<void> {
+  async function prepareSource(source: Blob, origin: ImageSource, fileName?: string, crop?: CropRect, box: PageBox | null = null): Promise<void> {
     if (!crop) setCropPreset('full');
     // A new processing attempt invalidates any previously accepted asset so
     // CapturePage cannot submit an older image while this one is being prepared.
@@ -198,7 +386,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         releaseCaptureAsset(asset);
         return;
       }
-      replacePendingAsset(asset, origin);
+      replacePendingAsset(asset, origin, box);
     } catch (error) {
       if (mountedRef.current && processingOperationRef.current === processingOperation) {
         setProcessingMessage(processingErrorMessage(error));
@@ -209,12 +397,22 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
   }
 
   async function capturePhoto(): Promise<void> {
-    if (!videoRef.current || cameraStatus !== 'ready') return;
+    const video = videoRef.current;
+    const previewSession = previewSessionRef.current;
+    if (!video || cameraStatus !== 'ready') return;
+    const detectedBox = alignmentResult?.box ?? null;
+    await endAlignment();
+    if (
+      previewSessionRef.current !== previewSession
+      || streamRef.current === null
+      || videoRef.current !== video
+      || cameraStatus !== 'ready'
+    ) return;
     setProcessingMessage('');
     try {
-      const frame = await captureVideoFrame(videoRef.current);
+      const frame = await captureVideoFrame(video);
       if (!mountedRef.current) return;
-      await prepareSource(frame, 'camera', 'camera-capture');
+      await prepareSource(frame, 'camera', 'camera-capture', undefined, detectedBox);
     } catch (error) {
       if (mountedRef.current) setProcessingMessage(processingErrorMessage(error));
     } finally {
@@ -229,7 +427,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     const crop: CropRect | undefined = preset === 'inset'
       ? { x: 0.03, y: 0.03, width: 0.94, height: 0.94 }
       : undefined;
-    void prepareSource(source, pendingSourceRef.current || 'file', pendingAssetRef.current?.fileName, crop);
+    void prepareSource(source, pendingSourceRef.current || 'file', pendingAssetRef.current?.fileName, crop, cropDetectedBox(pendingBox, crop));
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>): void {
@@ -246,6 +444,8 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     pendingAssetRef.current = null;
     pendingSourceRef.current = null;
     setPendingAsset(null);
+    setPendingBox(null);
+    setQualityOverride(false);
     setProcessingMessage('已清除照片，可以重新拍攝或上傳現有教材。');
     onImageSelected(null);
   }
@@ -297,13 +497,27 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
 
       <div className="camera-preview-wrap">
         {hasCamera ? (
-          <video
-            ref={videoRef}
-            className="camera-preview"
-            playsInline
-            muted
-            aria-label="教材相機即時預覽"
-          />
+          <div className="camera-video-layer">
+            <video
+              ref={videoRef}
+              className="camera-preview"
+              playsInline
+              muted
+              aria-label="教材相機即時預覽"
+            />
+            {alignmentResult?.box ? (
+              <div
+                className={`gimbal-page-box ${alignmentResult.box.source === 'model' ? 'model' : 'contour'}`}
+                style={{
+                  left: `${alignmentResult.box.x * 100}%`,
+                  top: `${alignmentResult.box.y * 100}%`,
+                  width: `${alignmentResult.box.width * 100}%`,
+                  height: `${alignmentResult.box.height * 100}%`,
+                }}
+                aria-hidden="true"
+              />
+            ) : null}
+          </div>
         ) : (
           <div className="camera-placeholder" role="img" aria-label="尚未開始相機預覽">
             <strong>尚未開始預覽</strong>
@@ -313,11 +527,37 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
       </div>
 
       {cameraStatus === 'ready' ? (
-        <div className="camera-controls" role="group" aria-label="拍照操作">
-          <button className="button" type="button" disabled={disabled || processing} onClick={() => void capturePhoto()}>
-            拍照
-          </button>
-        </div>
+        <>
+          <p className="camera-status" role="status" aria-live="polite">
+            {alignmentMessage || '相機已就緒，正在自動對準；對準失敗仍可直接拍照。'}
+            {alignmentResult?.pan != null && alignmentResult.tilt != null
+              ? `（Z 軸 ${alignmentResult.pan}°、仰角 ${alignmentResult.tilt}°）`
+              : ''}
+            {lastAck != null ? ` ESP ACK #${lastAck}。` : ''}
+            {alignmentResult?.box ? ` 已辨識${targetLabel(alignmentResult.box)}；來源：${alignmentResult.box.source === 'model' ? '輕量模型' : '輪廓判斷'}（${Math.round(alignmentResult.box.confidence * 100)}%）。` : ''}
+          </p>
+          <div className="camera-controls" aria-label="拍照操作">
+            <button
+              className="button"
+              type="button"
+              disabled={disabled || processing || alignmentStatus === 'starting' || alignmentStatus === 'testing' || alignmentStatus === 'aligning'}
+              onClick={() => {
+                const video = videoRef.current;
+                if (video) void startAlignment(previewSessionRef.current, video);
+              }}
+            >
+              重新對準
+            </button>
+            <button
+              className="button"
+              type="button"
+              disabled={disabled || processing || !['ready', 'failed'].includes(alignmentStatus)}
+              onClick={() => void capturePhoto()}
+            >
+              拍照
+            </button>
+          </div>
+        </>
       ) : null}
 
       <div className="camera-device-row">
@@ -344,7 +584,31 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         <section className="photo-review" aria-labelledby="photo-review-heading">
           <h3 id="photo-review-heading">檢查照片後再送出</h3>
           <div className="photo-review-grid">
-            <img className="photo-preview" src={pendingAsset.previewUrl} alt="教材照片預覽，尚未送出分析" />
+            <div className="photo-preview-column">
+              <div
+                className="photo-preview-frame"
+                style={{ maxWidth: `${24 * pendingAsset.width / pendingAsset.height}rem` }}
+              >
+                <img className="photo-preview" src={pendingAsset.previewUrl} alt="教材照片預覽，尚未送出分析" />
+                {pendingBox ? (
+                  <div
+                    className="gimbal-page-box"
+                    style={{
+                      left: `${pendingBox.x * 100}%`,
+                      top: `${pendingBox.y * 100}%`,
+                      width: `${pendingBox.width * 100}%`,
+                      height: `${pendingBox.height * 100}%`,
+                    }}
+                    aria-hidden="true"
+                  />
+                ) : null}
+              </div>
+              {pendingBox ? (
+                <p className="photo-detection-caption">
+                  已辨識{targetLabel(pendingBox)} · {pendingBox.source === 'model' ? '輕量模型' : '輪廓判斷'}（{Math.round(pendingBox.confidence * 100)}%）
+                </p>
+              ) : null}
+            </div>
             <div>
               <p className={`quality-summary quality-${pendingAsset.quality.status}`} role="status">
                 <strong>{qualityStatusLabel(pendingAsset.quality.status)}</strong>

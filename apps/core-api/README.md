@@ -379,3 +379,10 @@ bounded MI300 semantic-timeout fallback test.
 - RAG logs and reports contain revision, source IDs, locators, counts, and
   latency/RAM measurements only; they do not contain student data or raw
   textbook media.
+
+## Optional ESP32 gimbal demo
+
+The capture-page visual servo loop uses four additional local `/api/gimbal/*` routes.
+The model and Serial dependencies are optional for the rest of Core. Setup,
+protocol, angle limits, and run commands are in
+[`docs/gimbal-demo.md`](../../docs/gimbal-demo.md).
