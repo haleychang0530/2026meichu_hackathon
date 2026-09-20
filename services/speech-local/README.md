@@ -75,6 +75,7 @@ for the license and routing policy.
 
 The server refuses non-local bind addresses. The browser may use the
 development origins `http://127.0.0.1:5173`, `http://localhost:5173`,
+`http://127.0.0.1:5175`, `http://localhost:5175`,
 `http://127.0.0.1:4173`, and `http://localhost:4173`; other origins are
 rejected.
 
