@@ -92,6 +92,10 @@ p { line-height: 1.65; }
 .photo-review h3 { color: #102a43; }
 .photo-review-grid { display: grid; grid-template-columns: minmax(12rem, .9fr) minmax(16rem, 1.1fr); gap: 1.25rem; align-items: start; }
 .photo-preview { display: block; width: 100%; max-height: 24rem; object-fit: contain; border: 1px solid #cbd5e1; border-radius: .5rem; background: #102a43; }
+.photo-preview-column { min-width: 0; }
+.photo-preview-frame { position: relative; width: 100%; overflow: hidden; border: 1px solid #cbd5e1; border-radius: .5rem; background: #102a43; }
+.photo-preview-frame .photo-preview { width: 100%; height: auto; max-height: none; border: 0; border-radius: 0; background: transparent; }
+.photo-detection-caption { margin: .55rem 0 0; color: #126b43; font-weight: 750; }
 .quality-summary { padding: .75rem 1rem; border-left: .35rem solid #68b984; background: #f0fff4; }
 .quality-warning { border-color: #d69e2e; background: #fffaf0; }
 .quality-rejected { border-color: #c53030; background: #fff5f5; }

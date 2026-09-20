@@ -15,14 +15,13 @@
 
 本機 Core API 只需安裝原本的 `requirements.txt` 與 `pyserial`，
 這次訊號測試**不需視覺模型**。此 repo 固定 `pydantic==2.11.7`；
-請用 Python 3.13（64 位元）建立專案環境。Python 3.14 缺少對應的
+請用現有的 Python 3.12.3 建立專案環境（3.13 也可）。Python 3.14 缺少對應的
 `pydantic-core` 預編譯套件，可能在 `maturin` 編譯時失敗。
-可從 [Python 官方下載頁](https://www.python.org/downloads/release/python-31313/)
-安裝 3.13，接著在 **CMD** 執行：
+不需要再執行 py install；在 **CMD** 執行：
 
 ```bat
 cd /d D:\Desktop\2026meichu_hackathon\apps\core-api
-py -3.13 -m venv .venv
+py -3.12 -m venv .venv
 .venv\Scripts\python.exe --version
 .venv\Scripts\python.exe -m pip install --only-binary=:all: -r requirements.txt pyserial
 set CORE_PROFILE=demo
@@ -30,8 +29,8 @@ set GIMBAL_PORT=COM5
 .venv\Scripts\python.exe -m uvicorn core_api.app:app --host 127.0.0.1 --port 8000
 ```
 
-將 `COM5` 改為實際的 ESP32 COM 埠。若 `py -3.13` 找不到版本，
-請確認已安裝 Python 3.13，或用其 `python.exe` 完整路徑建立
+將 `COM5` 改為實際的 ESP32 COM 埠。若 `py -3.12` 找不到版本，可先執行 `py -0p` 檢查；
+也可用現有 Python 3.12.3 的 `python.exe` 完整路徑建立
 `.venv`。
 
 在網站 `/capture` 按「開始預覽」→「自動尋找紙張／課本」。

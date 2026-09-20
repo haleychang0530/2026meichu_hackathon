@@ -27,6 +27,23 @@ export interface CameraCaptureProps {
 type CameraStatus = 'idle' | 'starting' | 'ready' | 'permission_denied' | 'unavailable' | 'error';
 type ImageSource = 'camera' | 'file';
 type AlignmentStatus = 'idle' | 'starting' | 'testing' | 'aligning' | 'ready' | 'failed';
+type PageBox = NonNullable<GimbalResult['box']>;
+
+function cropDetectedBox(box: PageBox | null, crop?: CropRect): PageBox | null {
+  if (!box || !crop) return box;
+  const left = Math.max(box.x, crop.x);
+  const top = Math.max(box.y, crop.y);
+  const right = Math.min(box.x + box.width, crop.x + crop.width);
+  const bottom = Math.min(box.y + box.height, crop.y + crop.height);
+  if (right <= left || bottom <= top) return null;
+  return {
+    ...box,
+    x: (left - crop.x) / crop.width,
+    y: (top - crop.y) / crop.height,
+    width: (right - left) / crop.width,
+    height: (bottom - top) / crop.height,
+  };
+}
 
 function mediaDevicesAvailable(): boolean {
   return typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
@@ -72,6 +89,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
   const [cameraMessage, setCameraMessage] = useState('按下「開始預覽」後，瀏覽器才會申請相機權限。');
   const [pendingAsset, setPendingAsset] = useState<CaptureAsset | null>(null);
+  const [pendingBox, setPendingBox] = useState<PageBox | null>(null);
   const [qualityOverride, setQualityOverride] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
@@ -204,22 +222,24 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     pendingAssetRef.current = null;
     pendingSourceRef.current = null;
     setPendingAsset(null);
+    setPendingBox(null);
     setQualityOverride(false);
     setProcessingMessage('分析工作已結束，預覽影像已清除；如需再試請重新拍攝或上傳現有教材。');
     onImageSelected(null);
   }, [onImageSelected, resetToken, stopPreview]);
 
-  function replacePendingAsset(asset: CaptureAsset, source: ImageSource): void {
+  function replacePendingAsset(asset: CaptureAsset, source: ImageSource, box: PageBox | null): void {
     releaseCaptureAsset(pendingAsset);
     pendingAssetRef.current = asset;
     pendingSourceRef.current = source;
     setPendingAsset(asset);
+    setPendingBox(box);
     setQualityOverride(false);
     setProcessingMessage('');
     onImageSelected(null);
   }
 
-  async function prepareSource(source: Blob, origin: ImageSource, fileName?: string, crop?: CropRect): Promise<void> {
+  async function prepareSource(source: Blob, origin: ImageSource, fileName?: string, crop?: CropRect, box: PageBox | null = null): Promise<void> {
     if (!crop) setCropPreset('full');
     // A new processing attempt invalidates any previously accepted asset so
     // CapturePage cannot submit an older image while this one is being prepared.
@@ -234,7 +254,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         releaseCaptureAsset(asset);
         return;
       }
-      replacePendingAsset(asset, origin);
+      replacePendingAsset(asset, origin, box);
     } catch (error) {
       if (mountedRef.current && processingOperationRef.current === processingOperation) {
         setProcessingMessage(processingErrorMessage(error));
@@ -304,13 +324,14 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
 
   async function capturePhoto(): Promise<void> {
     if (!videoRef.current || cameraStatus !== 'ready') return;
+    const detectedBox = alignmentResult?.box ?? null;
     await endAlignment();
     if (!videoRef.current || cameraStatus !== 'ready') return;
     setProcessingMessage('');
     try {
       const frame = await captureVideoFrame(videoRef.current);
       if (!mountedRef.current) return;
-      await prepareSource(frame, 'camera', 'camera-capture');
+      await prepareSource(frame, 'camera', 'camera-capture', undefined, detectedBox);
     } catch (error) {
       if (mountedRef.current) setProcessingMessage(processingErrorMessage(error));
     } finally {
@@ -325,7 +346,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     const crop: CropRect | undefined = preset === 'inset'
       ? { x: 0.03, y: 0.03, width: 0.94, height: 0.94 }
       : undefined;
-    void prepareSource(source, pendingSourceRef.current || 'file', pendingAssetRef.current?.fileName, crop);
+    void prepareSource(source, pendingSourceRef.current || 'file', pendingAssetRef.current?.fileName, crop, cropDetectedBox(pendingBox, crop));
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>): void {
@@ -342,6 +363,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     pendingAssetRef.current = null;
     pendingSourceRef.current = null;
     setPendingAsset(null);
+    setPendingBox(null);
     setQualityOverride(false);
     setProcessingMessage('已清除照片，可以重新拍攝或上傳現有教材。');
     onImageSelected(null);
@@ -479,7 +501,31 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         <section className="photo-review" aria-labelledby="photo-review-heading">
           <h3 id="photo-review-heading">檢查照片後再送出</h3>
           <div className="photo-review-grid">
-            <img className="photo-preview" src={pendingAsset.previewUrl} alt="教材照片預覽，尚未送出分析" />
+            <div className="photo-preview-column">
+              <div
+                className="photo-preview-frame"
+                style={{ maxWidth: `${24 * pendingAsset.width / pendingAsset.height}rem` }}
+              >
+                <img className="photo-preview" src={pendingAsset.previewUrl} alt="教材照片預覽，尚未送出分析" />
+                {pendingBox ? (
+                  <div
+                    className="gimbal-page-box"
+                    style={{
+                      left: `${pendingBox.x * 100}%`,
+                      top: `${pendingBox.y * 100}%`,
+                      width: `${pendingBox.width * 100}%`,
+                      height: `${pendingBox.height * 100}%`,
+                    }}
+                    aria-hidden="true"
+                  />
+                ) : null}
+              </div>
+              {pendingBox ? (
+                <p className="photo-detection-caption">
+                  已辨識教材位置 · {pendingBox.source === 'model' ? '輕量模型' : '紙張輪廓'}（{Math.round(pendingBox.confidence * 100)}%）
+                </p>
+              ) : null}
+            </div>
             <div>
               <p className={`quality-summary quality-${pendingAsset.quality.status}`} role="status">
                 <strong>{qualityStatusLabel(pendingAsset.quality.status)}</strong>

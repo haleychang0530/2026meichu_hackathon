@@ -221,7 +221,7 @@ class GimbalController:
         assert self._serial is not None
         target_pan = max(-180, min(180, self._pan + pan_delta))
         target_tilt = max(0, min(50, self._tilt + tilt_delta))
-        target_pan = max(self._start_pan - 8, min(self._start_pan + 8, target_pan))
+        target_pan = max(self._start_pan - 24, min(self._start_pan + 24, target_pan))
         target_tilt = max(self._start_tilt - 5, min(self._start_tilt + 5, target_tilt))
         pan_delta, tilt_delta = target_pan - self._pan, target_tilt - self._tilt
         if pan_delta == 0 and tilt_delta == 0:
@@ -254,7 +254,7 @@ class GimbalController:
                 self._last_axis = None
                 # A tiny, finite search gives the model another view without
                 # sweeping the whole table or moving outside the demo window.
-                search_steps = ((2, 0), (-2, 0), (-2, 0), (2, 0), (0, 2), (0, -2), (0, -2), (0, 2))
+                search_steps = ((8, 0), (-8, 0), (-8, 0), (8, 0), (0, 2), (0, -2), (0, -2), (0, 2))
                 if self._search_index >= len(search_steps):
                     return GimbalResult(state="not_found", message="找不到頁面；請先把紙張移到鏡頭附近。", pan=self._pan, tilt=self._tilt)
                 step = search_steps[self._search_index]
@@ -284,7 +284,7 @@ class GimbalController:
                 else:
                     self._tilt_sign *= -1
             self._last_axis, self._last_error = axis, error
-            step = int(math.copysign(2, error))
+            step = int(math.copysign(8 if axis == "pan" else 2, error))
             if axis == "pan":
                 return self._move(step * self._pan_sign, 0, box, "aligning")
             return self._move(0, step * self._tilt_sign, box, "aligning")

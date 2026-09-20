@@ -79,16 +79,23 @@ class GimbalLoopTests(unittest.TestCase):
         page = Detection(0.65, 0.2, 0.25, 0.6, 0.8, "model")
         gimbal, serial = controller([page] * 8)
         states = [gimbal.observe(frame()).state for _ in range(8)]
-        self.assertEqual(states[:4], ["aligning"] * 4)
-        self.assertEqual(states[4], "limit")
-        self.assertEqual(gimbal._pan, 8)
-        self.assertEqual(serial.commands, [("STEP", (2, 0))] * 4)
+        self.assertEqual(states[:3], ["aligning"] * 3)
+        self.assertEqual(states[3], "limit")
+        self.assertEqual(gimbal._pan, 24)
+        self.assertEqual(serial.commands, [("STEP", (8, 0))] * 3)
+
+    def test_tilt_step_remains_small(self) -> None:
+        page = Detection(0.2, 0.65, 0.6, 0.25, 0.8, "model")
+        gimbal, serial = controller([page])
+        self.assertEqual(gimbal.observe(frame()).state, "aligning")
+        self.assertEqual(serial.commands, [("STEP", (0, 2))])
 
     def test_missing_page_search_is_finite(self) -> None:
         gimbal, serial = controller([None] * 9)
         states = [gimbal.observe(frame()).state for _ in range(9)]
         self.assertEqual(states[-1], "not_found")
         self.assertEqual(len(serial.commands), 8)
+        self.assertEqual([args for _, args in serial.commands[:4]], [(8, 0), (-8, 0), (-8, 0), (8, 0)])
         self.assertEqual(gimbal._pan, 0)
         self.assertEqual(gimbal._tilt, 25)
 

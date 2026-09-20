@@ -4,23 +4,23 @@
 
 ## 準備
 
-1. 將 [esp32-gimbal.ino](../../firmware/esp32-gimbal/esp32-gimbal.ino) 用 Arduino IDE 上傳至 ESP32。需要安裝 `ESP32Servo` 函式庫。GPIO25 接 Z 軸左右轉動 servo 的訊號，GPIO26 接仰角 servo 的訊號。Servo 應使用獨立的合適電源，並與 ESP32 共地。
-2. 韌體開機會先寫入邏輯 Z 軸 0°、仰角 25°。請讓機構在此位置附近可安全活動。Z 軸邏輯限位 −180°～180°，仰角 0°～50°；不同 servo 的實際物理行程要依型號確認。Demo 的閉環只會在開機位置附近移動 Z 軸最多 ±8°、仰角最多 ±5°，單次最多 2°。
+1. 將 [esp32-gimbal-model.ino](../firmware/esp32-gimbal-model/esp32-gimbal-model.ino) 用 Arduino IDE 上傳至 ESP32。先前的 signal-test 韌體收到 STEP 只做一次四方向動作，無法跟隨模型結果。需要安裝 `ESP32Servo` 函式庫。GPIO25 接 Z 軸左右轉動 servo 的訊號，GPIO26 接仰角 servo 的訊號。Servo 應使用獨立的合適電源，並與 ESP32 共地。
+2. 韌體開機會先寫入邏輯 Z 軸 0°、仰角 25°。請讓機構在此位置附近可安全活動。Z 軸邏輯限位 −180°～180°，仰角 0°～50°；不同 servo 的實際物理行程要依型號確認。Demo 的閉環只會在每次 PING 的起點附近移動 Z 軸最多 ±24°、仰角最多 ±5°；Z 軸每步最多 8°，仰角每步最多 2°。Z 軸步幅沿用已測通的四方向動作幅度，以減少 SG90 小步進時不轉動的情況。
 3. 在 Core API 的 Python 環境安裝可選依賴：
    ```powershell
    cd apps/core-api
-   python -m pip install -r requirements-gimbal.txt
+   .\.venv\Scripts\python.exe -m pip install --only-binary=:all: -r requirements-gimbal.txt
    ```
 4. 首次使用前先在有網路的環境載入 `yolo11n.pt`，讓模型權重下載至 Core 的工作目錄；之後 demo 可離線使用：
    ```powershell
-   python -c "from ultralytics import YOLO; YOLO('yolo11n.pt')"
+   .\.venv\Scripts\python.exe -c "from ultralytics import YOLO; YOLO('yolo11n.pt')"
    ```
 5. 接上 ESP32，確認 Windows 裝置管理員中的 COM 埠。啟動 Core：
    ```powershell
    $env:CORE_PROFILE = 'demo'
    $env:GIMBAL_PORT = 'COM5' # 改成實際 COM 埠
    $env:GIMBAL_MODEL_PATH = 'yolo11n.pt'
-   python -m uvicorn core_api.app:app --host 127.0.0.1 --port 8000
+   .\.venv\Scripts\python.exe -m uvicorn core_api.app:app --host 127.0.0.1 --port 8000
    ```
 6. 另一個終端機啟動網頁：
    ```powershell

@@ -10,7 +10,7 @@ async function command(path: string, image?: Blob, signal?: AbortSignal): Promis
   const request = new AbortController();
   const cancel = () => request.abort();
   signal?.addEventListener('abort', cancel, { once: true });
-  const timeout = window.setTimeout(cancel, path === 'start' ? 30_000 : 8_000);
+  const timeout = window.setTimeout(cancel, path === 'start' || path === 'observe' ? 30_000 : 8_000);
   let response: Response;
   try {
     response = await fetch(`${coreBaseUrl}/api/gimbal/${path}`, { method: 'POST', body, signal: request.signal });
