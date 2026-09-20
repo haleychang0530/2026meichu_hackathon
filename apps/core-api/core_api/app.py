@@ -19,6 +19,7 @@ from .analyzer import LessonAnalyzer
 from .config import Settings
 from .db import Database
 from .errors import AppError
+from .gimbal import GimbalController, GimbalError, GimbalResult
 from .health import HealthAggregator
 from .image_pipeline import ImagePreparer
 from .lesson_pipeline import LessonAnalysisPipeline, accessible_activity_issues
@@ -129,6 +130,7 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         validate_model_output=settings.vlm_output_validation_enabled,
     )
     analyzer = LessonAnalyzer(preparer, primary, fixture, pipeline=pipeline)
+    gimbal = GimbalController(settings.gimbal_port, settings.gimbal_baud, settings.gimbal_model_path)
     health = HealthAggregator(settings, database, primary, rag_manager)
     semantic_judge = primary if callable(getattr(primary, "judge_answer", None)) else None
     sessions = SessionService(
@@ -159,6 +161,10 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
         try:
             yield
         finally:
+            try:
+                await asyncio.to_thread(gimbal.stop)
+            except GimbalError:
+                LOGGER.warning("gimbal did not acknowledge shutdown")
             rag_manager.close()
             await health.close()
             await primary.close()
@@ -232,6 +238,13 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
     async def app_error_handler(request: Request, error: AppError):
         return _error_response(error, _request_id(request))
 
+    @app.exception_handler(GimbalError)
+    async def gimbal_error_handler(request: Request, error: GimbalError):
+        return _error_response(
+            AppError(ErrorCode.GIMBAL_UNAVAILABLE, str(error), status_code=503, retryable=True),
+            _request_id(request),
+        )
+
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(request: Request, error: RequestValidationError):
         fields = [".".join(str(part) for part in item.get("loc", ()))[:200] for item in error.errors()[:20]]
@@ -304,6 +317,26 @@ def create_app(settings: Settings | None = None, provider: LessonProvider | None
     @app.get("/api/health", response_model=HealthResponse, operation_id="getHealth")
     async def get_health(request: Request) -> HealthResponse:
         return await health.snapshot(_request_id(request))
+
+    @app.post("/api/gimbal/start", response_model=GimbalResult, operation_id="startGimbal")
+    async def start_gimbal() -> GimbalResult:
+        return await asyncio.to_thread(gimbal.start)
+
+    @app.post("/api/gimbal/observe", response_model=GimbalResult, operation_id="observeGimbal")
+    async def observe_gimbal(image: UploadFile = File(...)) -> GimbalResult:
+        data = await image.read(1_000_001)
+        try:
+            return await asyncio.to_thread(gimbal.observe, data)
+        except ValueError as exc:
+            raise AppError(ErrorCode.VALIDATION_ERROR, str(exc), status_code=400) from exc
+
+    @app.post("/api/gimbal/test", response_model=GimbalResult, operation_id="testGimbal")
+    async def test_gimbal() -> GimbalResult:
+        return await asyncio.to_thread(gimbal.test)
+
+    @app.post("/api/gimbal/stop", response_model=GimbalResult, operation_id="stopGimbal")
+    async def stop_gimbal() -> GimbalResult:
+        return await asyncio.to_thread(gimbal.stop)
 
     @app.post(
         "/api/lessons/analyze",

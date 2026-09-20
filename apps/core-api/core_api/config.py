@@ -109,6 +109,9 @@ class Settings:
     rag_min_score: float = 0.40
     rag_context_budget_chars: int = 1600
     language_golden_path: Path = Path("data/language/normalization-golden.json")
+    gimbal_port: str | None = None
+    gimbal_baud: int = 115200
+    gimbal_model_path: str = "yolo11n.pt"
 
     @property
     def database_path(self) -> Path:
@@ -210,4 +213,7 @@ class Settings:
             language_golden_path=Path(
                 os.getenv("LANGUAGE_GOLDEN_PATH", str(defaults.language_golden_path))
             ).expanduser(),
+            gimbal_port=os.getenv("GIMBAL_PORT", "").strip() or None,
+            gimbal_baud=_int_env("GIMBAL_BAUD", defaults.gimbal_baud, 1),
+            gimbal_model_path=os.getenv("GIMBAL_MODEL_PATH", defaults.gimbal_model_path).strip(),
         )
