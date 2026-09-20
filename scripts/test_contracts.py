@@ -35,6 +35,10 @@ EXPECTED_SCHEMAS = {
 
 EXPECTED_PATHS = {
     "core-api.openapi.json": {
+        "/api/gimbal/start",
+        "/api/gimbal/observe",
+        "/api/gimbal/test",
+        "/api/gimbal/stop",
         "/api/health",
         "/api/lessons/analyze",
         "/api/lessons/{lesson_id}",
