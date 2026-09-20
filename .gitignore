@@ -3,6 +3,12 @@ node_modules/
 apps/web/dist/
 *.tsbuildinfo
 
+# Linux deployment toolchain and generated runtime
+.runtime/
+
+# Local RAG corpus; keep licensed/source text out of Git
+local-rag-corpus/
+
 # Local developer overrides and secrets
 apps/web/.env.local
 apps/web/.env.*.local
