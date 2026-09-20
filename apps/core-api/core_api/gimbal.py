@@ -10,7 +10,7 @@ import io
 import math
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal
 
 from PIL import Image, UnidentifiedImageError
@@ -28,6 +28,7 @@ class PageBox:
     height: float
     confidence: float
     source: str
+    target: Literal["book", "paper", "tablet"] = "book"
 
 
 @dataclass(frozen=True)
@@ -50,13 +51,14 @@ class Detection:
     height: float
     confidence: float
     source: str
+    target: Literal["book", "paper", "tablet"] = "book"
 
     def response_box(self) -> PageBox:
         return PageBox(**self.__dict__)
 
 
 class PageDetector:
-    """Use a nano object detector first; use page contours for loose sheets."""
+    """Use YOLO book/device candidates, then a rectangular contour fallback."""
 
     def __init__(self, model_path: str) -> None:
         try:
@@ -69,48 +71,114 @@ class PageDetector:
             classes = names.items() if isinstance(names, dict) else enumerate(names)
             available = {str(name).lower(): int(index) for index, name in classes}
             self.page_class = available.get("page", available.get("book"))
-            if self.page_class is None:
-                raise ValueError("model has no page or book class")
+            self.page_target: Literal["book", "paper"] = "paper" if "page" in available else "book"
+            self.tablet_classes = {
+                available[name] for name in ("tablet", "tablet computer", "ipad") if name in available
+            }
+            # YOLO11n's COCO labels have no tablet class. These device labels
+            # are only demo candidates; the size/shape and next frame decide.
+            self.tablet_proxy_classes = {
+                available[name] for name in ("cell phone", "tv", "laptop") if name in available
+            }
+            if self.page_class is None and not self.tablet_classes and not self.tablet_proxy_classes:
+                raise ValueError("model has no supported target class")
         except Exception as exc:
-            raise GimbalError("無法載入具有 page 或 book 類別的輕量視覺模型。") from exc
+            raise GimbalError("無法載入具有課本或裝置類別的輕量視覺模型。") from exc
+
+    @staticmethod
+    def _looks_like_tablet(gray: Any, x: int, y: int, width: int, height: int) -> bool:
+        """Detect a dark bezel around a brighter screen in a demo image."""
+        import numpy as np
+
+        pad = max(3, round(min(width, height) * 0.06))
+        if width < pad * 4 or height < pad * 4:
+            return False
+        region = gray[y : y + height, x : x + width]
+        inner = region[pad:-pad, pad:-pad]
+        ring = np.concatenate((
+            region[:pad, :].ravel(),
+            region[-pad:, :].ravel(),
+            region[pad:-pad, :pad].ravel(),
+            region[pad:-pad, -pad:].ravel(),
+        ))
+        return bool(np.mean(ring < 90) > 0.55 and float(np.mean(inner)) > float(np.mean(ring)) + 35)
 
     def detect(self, image: Image.Image) -> Detection | None:
         import numpy as np
 
         width, height = image.size
+        device_classes = self.tablet_classes | self.tablet_proxy_classes
+        classes = sorted(device_classes | ({self.page_class} if self.page_class is not None else set()))
         try:
             results = self.model.predict(
                 source=image,
-                classes=[self.page_class],
+                classes=classes,
                 conf=0.25,
                 imgsz=640,
                 device="cpu",
                 verbose=False,
             )
         except Exception as exc:
-            raise GimbalError("本機頁面模型推論失敗。") from exc
-        if results and len(results[0].boxes):
-            boxes = results[0].boxes
-            index = int(boxes.conf.argmax().item())
-            left, top, right, bottom = boxes.xyxy[index].tolist()
-            return Detection(
-                x=max(0.0, left / width),
-                y=max(0.0, top / height),
-                width=min(1.0, (right - left) / width),
-                height=min(1.0, (bottom - top) / height),
-                confidence=float(boxes.conf[index].item()),
-                source="model",
-            )
+            raise GimbalError("本機教材模型推論失敗。") from exc
 
-        # COCO's "book" class does not promise detection of a loose page.
-        # This deliberately simple fallback is useful for a controlled demo.
+        candidates: list[tuple[int, float, Detection]] = []
+        if results:
+            boxes = results[0].boxes
+            for index in range(len(boxes)):
+                class_id = int(boxes.cls[index].item())
+                confidence = float(boxes.conf[index].item())
+                left, top, right, bottom = boxes.xyxy[index].tolist()
+                box_width = max(0.0, right - left)
+                box_height = max(0.0, bottom - top)
+                if box_width <= 0 or box_height <= 0:
+                    continue
+                if class_id in self.tablet_classes:
+                    priority, target = 0, "tablet"
+                elif class_id == self.page_class:
+                    priority, target = 1, self.page_target
+                elif class_id in self.tablet_proxy_classes:
+                    area = box_width * box_height / (width * height)
+                    aspect = box_width / box_height
+                    if area < 0.06 or not 0.55 <= aspect <= 2.0:
+                        continue
+                    priority, target = 2, "tablet"
+                else:
+                    continue
+                candidates.append((
+                    priority,
+                    confidence,
+                    Detection(
+                        x=max(0.0, left / width),
+                        y=max(0.0, top / height),
+                        width=min(1.0, box_width / width),
+                        height=min(1.0, box_height / height),
+                        confidence=confidence,
+                        source="model",
+                        target=target,
+                    ),
+                ))
+        if candidates:
+            selected = min(candidates, key=lambda item: (item[0], -item[1]))[2]
+            if selected.target == "book":
+                import cv2
+
+                gray = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2GRAY)
+                x = round(selected.x * width)
+                y = round(selected.y * height)
+                w = min(width - x, round(selected.width * width))
+                h = min(height - y, round(selected.height * height))
+                if self._looks_like_tablet(gray, x, y, w, h):
+                    return replace(selected, target="tablet")
+            return selected
+
+        # Controlled demo fallback for a loose sheet or rectangular screen.
         import cv2
 
         rgb = np.asarray(image)
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
         edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 60, 150)
         contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        candidates: list[tuple[float, tuple[int, int, int, int]]] = []
+        candidates_by_area: list[tuple[float, tuple[int, int, int, int]]] = []
         area = width * height
         for contour in contours:
             perimeter = cv2.arcLength(contour, True)
@@ -120,11 +188,12 @@ class PageDetector:
             x, y, w, h = cv2.boundingRect(polygon)
             fraction = cv2.contourArea(polygon) / area
             if 0.08 <= fraction <= 0.90 and w > 0 and h > 0:
-                candidates.append((fraction, (x, y, w, h)))
-        if not candidates:
+                candidates_by_area.append((fraction, (x, y, w, h)))
+        if not candidates_by_area:
             return None
-        _, (x, y, w, h) = max(candidates)
-        return Detection(x / width, y / height, w / width, h / height, 0.35, "contour")
+        _, (x, y, w, h) = max(candidates_by_area)
+        target = "tablet" if self._looks_like_tablet(gray, x, y, w, h) else "paper"
+        return Detection(x / width, y / height, w / width, h / height, 0.35, "contour", target)
 
 
 class SerialLink:
@@ -207,7 +276,7 @@ class GimbalController:
             self._stable = 0
             self._last_axis = None
             self._search_index = 0
-            return GimbalResult(state="searching", message="ESP32 已連線，正在尋找頁面。", pan=self._pan, tilt=self._tilt, sequence=sequence)
+            return GimbalResult(state="searching", message="ESP32 已連線，正在尋找課本、紙張或平板。", pan=self._pan, tilt=self._tilt, sequence=sequence)
 
     def test(self) -> GimbalResult:
         with self._lock:
@@ -256,7 +325,7 @@ class GimbalController:
                 # sweeping the whole table or moving outside the demo window.
                 search_steps = ((8, 0), (-8, 0), (-8, 0), (8, 0), (0, 2), (0, -2), (0, -2), (0, 2))
                 if self._search_index >= len(search_steps):
-                    return GimbalResult(state="not_found", message="找不到頁面；請先把紙張移到鏡頭附近。", pan=self._pan, tilt=self._tilt)
+                    return GimbalResult(state="not_found", message="找不到課本、紙張或平板；請先將教材移到鏡頭附近。", pan=self._pan, tilt=self._tilt)
                 step = search_steps[self._search_index]
                 self._search_index += 1
                 return self._move(*step, box=None, state="searching")

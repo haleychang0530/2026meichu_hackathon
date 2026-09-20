@@ -427,7 +427,8 @@
                   "width": { "type": "number" },
                   "height": { "type": "number" },
                   "confidence": { "type": "number" },
-                  "source": { "type": "string", "enum": ["model", "contour"] }
+                  "source": { "type": "string", "enum": ["model", "contour"] },
+                  "target": { "type": "string", "enum": ["book", "paper", "tablet"] }
                 }
               }
             ]

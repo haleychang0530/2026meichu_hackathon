@@ -305,6 +305,8 @@ export interface components {
                 confidence: number;
                 /** @enum {string} */
                 source: "model" | "contour";
+                /** @enum {string} */
+                target?: "book" | "paper" | "tablet";
             };
         };
         Lesson: components["schemas"]["lesson.schema"];

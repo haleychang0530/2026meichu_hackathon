@@ -29,6 +29,12 @@ type ImageSource = 'camera' | 'file';
 type AlignmentStatus = 'idle' | 'starting' | 'testing' | 'aligning' | 'ready' | 'failed';
 type PageBox = NonNullable<GimbalResult['box']>;
 
+function targetLabel(box: PageBox): string {
+  if (box.target === 'tablet') return '平板';
+  if (box.target === 'paper' || (box.source === 'contour' && !box.target)) return '紙張';
+  return '課本';
+}
+
 function cropDetectedBox(box: PageBox | null, crop?: CropRect): PageBox | null {
   if (!box || !crop) return box;
   const left = Math.max(box.x, crop.x);
@@ -183,7 +189,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         return;
       }
       setCameraStatus('ready');
-      setCameraMessage('相機已就緒。按「自動尋找紙張／課本」讓雲台小幅調整，再按拍照。');
+      setCameraMessage('相機已就緒。按「自動尋找紙張／課本／平板」讓雲台小幅調整，再按拍照。');
       await refreshDevices();
       const actualDeviceId = stream.getVideoTracks()[0]?.getSettings().deviceId;
       if (actualDeviceId) setSelectedDeviceId(actualDeviceId);
@@ -449,12 +455,12 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
       {cameraStatus === 'ready' ? (
         <>
           <p className="camera-status" role="status" aria-live="polite">
-            {alignmentMessage || '先自動尋找紙張／課本，再拍照。'}
+            {alignmentMessage || '先自動尋找紙張／課本／平板，再拍照。'}
             {alignmentResult?.pan != null && alignmentResult.tilt != null
               ? `（Z 軸 ${alignmentResult.pan}°、仰角 ${alignmentResult.tilt}°）`
               : ''}
             {lastAck != null ? ` ESP ACK #${lastAck}。` : ''}
-            {alignmentResult?.box ? ` 辨識來源：${alignmentResult.box.source === 'model' ? '輕量模型' : '紙張輪廓'}（${Math.round(alignmentResult.box.confidence * 100)}%）。` : ''}
+            {alignmentResult?.box ? ` 已辨識${targetLabel(alignmentResult.box)}；來源：${alignmentResult.box.source === 'model' ? '輕量模型' : '輪廓判斷'}（${Math.round(alignmentResult.box.confidence * 100)}%）。` : ''}
           </p>
           <div className="camera-controls" aria-label="拍照操作">
             <button
@@ -463,7 +469,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
               disabled={disabled || processing || alignmentStatus === 'starting' || alignmentStatus === 'testing' || alignmentStatus === 'aligning'}
               onClick={() => void startAlignment()}
             >
-              {alignmentStatus === 'ready' || alignmentStatus === 'failed' ? '重新對準' : '自動尋找紙張／課本'}
+              {alignmentStatus === 'ready' || alignmentStatus === 'failed' ? '重新對準' : '自動尋找紙張／課本／平板'}
             </button>
             <button
               className="button"
@@ -522,7 +528,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
               </div>
               {pendingBox ? (
                 <p className="photo-detection-caption">
-                  已辨識教材位置 · {pendingBox.source === 'model' ? '輕量模型' : '紙張輪廓'}（{Math.round(pendingBox.confidence * 100)}%）
+                  已辨識{targetLabel(pendingBox)} · {pendingBox.source === 'model' ? '輕量模型' : '輪廓判斷'}（{Math.round(pendingBox.confidence * 100)}%）
                 </p>
               ) : null}
             </div>
