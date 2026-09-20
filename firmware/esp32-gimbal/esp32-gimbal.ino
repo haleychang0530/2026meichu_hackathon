@@ -29,8 +29,8 @@ bool tested = false;
 void setAngles(int newPan, int newTilt) {
   pan = constrain(newPan, PAN_MIN, PAN_MAX);
   tilt = constrain(newTilt, TILT_MIN, TILT_MAX);
-  // 沿用已成功運作的測試韌體 PWM 映射。
-  panServo.writeMicroseconds(map(pan, PAN_MIN, PAN_MAX, 500, 2500));
+  // Z 軸實際安裝方向相反：反轉 PWM 映射，邏輯角度與 Serial ACK 不變。
+  panServo.writeMicroseconds(map(pan, PAN_MIN, PAN_MAX, 2500, 500));
   tiltServo.writeMicroseconds(map(tilt, TILT_MIN, TILT_MAX, 1250, 1750));
 }
 
@@ -86,6 +86,9 @@ void loop() {
   }
 
   if (strcmp(command, "PING") == 0 && fields == 2) {
+    // 每次開始新一輪對準，先回初始位置並保持 PWM 鎖定。
+    setAngles(PAN_HOME, TILT_HOME);
+    delay(400);
     active = true;
     tested = false;
     startPan = pan;
