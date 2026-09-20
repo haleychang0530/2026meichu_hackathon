@@ -76,6 +76,36 @@ function processingErrorMessage(error: unknown): string {
   return '圖片處理失敗，請重新拍攝或選擇另一張圖片。';
 }
 
+function waitForVideoReady(video: HTMLVideoElement, isCurrent: () => boolean): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const interval = window.setInterval(check, 50);
+    const timeout = window.setTimeout(() => finish(false), 3_000);
+
+    function finish(ready: boolean): void {
+      if (settled) return;
+      settled = true;
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+      video.removeEventListener('loadedmetadata', check);
+      video.removeEventListener('canplay', check);
+      resolve(ready);
+    }
+
+    function check(): void {
+      if (!isCurrent()) {
+        finish(false);
+        return;
+      }
+      if (video.videoWidth > 0 && video.videoHeight > 0) finish(true);
+    }
+
+    video.addEventListener('loadedmetadata', check);
+    video.addEventListener('canplay', check);
+    check();
+  });
+}
+
 export function CameraCapture({ disabled = false, onImageSelected, resetToken }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -90,6 +120,8 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
   const alignmentAbortRef = useRef<AbortController | null>(null);
   const gimbalRequestedRef = useRef(false);
   const pendingStopRef = useRef<Promise<void> | null>(null);
+  const previewSessionRef = useRef(0);
+  const autoAlignmentSessionRef = useRef(0);
   const [devices, setDevices] = useState<readonly CameraOption[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
@@ -120,8 +152,75 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     }
   }, []);
 
+  const startAlignment = useCallback(async (session: number, video: HTMLVideoElement): Promise<void> => {
+    const isCurrentPreview = (): boolean => (
+      previewSessionRef.current === session
+      && streamRef.current !== null
+      && videoRef.current === video
+      && video.videoWidth > 0
+      && video.videoHeight > 0
+    );
+    if (!isCurrentPreview()) return;
+
+    setAlignmentStatus('starting');
+    await endAlignment();
+    if (!isCurrentPreview()) return;
+    const run = alignmentRunRef.current + 1;
+    alignmentRunRef.current = run;
+    const abort = new AbortController();
+    alignmentAbortRef.current = abort;
+    setAlignmentResult(null);
+    setLastAck(null);
+    setAlignmentStatus('starting');
+    setAlignmentMessage('正在連線 ESP32 與本機視覺模型……');
+    try {
+      gimbalRequestedRef.current = true;
+      const started = await gimbalClient.start(abort.signal);
+      if (alignmentRunRef.current !== run || !isCurrentPreview()) return;
+      setAlignmentResult(started);
+      setLastAck(started.sequence ?? null);
+      setAlignmentStatus('testing');
+      setAlignmentMessage('ESP32 收到測試指令，雲台正在上下左右小幅移動。');
+      const tested = await gimbalClient.test(abort.signal);
+      if (alignmentRunRef.current !== run || !isCurrentPreview()) return;
+      setAlignmentResult(tested);
+      setLastAck(tested.sequence ?? null);
+      setAlignmentStatus('aligning');
+      for (let attempt = 0; attempt < 18; attempt += 1) {
+        if (!isCurrentPreview() || alignmentRunRef.current !== run) return;
+        const frame = await previewFrame(video);
+        if (!isCurrentPreview() || alignmentRunRef.current !== run) return;
+        const result = await gimbalClient.observe(frame, abort.signal);
+        if (alignmentRunRef.current !== run || !isCurrentPreview()) return;
+        setAlignmentResult(result);
+        if (result.sequence != null) setLastAck(result.sequence);
+        setAlignmentMessage(result.message);
+        if (result.state === 'ready') {
+          setAlignmentStatus('ready');
+          return;
+        }
+        if (result.state === 'limit' || result.state === 'not_found') {
+          setAlignmentStatus('failed');
+          return;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+      }
+      if (alignmentRunRef.current === run) {
+        setAlignmentStatus('failed');
+        setAlignmentMessage('對準時間已到；可以手動拍照，或調整紙張後重新對準。');
+      }
+    } catch (error) {
+      if (alignmentRunRef.current !== run || abort.signal.aborted) return;
+      setAlignmentStatus('failed');
+      setAlignmentMessage(error instanceof Error ? error.message : '雲台對準失敗；可以手動拍照。');
+    } finally {
+      if (alignmentRunRef.current === run) alignmentAbortRef.current = null;
+    }
+  }, [endAlignment]);
+
   const stopPreview = useCallback(() => {
     void endAlignment();
+    previewSessionRef.current += 1;
     setAlignmentStatus('idle');
     setAlignmentResult(null);
     operationRef.current += 1;
@@ -158,6 +257,8 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
 
     const operation = operationRef.current + 1;
     operationRef.current = operation;
+    const previewSession = previewSessionRef.current + 1;
+    previewSessionRef.current = previewSession;
     const previousStream = streamRef.current;
     streamRef.current = null;
     previousStream?.getTracks().forEach((track) => track.stop());
@@ -179,20 +280,45 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         return;
       }
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      const video = videoRef.current;
+      if (!video) throw new Error('找不到相機預覽元件。');
+      video.srcObject = stream;
+      await video.play();
+      const ready = await waitForVideoReady(
+        video,
+        () => operationRef.current === operation && streamRef.current === stream && videoRef.current === video,
+      );
+      if (!ready) {
+        if (operationRef.current !== operation) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        throw new Error('相機畫面尚未就緒。');
       }
       if (operationRef.current !== operation) {
         stream.getTracks().forEach((track) => track.stop());
-        if (videoRef.current?.srcObject === stream) videoRef.current.srcObject = null;
+        if (video.srcObject === stream) video.srcObject = null;
         return;
       }
       setCameraStatus('ready');
-      setCameraMessage('相機已就緒。按「自動尋找紙張／課本／平板」讓雲台小幅調整，再按拍照。');
-      await refreshDevices();
+      setCameraMessage('相機已就緒，正在自動對準；對準失敗仍可直接拍照。');
+      try {
+        await refreshDevices();
+      } catch {
+        // A usable current stream should still start alignment if device enumeration is unavailable.
+      }
       const actualDeviceId = stream.getVideoTracks()[0]?.getSettings().deviceId;
       if (actualDeviceId) setSelectedDeviceId(actualDeviceId);
+      if (
+        operationRef.current === operation
+        && previewSessionRef.current === previewSession
+        && streamRef.current === stream
+        && videoRef.current === video
+        && autoAlignmentSessionRef.current !== previewSession
+      ) {
+        autoAlignmentSessionRef.current = previewSession;
+        void startAlignment(previewSession, video);
+      }
     } catch (error) {
       if (operationRef.current !== operation) return;
       const stream = streamRef.current;
@@ -204,7 +330,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
         : 'error');
       setCameraMessage(cameraErrorMessage(error));
     }
-  }, [endAlignment, refreshDevices]);
+  }, [endAlignment, refreshDevices, startAlignment]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -270,72 +396,21 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
     }
   }
 
-  async function startAlignment(): Promise<void> {
-    if (cameraStatus !== 'ready' || !videoRef.current) return;
-    setAlignmentStatus('starting');
-    await endAlignment();
-    if (!streamRef.current || !videoRef.current) return;
-    const run = alignmentRunRef.current + 1;
-    alignmentRunRef.current = run;
-    const abort = new AbortController();
-    alignmentAbortRef.current = abort;
-    setAlignmentResult(null);
-    setLastAck(null);
-    setAlignmentStatus('starting');
-    setAlignmentMessage('正在連線 ESP32 與本機視覺模型……');
-    try {
-      gimbalRequestedRef.current = true;
-      const started = await gimbalClient.start(abort.signal);
-      if (alignmentRunRef.current !== run) return;
-      setAlignmentResult(started);
-      setLastAck(started.sequence ?? null);
-      setAlignmentStatus('testing');
-      setAlignmentMessage('ESP32 收到測試指令，雲台正在上下左右小幅移動。');
-      const tested = await gimbalClient.test(abort.signal);
-      if (alignmentRunRef.current !== run) return;
-      setAlignmentResult(tested);
-      setLastAck(tested.sequence ?? null);
-      setAlignmentStatus('aligning');
-      for (let attempt = 0; attempt < 18; attempt += 1) {
-        const video = videoRef.current;
-        if (!video || alignmentRunRef.current !== run) return;
-        const frame = await previewFrame(video);
-        const result = await gimbalClient.observe(frame, abort.signal);
-        if (alignmentRunRef.current !== run) return;
-        setAlignmentResult(result);
-        if (result.sequence != null) setLastAck(result.sequence);
-        setAlignmentMessage(result.message);
-        if (result.state === 'ready') {
-          setAlignmentStatus('ready');
-          return;
-        }
-        if (result.state === 'limit' || result.state === 'not_found') {
-          setAlignmentStatus('failed');
-          return;
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
-      }
-      if (alignmentRunRef.current === run) {
-        setAlignmentStatus('failed');
-        setAlignmentMessage('對準時間已到；可以手動拍照，或調整紙張後重新對準。');
-      }
-    } catch (error) {
-      if (alignmentRunRef.current !== run || abort.signal.aborted) return;
-      setAlignmentStatus('failed');
-      setAlignmentMessage(error instanceof Error ? error.message : '雲台對準失敗；可以手動拍照。');
-    } finally {
-      if (alignmentRunRef.current === run) alignmentAbortRef.current = null;
-    }
-  }
-
   async function capturePhoto(): Promise<void> {
-    if (!videoRef.current || cameraStatus !== 'ready') return;
+    const video = videoRef.current;
+    const previewSession = previewSessionRef.current;
+    if (!video || cameraStatus !== 'ready') return;
     const detectedBox = alignmentResult?.box ?? null;
     await endAlignment();
-    if (!videoRef.current || cameraStatus !== 'ready') return;
+    if (
+      previewSessionRef.current !== previewSession
+      || streamRef.current === null
+      || videoRef.current !== video
+      || cameraStatus !== 'ready'
+    ) return;
     setProcessingMessage('');
     try {
-      const frame = await captureVideoFrame(videoRef.current);
+      const frame = await captureVideoFrame(video);
       if (!mountedRef.current) return;
       await prepareSource(frame, 'camera', 'camera-capture', undefined, detectedBox);
     } catch (error) {
@@ -455,7 +530,7 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
       {cameraStatus === 'ready' ? (
         <>
           <p className="camera-status" role="status" aria-live="polite">
-            {alignmentMessage || '先自動尋找紙張／課本／平板，再拍照。'}
+            {alignmentMessage || '相機已就緒，正在自動對準；對準失敗仍可直接拍照。'}
             {alignmentResult?.pan != null && alignmentResult.tilt != null
               ? `（Z 軸 ${alignmentResult.pan}°、仰角 ${alignmentResult.tilt}°）`
               : ''}
@@ -467,9 +542,12 @@ export function CameraCapture({ disabled = false, onImageSelected, resetToken }:
               className="button"
               type="button"
               disabled={disabled || processing || alignmentStatus === 'starting' || alignmentStatus === 'testing' || alignmentStatus === 'aligning'}
-              onClick={() => void startAlignment()}
+              onClick={() => {
+                const video = videoRef.current;
+                if (video) void startAlignment(previewSessionRef.current, video);
+              }}
             >
-              {alignmentStatus === 'ready' || alignmentStatus === 'failed' ? '重新對準' : '自動尋找紙張／課本／平板'}
+              重新對準
             </button>
             <button
               className="button"

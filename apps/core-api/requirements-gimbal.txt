@@ -1,3 +1,8 @@
 -r requirements.txt
+# PN54 runs the local gimbal detector on CPU; keep pip from resolving the
+# default CUDA-enabled Torch build on Linux.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.0+cpu
+torchvision==0.29.0+cpu
 pyserial>=3.5,<4
 ultralytics>=8.3,<9
